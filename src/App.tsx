@@ -69,6 +69,7 @@ export default function App() {
   const [isExportHistoryOpen, setIsExportHistoryOpen] = useState(false);
   const [isSyncSheetOpen, setIsSyncSheetOpen] = useState(false);
   const [isNoteSheetOpen, setIsNoteSheetOpen] = useState(false);
+  const [autoStartVoiceNote, setAutoStartVoiceNote] = useState(false);
 
   // Toast Notification State
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -618,30 +619,99 @@ export default function App() {
     setIsOrderModalOpen(true);
   };
 
-  // Highlight Notes Handlers (Requirement #1 & Notes Database Sync)
+  // Highlight Notes Handlers: Ketika dicentang, langsung otomatis masuk sebagai pesanan!
   const handleToggleNoteStatus = async (noteId: string) => {
     const target = notes.find((n) => n.id === noteId);
     if (!target) return;
     const newDone = !target.isDone;
 
-    setNotes((prev) =>
-      prev.map((n) => (n.id === noteId ? { ...n, isDone: newDone } : n))
-    );
+    if (newDone) {
+      // Dicentang / Follow Up Selesai -> Langsung Masuk Sebagai Pesanan
+      const itemName = target.namaBarang?.trim() || target.catatan?.trim() || 'Barang dari Catatan';
+      const itemQty = target.qty && target.qty > 0 ? target.qty : 1;
+      const itemSatuan = target.satuan || 'Kg';
+      const targetDapur = target.tujuanDapur || kitchens[0]?.nama || 'Siliragung';
+      const targetToko = stores[0]?.nama || 'HTG';
+      const targetPemasok = pemasokList[0] || 'Pemasok 1';
+      const targetTanggal = selectedDate || new Date().toISOString().split('T')[0];
 
-    // 2-Way Sync to Google Sheets sheet "notes"
-    const res = await updateRow(
-      'notes',
-      {
-        ID: target.id,
-        CATATAN: target.catatan,
-        DAPUR: target.tujuanDapur,
-      },
-      {
-        STATUS: newDone ? 'DONE' : 'FOLLOW UP',
-      }
-    );
-    if (!res.success) {
-      console.warn('Gagal sync status note ke Google Sheets:', res.error);
+      // Cari perkiraan harga dari riwayat jika barang pernah dipesan sebelumnya
+      const prevOrderWithPrice = orders.find(
+        (o) => o.namaBarang.toLowerCase() === itemName.toLowerCase() && (o.hargaBeli > 0 || o.hargaJual > 0)
+      );
+      const autoHargaBeli = prevOrderWithPrice?.hargaBeli || 0;
+      const autoHargaJual = prevOrderWithPrice?.hargaJual || 0;
+
+      const newOrderFromNote: OrderItem = {
+        id: `ord-from-note-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        namaBarang: itemName,
+        qty: itemQty,
+        hargaBeli: autoHargaBeli,
+        hargaJual: autoHargaJual,
+        toko: targetToko,
+        tujuanDapur: targetDapur,
+        pemasok: targetPemasok,
+        status: 'pending',
+        paymentStatus: 'UNPAID',
+        deliveryStatus: 'PENDING',
+        tanggal: targetTanggal,
+        createdAt: new Date().toISOString(),
+        catatan: `Dari Catatan: ${target.catatan || itemName} (${itemQty} ${itemSatuan})`,
+      };
+
+      // 1. Masukkan ke pesanan langsung
+      setOrders((prev) => [newOrderFromNote, ...prev]);
+
+      // 2. Tandai status note menjadi Done & simpan referensi orderId
+      setNotes((prev) =>
+        prev.map((n) => (n.id === noteId ? { ...n, isDone: true, orderId: newOrderFromNote.id } : n))
+      );
+
+      showToast(`Catatan dicentang: Langsung MASUK JADI PESANAN (${itemName} - ${itemQty} ${itemSatuan})!`, 'success');
+
+      // 3. Sinkronisasi ke Google Sheets sheet "pesanan"
+      setIsSyncingGas(true);
+      addRow('pesanan', buildPesananPayload(newOrderFromNote))
+        .then((orderRes) => {
+          if (!orderRes.success) {
+            console.warn('Gagal sync pesanan dari note ke sheet pesanan:', orderRes.error);
+          }
+        })
+        .catch((err) => console.warn('Gagal sync pesanan dari note:', err))
+        .finally(() => setIsSyncingGas(false));
+
+      // 4. Sinkronisasi perubahan status ke sheet "notes"
+      updateRow(
+        'notes',
+        {
+          ID: target.id,
+          CATATAN: target.catatan,
+          DAPUR: target.tujuanDapur,
+        },
+        {
+          STATUS: 'DONE',
+        }
+      ).catch((err) => console.warn('Gagal sync status note ke sheet notes:', err));
+
+    } else {
+      // Batal centang / Kembalikan ke Follow Up
+      setNotes((prev) =>
+        prev.map((n) => (n.id === noteId ? { ...n, isDone: false } : n))
+      );
+      showToast('Status catatan dikembalikan ke Follow Up', 'info');
+
+      // Sync perubahan status ke sheet "notes"
+      updateRow(
+        'notes',
+        {
+          ID: target.id,
+          CATATAN: target.catatan,
+          DAPUR: target.tujuanDapur,
+        },
+        {
+          STATUS: 'FOLLOW UP',
+        }
+      ).catch((err) => console.warn('Gagal sync status note ke sheet notes:', err));
     }
   };
 
@@ -1049,7 +1119,10 @@ export default function App() {
         kitchens={kitchens}
         onToggleNoteStatus={handleToggleNoteStatus}
         onDeleteNote={handleDeleteNote}
-        onOpenNewNoteSheet={() => setIsNoteSheetOpen(true)}
+        onOpenNewNoteSheet={(startVoice) => {
+          setAutoStartVoiceNote(!!startVoice);
+          setIsNoteSheetOpen(true);
+        }}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenExportHistory={() => setIsExportHistoryOpen(true)}
         onOpenSyncSheet={() => setIsSyncSheetOpen(true)}
@@ -1157,10 +1230,14 @@ export default function App() {
       {/* 0. Highlight Note Tab Bar Sheet Form */}
       <NoteSheet
         isOpen={isNoteSheetOpen}
-        onClose={() => setIsNoteSheetOpen(false)}
+        onClose={() => {
+          setIsNoteSheetOpen(false);
+          setAutoStartVoiceNote(false);
+        }}
         onSave={handleSaveNote}
         kitchens={kitchens}
         existingItemNames={Array.from(new Set(orders.map((o) => o.namaBarang)))}
+        autoStartVoice={autoStartVoiceNote}
       />
 
       {/* 1. Add / Edit Order Tab Bar Sheet */}

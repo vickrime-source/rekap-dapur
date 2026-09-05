@@ -409,10 +409,12 @@ export function buildPesananPayload(item: Partial<OrderItem> & {
  * Header: ID, DAPUR, ITEM, CATATAN, STATUS, CREATED_AT
  */
 export function buildNotesPayload(note: Partial<NoteItem>) {
+  const qtyStr = note.qty ? `${note.qty} ${note.satuan || 'Kg'}` : '';
   return {
     ID: note.id || `note-${Date.now()}`,
     DAPUR: note.tujuanDapur || 'Siliragung',
     ITEM: note.namaBarang || '',
+    QTY: qtyStr,
     CATATAN: note.catatan || '',
     STATUS: note.isDone ? 'DONE' : 'FOLLOW UP',
     CREATED_AT: note.createdAt || new Date().toISOString(),
@@ -525,10 +527,30 @@ export function mapRawNote(row: any): NoteItem {
   const statusStr = String(row.STATUS || row.status || row.isDone || '').toUpperCase().trim();
   const isDone = statusStr === 'DONE' || statusStr === 'SELESAI' || statusStr === 'TRUE' || statusStr === '1' || row.isDone === true;
 
+  let parsedQty: number | undefined = undefined;
+  let parsedSatuan: string | undefined = undefined;
+  const rawQtyVal = row.QTY || row.qty || row.Jumlah || row.jumlah;
+  if (rawQtyVal !== undefined && rawQtyVal !== null && rawQtyVal !== '') {
+    const rawQtyStr = String(rawQtyVal).trim();
+    const m = rawQtyStr.match(/^([\d.,]+)\s*([a-zA-Z]+)?$/);
+    if (m) {
+      parsedQty = parseFloat(m[1].replace(',', '.'));
+      parsedSatuan = m[2] || 'Kg';
+    } else {
+      const numOnly = parseFloat(rawQtyStr.replace(',', '.'));
+      if (!isNaN(numOnly)) {
+        parsedQty = numOnly;
+        parsedSatuan = 'Kg';
+      }
+    }
+  }
+
   return {
     id: String(row.ID || row.id || row.NO || row.no || `note-${row.rowIndex || Date.now()}-${Math.floor(Math.random() * 1000)}`),
     tujuanDapur: String(row.DAPUR || row.dapur || row.tujuanDapur || 'Siliragung'),
     namaBarang: (row.ITEM || row.item || row.namaBarang || row.nama_barang) ? String(row.ITEM || row.item || row.namaBarang || row.nama_barang) : undefined,
+    qty: parsedQty,
+    satuan: parsedSatuan,
     catatan: String(row.CATATAN || row.catatan || row.NOTE || row.note || ''),
     isDone,
     createdAt: String(row.CREATED_AT || row.created_at || row.TANGGAL || row.tanggal || new Date().toISOString()),

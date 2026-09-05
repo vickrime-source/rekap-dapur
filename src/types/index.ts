@@ -63,9 +63,12 @@ export interface NoteItem {
   id: string;
   tujuanDapur: string;
   namaBarang?: string;
+  qty?: number;
+  satuan?: string;
   catatan: string;
   isDone: boolean;
   createdAt: string;
+  orderId?: string;
 }
 
 export interface ExportHistoryItem {
