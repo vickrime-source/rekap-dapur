@@ -1385,6 +1385,7 @@ export default function App() {
         stores={stores}
         pemasokList={pemasokList}
         selectedDate={selectedDate}
+        existingOrders={orders}
       />
 
       {/* 2. Invoice Form (Step 1 Confirmation Bottom Sheet) */}

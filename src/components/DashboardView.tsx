@@ -6,6 +6,8 @@ import {
   Utensils,
   Calendar as CalendarIcon,
   Filter,
+  Activity,
+  ChevronDown,
   DollarSign,
   TrendingUp,
   Package,
@@ -111,95 +113,120 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-3 pt-1 pb-36 sm:pb-24 font-sans text-slate-800">
-      {/* Compact Search & Action Bar (Replacing the old big top banner) */}
-      <div className="bg-white rounded-xl border border-slate-200/80 p-2.5 shadow-xs flex flex-wrap items-center justify-between gap-2">
-        {/* Search Input */}
-        <div className="relative flex-1 min-w-[180px]">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+      {/* Search & Pill Filter Bar (Matching User Reference Image) */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Pill Filters Group */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+          {/* Pill 1: Filter Icon (Purple) + Semua Jasa / Toko + Chevron */}
+          <div className="relative inline-flex items-center">
+            <div className="rounded-full px-4 py-2 bg-white border border-indigo-200/90 shadow-2xs hover:border-indigo-400 hover:shadow-xs transition-all flex items-center gap-2 cursor-pointer">
+              <Filter className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
+                {selectedStoreFilter === 'all' ? 'Semua Jasa' : `Toko ${selectedStoreFilter}`}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            </div>
+            <select
+              value={selectedStoreFilter}
+              onChange={(e) => setSelectedStoreFilter(e.target.value)}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs"
+            >
+              <option value="all">Semua Jasa ({stores.length} Toko)</option>
+              {stores.map((st) => (
+                <option key={st.id} value={st.nama}>
+                  Toko {st.nama}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Pill 2: Activity Icon (Purple) + Semua Progres / Dapur + Chevron */}
+          <div className="relative inline-flex items-center">
+            <div className="rounded-full px-4 py-2 bg-white border border-indigo-200/90 shadow-2xs hover:border-indigo-400 hover:shadow-xs transition-all flex items-center gap-2 cursor-pointer">
+              <Activity className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
+                {selectedKitchenFilter === 'all' ? 'Semua Progres' : `Dapur ${selectedKitchenFilter}`}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            </div>
+            <select
+              value={selectedKitchenFilter}
+              onChange={(e) => setSelectedKitchenFilter(e.target.value)}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs"
+            >
+              <option value="all">Semua Progres ({kitchens.length} Dapur)</option>
+              {kitchens.map((k) => (
+                <option key={k.id} value={k.nama}>
+                  Dapur {k.nama}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Pill 3: Calendar Icon (Purple) + All Time / Date Range + Chevron */}
+          <div className="relative inline-flex items-center">
+            {useDateFilter ? (
+              <div className="rounded-full px-4 py-2 bg-indigo-50/80 border border-indigo-300 shadow-2xs flex items-center gap-2 cursor-pointer">
+                <CalendarIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                <span
+                  onClick={() => setIsCalendarOpen(true)}
+                  className="text-xs font-bold text-indigo-900 whitespace-nowrap"
+                >
+                  {endDate && endDate !== selectedDate
+                    ? `${formatTanggal(selectedDate, false)} - ${formatTanggal(endDate, false)}`
+                    : formatTanggal(selectedDate, false)}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setUseDateFilter(false);
+                    setEndDate(undefined);
+                  }}
+                  className="text-indigo-400 hover:text-indigo-700 ml-0.5 p-0.5"
+                  title="Reset ke All Time"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setUseDateFilter(true);
+                  setIsCalendarOpen(true);
+                }}
+                className="rounded-full px-4 py-2 bg-white border border-indigo-200/90 shadow-2xs hover:border-indigo-400 hover:shadow-xs transition-all flex items-center gap-2 cursor-pointer text-left"
+              >
+                <CalendarIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
+                  All Time
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Search Input in pill aesthetic */}
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Cari barang, toko, dapur..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200/80 rounded-lg text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-indigo-500 transition-all"
+            className="w-full pl-9 pr-7 py-2 bg-white border border-slate-200/90 rounded-full text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 shadow-2xs transition-all"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
-
-        {/* Store Filter */}
-        <select
-          value={selectedStoreFilter}
-          onChange={(e) => setSelectedStoreFilter(e.target.value)}
-          className="px-2.5 py-1.5 bg-slate-50 border border-slate-200/80 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:bg-white"
-        >
-          <option value="all">Semua Toko ({stores.length})</option>
-          {stores.map((st) => (
-            <option key={st.id} value={st.nama}>
-              Toko {st.nama}
-            </option>
-          ))}
-        </select>
-
-        {/* Kitchen Filter */}
-        <select
-          value={selectedKitchenFilter}
-          onChange={(e) => setSelectedKitchenFilter(e.target.value)}
-          className="px-2.5 py-1.5 bg-slate-50 border border-slate-200/80 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:bg-white"
-        >
-          <option value="all">Semua Dapur ({kitchens.length})</option>
-          {kitchens.map((k) => (
-            <option key={k.id} value={k.nama}>
-              Dapur {k.nama}
-            </option>
-          ))}
-        </select>
-
-        {/* Optional Date Filter Toggle */}
-        {useDateFilter ? (
-          <div className="flex items-center space-x-1">
-            <button
-              type="button"
-              onClick={() => setIsCalendarOpen(true)}
-              className="px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-xs font-bold text-indigo-700 flex items-center gap-1"
-            >
-              <CalendarIcon className="w-3.5 h-3.5" />
-              <span>
-                {endDate && endDate !== selectedDate
-                  ? `${formatTanggal(selectedDate, false)} - ${formatTanggal(endDate, false)}`
-                  : formatTanggal(selectedDate, false)}
-              </span>
-            </button>
-            <button
-              onClick={() => {
-                setUseDateFilter(false);
-                setEndDate(undefined);
-              }}
-              className="p-1 text-slate-400 hover:text-slate-600"
-              title="Kembali ke All Time"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              setUseDateFilter(true);
-              setIsCalendarOpen(true);
-            }}
-            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200/80 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1"
-          >
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <span>Filter Tanggal</span>
-          </button>
-        )}
       </div>
 
       {/* Main Hierarchical Orders Table */}

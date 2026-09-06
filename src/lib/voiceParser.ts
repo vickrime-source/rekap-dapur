@@ -13,6 +13,8 @@ export interface ParsedVoiceNote {
   qty: number;
   satuan: string;
   tujuanDapur?: string;
+  toko?: string;
+  pemasok?: string;
   catatan?: string;
 }
 
@@ -93,12 +95,16 @@ export function capitalizeWords(str: string): string {
 
 export function parseVoiceInput(
   transcript: string,
-  availableKitchens: Array<{ id: string; nama: string }> = []
+  availableKitchens: Array<{ id?: string; nama: string }> = [],
+  availableStores: Array<{ id?: string; nama: string }> = [],
+  availablePemasok: string[] = []
 ): ParsedVoiceNote {
   const rawTranscript = transcript.trim();
   let text = rawTranscript.toLowerCase();
 
   let detectedKitchen: string | undefined = undefined;
+  let detectedStore: string | undefined = undefined;
+  let detectedPemasok: string | undefined = undefined;
 
   // 1. Check if kitchen is mentioned (e.g. "dapur siliragung" or "untuk siliragung" or just "siliragung")
   for (const k of availableKitchens) {
@@ -119,6 +125,43 @@ export function parseVoiceInput(
       }
     }
     if (detectedKitchen) break;
+  }
+
+  // 1b. Check if store is mentioned (e.g. "toko htg", "htg", "luweng boga", "prohe", "adifruita")
+  for (const s of availableStores) {
+    const sName = s.nama.toLowerCase();
+    const patterns = [
+      new RegExp(`\\btoko\\s+${sName}\\b`, 'i'),
+      new RegExp(`\\bdari\\s+toko\\s+${sName}\\b`, 'i'),
+      new RegExp(`\\b${sName}\\b`, 'i'),
+    ];
+    for (const pat of patterns) {
+      if (pat.test(text)) {
+        detectedStore = s.nama;
+        text = text.replace(pat, ' ').trim();
+        break;
+      }
+    }
+    if (detectedStore) break;
+  }
+
+  // 1c. Check if supplier is mentioned
+  for (const p of availablePemasok) {
+    const pName = p.toLowerCase();
+    const patterns = [
+      new RegExp(`\\bpemasok\\s+${pName}\\b`, 'i'),
+      new RegExp(`\\bsupplier\\s+${pName}\\b`, 'i'),
+      new RegExp(`\\bdari\\s+${pName}\\b`, 'i'),
+      new RegExp(`\\b${pName}\\b`, 'i'),
+    ];
+    for (const pat of patterns) {
+      if (pat.test(text)) {
+        detectedPemasok = p;
+        text = text.replace(pat, ' ').trim();
+        break;
+      }
+    }
+    if (detectedPemasok) break;
   }
 
   // Normalize multi-word numbers: "satu setengah" -> "1.5", "dua setengah" -> "2.5"
@@ -210,6 +253,8 @@ export function parseVoiceInput(
     qty: Math.max(0.1, qty),
     satuan,
     tujuanDapur: detectedKitchen,
+    toko: detectedStore,
+    pemasok: detectedPemasok,
     catatan,
   };
 }

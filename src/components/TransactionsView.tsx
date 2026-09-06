@@ -12,7 +12,9 @@ import {
   Utensils,
   Package,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Filter,
+  Activity
 } from 'lucide-react';
 import { OrderItem, Kitchen, PaymentStatus, DeliveryStatus } from '../types';
 import { formatRupiah, formatTanggalDisatuin, getTokoBadgeStyle } from '../lib/formatters';
@@ -435,51 +437,77 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         )}
       </div>
 
-      {/* Search & Filter Toolbar */}
-      <div className="bg-white rounded-xl border border-slate-200 p-2.5 shadow-xs flex flex-wrap items-center justify-between gap-2">
-        <div className="relative flex-1 min-w-[180px]">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+      {/* Search & Filter Toolbar (Matching Pill Design from User Reference) */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Pill Filters Group */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+          {/* Pill 1: Filter Pemasok with Purple Filter Icon */}
+          <div className="relative inline-flex items-center">
+            <div className="rounded-full px-4 py-2 bg-white border border-indigo-200/90 shadow-2xs hover:border-indigo-400 hover:shadow-xs transition-all flex items-center gap-2 cursor-pointer">
+              <Filter className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
+                {selectedPemasok === 'all' ? 'Semua Pemasok' : selectedPemasok}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            </div>
+            <select
+              value={selectedPemasok}
+              onChange={(e) => setSelectedPemasok(e.target.value)}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs"
+            >
+              <option value="all">Semua Pemasok ({pemasokList.length})</option>
+              {pemasokList.map((p) => (
+                <option key={p} value={p}>
+                  Pemasok: {p}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Pill 2: Filter Status with Purple Activity Icon */}
+          <div className="relative inline-flex items-center">
+            <div className="rounded-full px-4 py-2 bg-white border border-indigo-200/90 shadow-2xs hover:border-indigo-400 hover:shadow-xs transition-all flex items-center gap-2 cursor-pointer">
+              <Activity className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
+                {selectedStatusFilter === 'all'
+                  ? 'Semua Status'
+                  : selectedStatusFilter === 'PAID'
+                  ? 'Status: LUNAS (PAID)'
+                  : 'Status: BELUM LUNAS (UNPAID)'}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            </div>
+            <select
+              value={selectedStatusFilter}
+              onChange={(e) => setSelectedStatusFilter(e.target.value as any)}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs"
+            >
+              <option value="all">Semua Status (PAID &amp; UNPAID)</option>
+              <option value="UNPAID">UNPAID (Belum Lunas)</option>
+              <option value="PAID">PAID (Lunas)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Search Input in pill aesthetic */}
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Cari transaksi, barang, pemasok, dapur..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-indigo-500 transition-all"
+            className="w-full pl-9 pr-7 py-2 bg-white border border-slate-200/90 rounded-full text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 shadow-2xs transition-all"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
-
-        {/* Filter Pemasok */}
-        <select
-          value={selectedPemasok}
-          onChange={(e) => setSelectedPemasok(e.target.value)}
-          className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:bg-white cursor-pointer"
-        >
-          <option value="all">Semua Pemasok ({pemasokList.length})</option>
-          {pemasokList.map((p) => (
-            <option key={p} value={p}>
-              Pemasok: {p}
-            </option>
-          ))}
-        </select>
-
-        {/* Filter Status */}
-        <select
-          value={selectedStatusFilter}
-          onChange={(e) => setSelectedStatusFilter(e.target.value as any)}
-          className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:bg-white cursor-pointer"
-        >
-          <option value="all">Semua Status (PAID &amp; UNPAID)</option>
-          <option value="UNPAID">UNPAID (Belum Lunas)</option>
-          <option value="PAID">PAID (Lunas)</option>
-        </select>
       </div>
 
       {/* MERGED OUTCOME TRANSACTIONS TABLE */}

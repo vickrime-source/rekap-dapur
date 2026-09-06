@@ -7,11 +7,14 @@ import {
   Store, 
   Truck, 
   Calendar, 
-  Trash2
+  Trash2,
+  Mic,
+  AlertCircle
 } from 'lucide-react';
 import { OrderItem, Kitchen, Store as StoreType } from '../types';
 import { formatRupiah, formatRupiahInput, parseRupiahInput } from '../lib/formatters';
 import { getItemSuggestions } from '../lib/suggestions';
+import { parseVoiceInput } from '../lib/voiceParser';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface OrderModalProps {
@@ -27,6 +30,7 @@ interface OrderModalProps {
   stores: StoreType[];
   pemasokList: string[];
   selectedDate: string;
+  existingOrders?: OrderItem[];
 }
 
 interface ItemRow {
@@ -47,6 +51,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   stores,
   pemasokList,
   selectedDate,
+  existingOrders = [],
 }) => {
   const [itemRows, setItemRows] = useState<ItemRow[]>([]);
   const [toko, setToko] = useState('');
@@ -62,6 +67,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selectedSugIdx, setSelectedSugIdx] = useState<number>(0);
 
+  // Voice Recognition States
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const recognitionRef = useRef<any>(null);
+
   useEffect(() => {
     if (initialData) {
       setItemRows([
@@ -73,14 +84,15 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           hargaJual: initialData.hargaJual,
         },
       ]);
-      setToko(initialData.toko);
-      setTujuanDapur(initialData.tujuanDapur);
-      setPemasok(initialData.pemasok);
+      setToko(initialData.toko || '');
+      setTujuanDapur(initialData.tujuanDapur || '');
+      setPemasok(initialData.pemasok || '');
       setPaymentStatus(initialData.paymentStatus || (initialData.status === 'selesai' ? 'PAID' : 'UNPAID'));
       setDeliveryStatus(initialData.deliveryStatus || (initialData.status === 'selesai' ? 'DONE' : 'PENDING'));
       setTanggal(initialData.tanggal);
       setCatatan(initialData.catatan || '');
     } else {
+      // REQUIREMENT 1: Dropdown toko, dapur, pemasok default SEMUA KOSONG
       setItemRows([
         {
           id: Date.now().toString(),
@@ -90,15 +102,154 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           hargaJual: '',
         },
       ]);
-      setToko(stores[0]?.nama || 'HTG');
-      setTujuanDapur(prefilledKitchen || kitchens[0]?.nama || 'Siliragung');
-      setPemasok(pemasokList[0] || 'Pemasok 1');
+      setToko('');
+      setTujuanDapur(prefilledKitchen || '');
+      setPemasok('');
       setPaymentStatus('UNPAID');
       setDeliveryStatus('PENDING');
       setTanggal(selectedDate || new Date().toISOString().split('T')[0]);
       setCatatan('');
     }
+
+    setVoiceNotice(null);
+    setVoiceError(null);
+    setIsListening(false);
+
+    return () => {
+      stopVoiceRecognition();
+    };
   }, [initialData, prefilledKitchen, isOpen, kitchens, stores, pemasokList, selectedDate]);
+
+  // Clean up speech recognition
+  const stopVoiceRecognition = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch (e) {
+        // ignore
+      }
+      recognitionRef.current = null;
+    }
+    setIsListening(false);
+  };
+
+  // Toggle voice recognition
+  const toggleVoice = () => {
+    if (isListening) {
+      stopVoiceRecognition();
+      return;
+    }
+
+    stopVoiceRecognition();
+    setVoiceError(null);
+    setVoiceNotice(null);
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setVoiceError('Browser tidak mendukung Speech Recognition.');
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'id-ID';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          handleProcessVoiceInput(transcript);
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Speech error:', event.error);
+        if (event.error === 'not-allowed') {
+          setVoiceError('Izin mikrofon ditolak.');
+        } else if (event.error !== 'no-speech') {
+          setVoiceError(`Error mic: ${event.error}`);
+        }
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err: any) {
+      console.warn('Failed to start speech:', err);
+      setVoiceError('Gagal mengakses mikrofon.');
+      setIsListening(false);
+    }
+  };
+
+  // Process voice input and fill fields automatically
+  const handleProcessVoiceInput = (transcriptText: string) => {
+    const parsed = parseVoiceInput(transcriptText, kitchens, stores, pemasokList);
+
+    // 1. Fill Item Row
+    if (parsed.namaBarang) {
+      // Look up past pricing for this item
+      const pastMatch = existingOrders.find(
+        (o) => o.namaBarang.toLowerCase() === parsed.namaBarang.toLowerCase() && (o.hargaBeli > 0 || o.hargaJual > 0)
+      );
+
+      const autoBeli = pastMatch?.hargaBeli ?? '';
+      const autoJual = pastMatch?.hargaJual ?? '';
+
+      setItemRows((prev) => {
+        if (prev.length === 0) {
+          return [
+            {
+              id: Date.now().toString(),
+              namaBarang: parsed.namaBarang,
+              qty: parsed.qty || 1,
+              hargaBeli: autoBeli,
+              hargaJual: autoJual,
+            },
+          ];
+        }
+        // Update first row if empty or replace
+        const first = prev[0];
+        const updatedFirst: ItemRow = {
+          ...first,
+          namaBarang: parsed.namaBarang,
+          qty: parsed.qty || first.qty || 1,
+          hargaBeli: first.hargaBeli || autoBeli,
+          hargaJual: first.hargaJual || autoJual,
+        };
+        return [updatedFirst, ...prev.slice(1)];
+      });
+    }
+
+    // 2. Set Dapur if detected
+    if (parsed.tujuanDapur) {
+      setTujuanDapur(parsed.tujuanDapur);
+    }
+
+    // 3. Set Toko if detected
+    if (parsed.toko) {
+      setToko(parsed.toko);
+    }
+
+    // 4. Set Pemasok if detected
+    if (parsed.pemasok) {
+      setPemasok(parsed.pemasok);
+    }
+
+    setVoiceNotice(`✓ Terdeteksi: ${parsed.namaBarang} (${parsed.qty} ${parsed.satuan})`);
+    setTimeout(() => setVoiceNotice(null), 4000);
+  };
 
   if (!isOpen) return null;
 
@@ -130,7 +281,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const handleItemNameChange = (rowId: string, val: string) => {
     updateItemRow(rowId, 'namaBarang', val);
     if (val.trim().length >= 1) {
-      const results = getItemSuggestions(val, [], 6);
+      const existingNames = Array.from(new Set(existingOrders.map((o) => o.namaBarang)));
+      const results = getItemSuggestions(val, existingNames, 6);
       setSuggestions(results);
       setSelectedSugIdx(0);
       setActiveSuggestionRowId(rowId);
@@ -150,12 +302,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         e.preventDefault();
         setSelectedSugIdx((prev) => (prev - 1 + suggestions.length) % suggestions.length);
       } else if (e.key === 'Enter' || e.key === 'Tab') {
-        // Requirement 5: Auto-select suggestion on Enter
         e.preventDefault();
         const chosen = suggestions[selectedSugIdx];
         if (chosen) {
-          updateItemRow(rowId, 'namaBarang', chosen);
-          setActiveSuggestionRowId(null);
+          selectSuggestion(rowId, chosen);
         }
       } else if (e.key === 'Escape') {
         setActiveSuggestionRowId(null);
@@ -165,17 +315,24 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
   const selectSuggestion = (rowId: string, itemText: string) => {
     updateItemRow(rowId, 'namaBarang', itemText);
+
+    // Auto-populate past prices if available
+    const match = existingOrders.find(
+      (o) => o.namaBarang.toLowerCase() === itemText.toLowerCase() && (o.hargaBeli > 0 || o.hargaJual > 0)
+    );
+    if (match) {
+      updateItemRow(rowId, 'hargaBeli', match.hargaBeli || '');
+      updateItemRow(rowId, 'hargaJual', match.hargaJual || '');
+    }
+
     setActiveSuggestionRowId(null);
   };
 
   const isFormValid =
     tanggal.trim() !== '' &&
-    toko !== '' &&
-    toko !== '-' &&
-    tujuanDapur !== '' &&
-    tujuanDapur !== '-' &&
-    pemasok !== '' &&
-    pemasok !== '-' &&
+    toko.trim() !== '' &&
+    tujuanDapur.trim() !== '' &&
+    pemasok.trim() !== '' &&
     itemRows.length > 0 &&
     itemRows.every(
       (r) =>
@@ -190,8 +347,22 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!toko.trim()) {
+      alert('Mohon pilih Toko terlebih dahulu.');
+      return;
+    }
+    if (!tujuanDapur.trim()) {
+      alert('Mohon pilih Dapur terlebih dahulu.');
+      return;
+    }
+    if (!pemasok.trim()) {
+      alert('Mohon pilih Pemasok terlebih dahulu.');
+      return;
+    }
+
     if (!isFormValid) {
-      alert('Mohon lengkapi semua kolom wajib (Tanggal, Nama Barang, Toko, Dapur, Pemasok, Harga Beli, Harga Jual, Qty).');
+      alert('Mohon lengkapi semua data barang (Nama Barang, Jumlah, Harga Beli, Harga Jual).');
       return;
     }
 
@@ -249,41 +420,53 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-xs no-print">
+      {/* REQUIREMENT 2: BOTTOM SHEET BAR UI (Slide from bottom) */}
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-xs no-print">
         {/* Backdrop click to dismiss */}
         <div className="absolute inset-0" onClick={onClose} />
 
         <motion.div
-          initial={{ y: 15, opacity: 0, scale: 0.98 }}
-          animate={{ y: 0, opacity: 1, scale: 1 }}
-          exit={{ y: 15, opacity: 0, scale: 0.98 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-10 max-h-[90vh] flex flex-col font-sans"
+          initial={{ y: '100%' }}
+          animate={{ y: 0 }}
+          exit={{ y: '100%' }}
+          transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+          className="relative w-full max-w-2xl bg-white rounded-t-3xl shadow-2xl border-t border-slate-200 overflow-hidden z-10 max-h-[92vh] flex flex-col font-sans"
         >
-          {/* Header Putih / Netral Bersih */}
-          <div className="px-6 py-4 bg-white flex items-center justify-between border-b border-slate-200">
-            <h2 className="text-[18px] font-bold text-slate-800 tracking-tight">
-              {initialData ? 'Edit Pesanan Dapur' : 'Input Pesanan Baru'}
-            </h2>
+          {/* Bottom Sheet Pull Handle Bar */}
+          <div className="w-full pt-3 pb-1 flex justify-center items-center cursor-grab bg-slate-50 border-b border-slate-100">
+            <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
+          </div>
+
+          {/* Header Bar */}
+          <div className="px-5 py-3 bg-white flex items-center justify-between border-b border-slate-200">
+            <div>
+              <h2 className="text-base font-black text-slate-900 tracking-tight">
+                {initialData ? 'Edit Pesanan Dapur' : 'Input Pesanan Baru'}
+              </h2>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Isi data pesanan atau gunakan tombol suara untuk input cepat
+              </p>
+            </div>
 
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
               title="Tutup"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Form Content */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 text-slate-800">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1 text-slate-800">
+            
             {/* Grid Tanggal, Toko, Dapur, Pemasok */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 bg-slate-50/90 p-3 sm:p-3.5 rounded-2xl border border-slate-200/90">
               {/* Tanggal */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <Calendar className="w-3 h-3 text-indigo-600" />
                   <span>Tanggal</span>
                 </label>
                 <input
@@ -291,21 +474,23 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   required
                   value={tanggal}
                   onChange={(e) => setTanggal(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
-              {/* Toko */}
+              {/* Toko (REQUIREMENT 1: DEFAULT KOSONG) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                  <Store className="w-3.5 h-3.5 text-slate-500" />
+                <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <Store className="w-3 h-3 text-indigo-600" />
                   <span>Toko</span>
                 </label>
                 <select
+                  required
                   value={toko}
                   onChange={(e) => setToko(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 cursor-pointer"
                 >
+                  <option value="">-- Pilih Toko --</option>
                   {stores.map((s) => (
                     <option key={s.id} value={s.nama}>
                       {s.nama}
@@ -314,17 +499,19 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 </select>
               </div>
 
-              {/* Dapur */}
+              {/* Dapur (REQUIREMENT 1: DEFAULT KOSONG) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                  <Utensils className="w-3.5 h-3.5 text-slate-500" />
+                <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <Utensils className="w-3 h-3 text-indigo-600" />
                   <span>Dapur</span>
                 </label>
                 <select
+                  required
                   value={tujuanDapur}
                   onChange={(e) => setTujuanDapur(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 cursor-pointer"
                 >
+                  <option value="">-- Pilih Dapur --</option>
                   {kitchens.map((k) => (
                     <option key={k.id} value={k.nama}>
                       Dapur {k.nama}
@@ -333,17 +520,19 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 </select>
               </div>
 
-              {/* Pemasok */}
+              {/* Pemasok (REQUIREMENT 1: DEFAULT KOSONG) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                  <Truck className="w-3.5 h-3.5 text-slate-500" />
+                <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <Truck className="w-3 h-3 text-indigo-600" />
                   <span>Pemasok</span>
                 </label>
                 <select
+                  required
                   value={pemasok}
                   onChange={(e) => setPemasok(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 cursor-pointer"
                 >
+                  <option value="">-- Pilih Pemasok --</option>
                   {pemasokList.map((p) => (
                     <option key={p} value={p}>
                       {p}
@@ -354,9 +543,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             </div>
 
             {/* List of Items / Barang */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between pt-1">
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between pt-0.5">
+                <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
                   Daftar Barang ({itemRows.length})
                 </h3>
               </div>
@@ -367,13 +556,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 return (
                   <div
                     key={row.id}
-                    className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200 space-y-3 relative"
+                    className="p-3 bg-slate-50/80 rounded-2xl border border-slate-200/90 space-y-2.5 relative"
                   >
                     {/* Header item jika ada lebih dari 1 barang */}
                     {itemRows.length > 1 && (
-                      <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-                        <span className="text-xs font-bold text-slate-700">
-                          Barang {index + 1}
+                      <div className="flex items-center justify-between border-b border-slate-200/80 pb-1.5">
+                        <span className="text-xs font-black text-slate-700">
+                          Barang #{index + 1}
                         </span>
                         {!initialData && (
                           <button
@@ -390,94 +579,107 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
                     {/* Nama Barang dengan Suggestion Engine */}
                     <div className="relative">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Nama Barang
                       </label>
                       <input
                         type="text"
                         required
-                        placeholder="Nama barang..."
+                        placeholder="Ketik atau ucapkan: Ayam, Ikan, Telur..."
                         value={row.namaBarang}
                         onChange={(e) => handleItemNameChange(row.id, e.target.value)}
                         onKeyDown={(e) => handleItemKeyDown(row.id, e)}
                         onFocus={() => {
                           if (row.namaBarang.trim().length >= 1) {
-                            const results = getItemSuggestions(row.namaBarang, [], 6);
+                            const existingNames = Array.from(new Set(existingOrders.map((o) => o.namaBarang)));
+                            const results = getItemSuggestions(row.namaBarang, existingNames, 6);
                             setSuggestions(results);
                             setActiveSuggestionRowId(row.id);
                           }
                         }}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 font-medium placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 transition-all"
                       />
 
-                      {/* Dropdown Suggestions Popover */}
+                      {/* Suggestion Dropdown */}
                       {isSuggestionOpen && (
-                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 overflow-hidden py-1 divide-y divide-slate-100">
-                          <div className="px-3 py-1 text-[9px] font-bold text-slate-400 uppercase bg-slate-50 flex items-center justify-between">
-                            <span>Saran Barang</span>
-                            <span className="font-mono text-[9px] text-slate-500">↵ Enter</span>
+                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden py-1 divide-y divide-slate-100">
+                          <div className="px-2.5 py-1 text-[9px] font-black text-slate-400 uppercase tracking-wider bg-slate-50 flex items-center justify-between">
+                            <span>Saran Otomatis (Klik atau Enter)</span>
+                            <span className="font-mono text-[8px] bg-slate-200 text-slate-700 px-1 rounded">↵ Enter</span>
                           </div>
-                          {suggestions.map((sug, sIdx) => (
+                          {suggestions.map((sug, idx) => (
                             <button
                               key={sug}
                               type="button"
                               onClick={() => selectSuggestion(row.id, sug)}
-                              onMouseEnter={() => setSelectedSugIdx(sIdx)}
-                              className={`w-full px-3 py-2 text-left text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer ${
-                                sIdx === selectedSugIdx
-                                  ? 'bg-indigo-50 text-indigo-700'
+                              onMouseEnter={() => setSelectedSugIdx(idx)}
+                              className={`w-full px-3 py-1.5 text-left text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
+                                idx === selectedSugIdx
+                                  ? 'bg-indigo-50 text-indigo-800'
                                   : 'text-slate-700 hover:bg-slate-50'
                               }`}
                             >
                               <span>{sug}</span>
-                              <span className="text-[10px] text-slate-400 font-normal">Pilih</span>
+                              <span className="text-[9px] text-slate-400 font-normal">Pilih</span>
                             </button>
                           ))}
                         </div>
                       )}
                     </div>
 
-                    {/* QTY, HARGA BELI, HARGA JUAL */}
-                    <div className="grid grid-cols-3 gap-3">
+                    {/* Qty, Harga Beli, Harga Jual */}
+                    <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                          Jumlah (Qty)
+                        <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                          Qty (Kg/Pcs)
                         </label>
                         <input
                           type="number"
-                          min="1"
+                          step="any"
+                          min="0.1"
                           required
+                          placeholder="1"
                           value={row.qty}
-                          onChange={(e) => updateItemRow(row.id, 'qty', e.target.value === '' ? '' : Number(e.target.value))}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 font-semibold font-mono text-center focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20"
+                          onChange={(e) =>
+                            updateItemRow(
+                              row.id,
+                              'qty',
+                              e.target.value === '' ? '' : parseFloat(e.target.value) || 0
+                            )
+                          }
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-900 text-center focus:outline-none focus:border-indigo-500"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                          Harga Beli
+                        <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                          Harga Beli (Rp)
                         </label>
                         <input
                           type="text"
                           required
-                          placeholder="Rp 0"
-                          value={row.hargaBeli !== '' ? formatRupiahInput(row.hargaBeli) : ''}
-                          onChange={(e) => updateItemRow(row.id, 'hargaBeli', parseRupiahInput(e.target.value))}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 font-semibold font-mono focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20"
+                          placeholder="0"
+                          value={formatRupiahInput(row.hargaBeli)}
+                          onChange={(e) =>
+                            updateItemRow(row.id, 'hargaBeli', parseRupiahInput(e.target.value))
+                          }
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                          Harga Jual
+                        <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                          Harga Jual (Rp)
                         </label>
                         <input
                           type="text"
                           required
-                          placeholder="Rp 0"
-                          value={row.hargaJual !== '' ? formatRupiahInput(row.hargaJual) : ''}
-                          onChange={(e) => updateItemRow(row.id, 'hargaJual', parseRupiahInput(e.target.value))}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 font-semibold font-mono focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20"
+                          placeholder="0"
+                          value={formatRupiahInput(row.hargaJual)}
+                          onChange={(e) =>
+                            updateItemRow(row.id, 'hargaJual', parseRupiahInput(e.target.value))
+                          }
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500"
                         />
                       </div>
                     </div>
@@ -485,29 +687,30 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 );
               })}
 
+              {/* Tambah Barang Lainnya (Hanya untuk order baru) */}
               {!initialData && (
                 <button
                   type="button"
                   onClick={addItemRow}
-                  className="w-full py-2.5 border border-dashed border-slate-300 hover:border-slate-400 bg-slate-50/70 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl border border-dashed border-slate-300 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
                 >
-                  <Plus className="w-4 h-4 text-slate-500" />
-                  <span>+ Tambah Barang</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tambah Barang Lainnya</span>
                 </button>
               )}
             </div>
 
-            {/* Status Pembayaran & Pengiriman (Warna Soft / Border) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
+            {/* Status Pembayaran & Pengiriman */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-slate-50/80 p-3 rounded-2xl border border-slate-200/90">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Status Pembayaran
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5">
                   <button
                     type="button"
                     onClick={() => setPaymentStatus('UNPAID')}
-                    className={`py-2 px-3 text-xs rounded-lg border transition-all cursor-pointer text-center ${
+                    className={`py-1.5 px-3 text-xs rounded-xl border transition-all cursor-pointer text-center ${
                       paymentStatus === 'UNPAID'
                         ? 'bg-rose-50 border-rose-300 text-rose-700 font-bold shadow-2xs'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-medium'
@@ -518,7 +721,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setPaymentStatus('PAID')}
-                    className={`py-2 px-3 text-xs rounded-lg border transition-all cursor-pointer text-center ${
+                    className={`py-1.5 px-3 text-xs rounded-xl border transition-all cursor-pointer text-center ${
                       paymentStatus === 'PAID'
                         ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold shadow-2xs'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-medium'
@@ -530,14 +733,14 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Status Pengiriman
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5">
                   <button
                     type="button"
                     onClick={() => setDeliveryStatus('PENDING')}
-                    className={`py-2 px-3 text-xs rounded-lg border transition-all cursor-pointer text-center ${
+                    className={`py-1.5 px-3 text-xs rounded-xl border transition-all cursor-pointer text-center ${
                       deliveryStatus === 'PENDING'
                         ? 'bg-amber-50 border-amber-300 text-amber-800 font-bold shadow-2xs'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-medium'
@@ -548,7 +751,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setDeliveryStatus('DONE')}
-                    className={`py-2 px-3 text-xs rounded-lg border transition-all cursor-pointer text-center ${
+                    className={`py-1.5 px-3 text-xs rounded-xl border transition-all cursor-pointer text-center ${
                       deliveryStatus === 'DONE'
                         ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold shadow-2xs'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-medium'
@@ -561,37 +764,80 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             </div>
 
             {/* Total Summary */}
-            <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl flex items-center justify-between text-xs">
+            <div className="bg-slate-50 border border-slate-200/90 p-3 rounded-2xl flex items-center justify-between text-xs">
               <div>
-                <span className="text-[11px] text-slate-500 font-medium block">Total Penjualan</span>
-                <span className="font-bold text-slate-900 text-sm font-mono">
+                <span className="text-[10.5px] text-slate-500 font-semibold block">Total Penjualan</span>
+                <span className="font-black text-slate-900 text-sm font-mono">
                   {formatRupiah(grandTotalJual)}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[11px] text-slate-500 font-medium block">Total Beli</span>
-                <span className="font-semibold text-slate-700 text-xs font-mono">
+                <span className="text-[10.5px] text-slate-500 font-semibold block">Total Beli</span>
+                <span className="font-bold text-slate-700 text-xs font-mono">
                   {formatRupiah(grandTotalBeli)}
                 </span>
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="pt-2 flex items-center justify-end gap-2.5">
+            {/* Subtle Voice Feedback if active or error (clean, no extra clutter) */}
+            {(isListening || voiceNotice || voiceError) && (
+              <div className="text-center py-0.5">
+                {isListening ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-600 text-[11px] font-bold animate-pulse border border-rose-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-ping inline-block" />
+                    Mendengarkan suara...
+                  </span>
+                ) : voiceNotice ? (
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    {voiceNotice}
+                  </span>
+                ) : voiceError ? (
+                  <span className="text-[11px] font-bold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 inline-flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {voiceError}
+                  </span>
+                ) : null}
+              </div>
+            )}
+
+            {/* REQUIREMENT 2: Action Buttons (Batal | Small Circular Mic Button in Middle | Simpan) */}
+            <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-100">
+              {/* Batal Button */}
               <button
                 type="button"
                 onClick={onClose}
-                className="py-2 px-4 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer text-center"
               >
                 Batal
               </button>
+
+              {/* Small Circular Mic Icon Button in the middle (No text, no clutter) */}
+              <div className="relative shrink-0">
+                {isListening && (
+                  <span className="absolute -inset-1 rounded-full bg-rose-500/30 animate-ping pointer-events-none" />
+                )}
+                <button
+                  type="button"
+                  onClick={toggleVoice}
+                  title={isListening ? 'Berhenti bicara' : 'Bicara pesanan (contoh: Ayam 4 kg)'}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-md ${
+                    isListening
+                      ? 'bg-rose-600 text-white ring-4 ring-rose-200 scale-105 shadow-rose-500/40'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:scale-105 active:scale-95 shadow-indigo-500/30'
+                  }`}
+                >
+                  <Mic className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Simpan Pesanan Button */}
               <button
                 type="submit"
                 disabled={!isFormValid}
-                className={`py-2 px-5 rounded-lg text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md ${
                   isFormValid
-                    ? 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-xs'
-                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    ? 'bg-slate-900 hover:bg-slate-800 text-white shadow-slate-900/20 active:scale-95'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
                 }`}
               >
                 <Save className="w-4 h-4" />
