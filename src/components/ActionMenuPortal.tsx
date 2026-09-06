@@ -22,6 +22,7 @@ export interface ActionMenuPortalProps {
   onEdit: (item: OrderItem) => void;
   onDuplicate?: (item: OrderItem) => void;
   onDelete: (itemId: string) => void;
+  onDeleteBatch?: () => void;
 }
 
 export const ActionMenuPortal: React.FC<ActionMenuPortalProps> = ({
@@ -34,6 +35,7 @@ export const ActionMenuPortal: React.FC<ActionMenuPortalProps> = ({
   onEdit,
   onDuplicate,
   onDelete,
+  onDeleteBatch,
 }) => {
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -123,8 +125,30 @@ export const ActionMenuPortal: React.FC<ActionMenuPortalProps> = ({
             )}
           </div>
 
-          {/* Single Item: Clean, minimal Action Card */}
-          {singleItem ? (
+          {/* When items is empty (e.g. raw invoice record from sheet transaksi) */}
+          {items.length === 0 ? (
+            <div className="space-y-1.5 p-1">
+              <div className="px-2 py-1 text-[11px] text-slate-500">
+                Data baris dari sheet Transaksi.
+              </div>
+              {onDeleteBatch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onDeleteBatch();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all cursor-pointer group"
+                >
+                  <div className="w-6 h-6 rounded-lg bg-rose-50 group-hover:bg-rose-100/80 flex items-center justify-center transition-colors flex-shrink-0">
+                    <Trash2 className="w-3.5 h-3.5 text-rose-500 group-hover:text-rose-600" />
+                  </div>
+                  <span>Hapus Transaksi</span>
+                </button>
+              )}
+            </div>
+          ) : singleItem ? (
+            /* Single Item: Clean, minimal Action Card */
             <div className="space-y-1">
               <div className="px-2.5 py-1">
                 <div className="text-xs font-bold text-slate-900 truncate" title={singleItem.namaBarang}>
@@ -174,7 +198,11 @@ export const ActionMenuPortal: React.FC<ActionMenuPortalProps> = ({
                   type="button"
                   onClick={() => {
                     onClose();
-                    onDelete(singleItem.id);
+                    if (onDeleteBatch) {
+                      onDeleteBatch();
+                    } else {
+                      onDelete(singleItem.id);
+                    }
                   }}
                   className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all cursor-pointer group"
                 >
@@ -187,59 +215,77 @@ export const ActionMenuPortal: React.FC<ActionMenuPortalProps> = ({
             </div>
           ) : (
             /* Multiple Items: Clean Scrollable List with Minimal Action Pills */
-            <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 pr-0.5">
-              {items.map((it) => (
-                <div key={it.id} className="py-2 px-2 hover:bg-slate-50/90 rounded-xl transition-colors">
-                  <div className="flex items-center justify-between gap-1.5 mb-1.5">
-                    <div className="text-xs font-bold text-slate-900 truncate" title={it.namaBarang}>
-                      {it.namaBarang}
-                    </div>
-                    <span className="text-[10px] font-mono font-bold text-slate-500 flex-shrink-0">
-                      {it.qty}x
-                    </span>
+            <div className="space-y-1">
+              {onDeleteBatch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onDeleteBatch();
+                  }}
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 mb-1 text-left text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-all cursor-pointer group border border-rose-100 bg-rose-50/40"
+                >
+                  <div className="flex items-center gap-2">
+                    <Trash2 className="w-3.5 h-3.5 text-rose-500 group-hover:text-rose-600" />
+                    <span>Hapus Seluruh Transaksi ({items.length} Item)</span>
                   </div>
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        onEdit(it);
-                      }}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer border border-slate-200/80"
-                      title="Edit Item Ini"
-                    >
-                      <Edit2 className="w-3 h-3 text-indigo-600" />
-                      Edit
-                    </button>
-                    {onDuplicate && (
+                </button>
+              )}
+
+              <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 pr-0.5">
+                {items.map((it) => (
+                  <div key={it.id} className="py-2 px-2 hover:bg-slate-50/90 rounded-xl transition-colors">
+                    <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                      <div className="text-xs font-bold text-slate-900 truncate" title={it.namaBarang}>
+                        {it.namaBarang}
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-slate-500 flex-shrink-0">
+                        {it.qty}x
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-end gap-1">
                       <button
                         type="button"
                         onClick={() => {
                           onClose();
-                          onDuplicate(it);
+                          onEdit(it);
                         }}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer border border-slate-200/80"
-                        title="Duplikat Item Ini"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer border border-slate-200/80"
+                        title="Edit Item Ini"
                       >
-                        <Copy className="w-3 h-3 text-emerald-600" />
-                        Duplikat
+                        <Edit2 className="w-3 h-3 text-indigo-600" />
+                        Edit
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        onDelete(it.id);
-                      }}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer border border-rose-200/80"
-                      title="Hapus Item Ini"
-                    >
-                      <Trash2 className="w-3 h-3 text-rose-600" />
-                      Hapus
-                    </button>
+                      {onDuplicate && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onDuplicate(it);
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer border border-slate-200/80"
+                          title="Duplikat Item Ini"
+                        >
+                          <Copy className="w-3 h-3 text-emerald-600" />
+                          Duplikat
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          onDelete(it.id);
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer border border-rose-200/80"
+                        title="Hapus Item Ini"
+                      >
+                        <Trash2 className="w-3 h-3 text-rose-600" />
+                        Hapus
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </motion.div>

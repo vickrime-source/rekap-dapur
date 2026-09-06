@@ -37,6 +37,7 @@ export interface InvoiceRecord {
   id: string;
   invoiceNumber: string;
   tanggalPrint: string;  // Tanggal real-time saat dibuat
+  tanggal?: string;      // Tanggal transaksi (YYYY-MM-DD)
   createdAt: string;
   tujuanDapur: string;
   toko: string;

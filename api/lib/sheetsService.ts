@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 
 export const SHEET_SCHEMAS: Record<string, string[]> = {
-  pesanan: ['NO', 'DATE', 'DAPUR', 'ITEM', 'QTY', 'H. JUAL', 'H. BELI', 'TOKO', 'PEMASOK', 'PAYMENT', 'DILEVERY', 'STATUS'],
+  pesanan: ['NO', 'DAPUR', 'ITEM', 'DATE', 'QTY', 'TOKO', 'PAYMENT', 'DILEVERY', 'H. JUAL', 'H. BELI'],
   transaksi: ['NO', 'TANGGAL', 'PEMASOK', 'BARANG', 'TOKO', 'QTY', 'H. BELI', 'TOTAL', 'STATUS'],
   notes: ['ID', 'DAPUR', 'ITEM', 'CATATAN', 'STATUS', 'CREATED_AT'],
 };
@@ -567,13 +567,15 @@ export async function updateSheetRows(
 }
 
 /**
- * DELETE row from spreadsheet
+ * DELETE row(s) from spreadsheet
  */
 export async function deleteSheetRow(
   sheetName: string,
   options: {
     rowIndex?: number;
+    rowIndices?: number[];
     match?: Record<string, any>;
+    deleteAllMatches?: boolean;
   }
 ) {
   if (!isSheetsConfigured()) {
@@ -584,7 +586,7 @@ export async function deleteSheetRow(
     };
   }
   const { sheets, spreadsheetId } = getSheetsClient();
-  await ensureSheet(sheetName);
+  const exactTitle = await ensureSheet(sheetName);
 
   const meta = await sheets.spreadsheets.get({ spreadsheetId });
   const sheetObj = meta.data.sheets?.find(
@@ -592,69 +594,90 @@ export async function deleteSheetRow(
   );
 
   if (!sheetObj || sheetObj.properties?.sheetId === undefined) {
-    throw new Error(`Sheet ${sheetName} tidak ditemukan.`);
+    throw new Error(`Sheet "${sheetName}" tidak ditemukan.`);
   }
   const numericSheetId = sheetObj.properties.sheetId;
 
-  let targetRowIndex = options.rowIndex;
+  let targetRowIndices: number[] = [];
 
-  if (!targetRowIndex && options.match && Object.keys(options.match).length > 0) {
+  if (Array.isArray(options.rowIndices) && options.rowIndices.length > 0) {
+    targetRowIndices = options.rowIndices.filter((idx) => typeof idx === 'number' && idx >= 2);
+  } else if (options.rowIndex && options.rowIndex >= 2) {
+    targetRowIndices.push(options.rowIndex);
+  } else if (options.match && Object.keys(options.match).length > 0) {
     const allRes = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: `'${sheetName}'!A:Z`,
+      range: `'${exactTitle}'!A:Z`,
     });
     const allValues = allRes.data.values || [];
     if (allValues.length > 1) {
       const headers = allValues[0].map((h) => String(h || '').trim());
-      const findColIdx = (colName: string): number => {
-        const cleanTarget = cleanHeaderKey(colName);
-        return headers.findIndex((h) => cleanHeaderKey(h) === cleanTarget);
-      };
 
       for (let r = 1; r < allValues.length; r++) {
         const row = allValues[r];
         let matches = true;
+
         for (const [mKey, mVal] of Object.entries(options.match)) {
-          const colIdx = findColIdx(mKey);
+          if (mVal === undefined || mVal === null || mVal === '') continue;
+          const colIdx = findColIdx(mKey, headers);
           if (colIdx !== -1) {
-            const cellVal = String(row[colIdx] || '').trim().toLowerCase();
-            const expectedVal = String(mVal || '').trim().toLowerCase();
-            if (cellVal !== expectedVal) {
-              matches = false;
-              break;
+            const cellVal = String(row[colIdx] || '').trim();
+            const expectedVal = String(mVal || '').trim();
+
+            const cleanKey = cleanHeaderKey(mKey);
+            if (cleanKey === 'DATE' || cleanKey === 'TANGGAL' || cleanKey === 'TGL') {
+              if (normalizeDateStr(cellVal) !== normalizeDateStr(expectedVal)) {
+                matches = false;
+                break;
+              }
+            } else if (cleanKey === 'BARANG' || cleanKey === 'ITEM' || cleanKey === 'NAMABARANG') {
+              const cLower = cellVal.toLowerCase();
+              const eLower = expectedVal.toLowerCase();
+              if (cLower !== eLower && !cLower.includes(eLower) && !eLower.includes(cLower)) {
+                matches = false;
+                break;
+              }
+            } else {
+              if (cellVal.toLowerCase() !== expectedVal.toLowerCase()) {
+                matches = false;
+                break;
+              }
             }
           }
         }
+
         if (matches) {
-          targetRowIndex = r + 1; // 1-based index
-          break;
+          targetRowIndices.push(r + 1); // 1-based row index
+          if (!options.deleteAllMatches) {
+            break;
+          }
         }
       }
     }
   }
 
-  if (!targetRowIndex || targetRowIndex < 2) {
-    return { success: false, error: 'Baris tidak ditemukan untuk dihapus.' };
+  if (targetRowIndices.length === 0) {
+    return { success: false, error: 'Baris tidak ditemukan di Google Sheets untuk dihapus.' };
   }
 
-  // Delete row using deleteDimension
+  // Sort descending so deletion doesn't shift earlier indices!
+  targetRowIndices.sort((a, b) => b - a);
+
+  const requests = targetRowIndices.map((rIdx) => ({
+    deleteDimension: {
+      range: {
+        sheetId: numericSheetId,
+        dimension: 'ROWS',
+        startIndex: rIdx - 1, // 0-indexed
+        endIndex: rIdx,
+      },
+    },
+  }));
+
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
-    requestBody: {
-      requests: [
-        {
-          deleteDimension: {
-            range: {
-              sheetId: numericSheetId,
-              dimension: 'ROWS',
-              startIndex: targetRowIndex - 1, // 0-indexed
-              endIndex: targetRowIndex,
-            },
-          },
-        },
-      ],
-    },
+    requestBody: { requests },
   });
 
-  return { success: true, deletedRowIndex: targetRowIndex };
+  return { success: true, deletedRowIndices: targetRowIndices, deletedCount: targetRowIndices.length };
 }

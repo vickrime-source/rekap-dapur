@@ -32,6 +32,7 @@ interface TransactionBatch {
   delStatus: DeliveryStatus;
   totalQty: number;
   totalBeli: number;
+  totalJual?: number;
   items: OrderItem[];
 }
 
@@ -53,6 +54,7 @@ interface TransactionsViewProps {
   onOpenInvoiceModal: (items: OrderItem[], kitchenName?: string, storeName?: string) => void;
   onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
   onDeleteInvoice?: (id: string) => void;
+  onDeleteTransaction?: (batch: TransactionBatch) => void;
   onOpenAddModal: (prefilledKitchen?: string) => void;
 }
 
@@ -69,6 +71,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   onDeleteOrder,
   onOpenInvoiceModal,
   onExportInvoicePdf,
+  onDeleteInvoice,
+  onDeleteTransaction,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPemasok, setSelectedPemasok] = useState('all');
@@ -147,6 +151,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
       const totalQty = items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
       const totalBeli = items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.hargaBeli) || 0), 0);
+      const totalJual = items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.hargaJual || i.hargaBeli) || 0), 0);
 
       batches.push({
         id: key,
@@ -159,6 +164,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         delStatus,
         totalQty,
         totalBeli,
+        totalJual,
         items,
       });
     });
@@ -181,6 +187,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           const payStatus: PaymentStatus = isPaid ? 'PAID' : 'UNPAID';
           const items: OrderItem[] = inv.items && inv.items.length > 0 ? inv.items : [];
           const totalQty = items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0) || Number(inv.qty || inv.QTY || 1);
+          const totalBeli = Number(inv.totalBeli || inv['H. BELI'] || 0) || items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.hargaBeli) || 0), 0);
+          const totalJual = Number(inv.totalAmount || inv.totalJual || inv.TOTAL || 0) || items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.hargaJual || i.hargaBeli) || 0), 0) || totalBeli;
 
           batches.push({
             id: inv.id || key,
@@ -192,7 +200,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             payStatus,
             delStatus: 'DONE',
             totalQty,
-            totalBeli: Number(inv.totalBeli || inv['H. BELI'] || 0) || items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.hargaBeli) || 0), 0),
+            totalBeli,
+            totalJual,
             items,
           });
         }
@@ -306,8 +315,25 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                       </span>
                     </div>
 
-                    {/* Quick Action Button: Titik Tiga (Floating Portal) */}
+                    {/* Quick Action Button: Titik Tiga & Hapus Cepat (Floating Portal) */}
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onDeleteTransaction) {
+                            onDeleteTransaction(batch);
+                          } else if (onDeleteInvoice) {
+                            onDeleteInvoice(batch.id);
+                          } else {
+                            onDeleteOrder(batch.id);
+                          }
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 active:scale-95 transition-all cursor-pointer"
+                        title="Hapus Transaksi"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -479,16 +505,16 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               <table className="w-full text-left border-collapse text-[9.5px] relative">
                 <thead className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 shadow-2xs">
                   <tr className="text-[8.5px] font-black text-slate-700 uppercase tracking-wider">
-                    <th className="py-2 px-1.5 text-center w-6 bg-slate-100 sticky top-0">#</th>
-                    <th className="py-2 px-1.5 whitespace-nowrap bg-slate-100 sticky top-0 min-w-[70px]">DATE</th>
-                    <th className="py-2 px-1.5 whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px]">DAPUR</th>
+                    <th className="py-2 px-1.5 text-center w-6 bg-slate-100 sticky top-0">NO</th>
+                    <th className="py-2 px-1.5 whitespace-nowrap bg-slate-100 sticky top-0 min-w-[70px]">TANGGAL</th>
                     <th className="py-2 px-1.5 whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px]">PEMASOK</th>
-                    <th className="py-2 px-2 bg-slate-100 sticky top-0 min-w-[150px]">ITEM TRANSAKSI (MERGE)</th>
-                    <th className="py-2 px-1 text-center w-8 bg-slate-100 sticky top-0">QTY</th>
-                    <th className="py-2 px-2 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px]">TOTAL BELI</th>
+                    <th className="py-2 px-2 bg-slate-100 sticky top-0 min-w-[150px]">BARANG</th>
                     <th className="py-2 px-1.5 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[70px]">TOKO</th>
+                    <th className="py-2 px-1 text-center w-8 bg-slate-100 sticky top-0">QTY</th>
+                    <th className="py-2 px-2 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px]">H. BELI</th>
+                    <th className="py-2 px-2 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px]">TOTAL</th>
                     <th className="py-2 px-1.5 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[75px]">STATUS</th>
-                    <th className="py-2 px-1 text-center w-12 bg-slate-100 sticky top-0">AKSI</th>
+                    <th className="py-2 px-1 text-center w-14 bg-slate-100 sticky top-0">AKSI</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium text-slate-800 bg-white">
@@ -498,26 +524,19 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
                     return (
                       <tr key={batch.id} className="hover:bg-slate-50/90 transition-colors">
-                        {/* NO */}
+                        {/* 1. NO */}
                         <td className="py-2 px-1.5 text-center font-mono text-[9px] font-bold text-slate-400 align-middle">
                           {batch.batchIndex}
                         </td>
 
-                        {/* DATE */}
+                        {/* 2. TANGGAL */}
                         <td className="py-2 px-1.5 whitespace-nowrap align-middle">
                           <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1 py-0.5 rounded border border-slate-200/80">
                             {formatTanggalDisatuin(batch.tanggal)}
                           </span>
                         </td>
 
-                        {/* DAPUR */}
-                        <td className="py-2 px-1.5 whitespace-nowrap align-middle">
-                          <span className="inline-block bg-indigo-50 text-indigo-900 font-black px-1.5 py-0.5 rounded text-[9px] border border-indigo-200">
-                            {batch.tujuanDapur}
-                          </span>
-                        </td>
-
-                        {/* PEMASOK */}
+                        {/* 3. PEMASOK */}
                         <td className="py-2 px-1.5 align-middle">
                           <span className="inline-flex items-center gap-1 font-extrabold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[9px] border border-slate-200/80 truncate max-w-[120px]">
                             <Truck className="w-3 h-3 text-indigo-600 flex-shrink-0" />
@@ -525,8 +544,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                           </span>
                         </td>
 
-                        {/* MERGED LIST OF ITEMS IN THIS TRANSACTION */}
+                        {/* 4. BARANG (ITEM TRANSAKSI & DAPUR) */}
                         <td className="py-2 px-2 align-middle">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="inline-block bg-indigo-50 text-indigo-900 font-black px-1.5 py-0.2 rounded text-[8.5px] border border-indigo-200">
+                              {batch.tujuanDapur}
+                            </span>
+                          </div>
                           <div className="space-y-1">
                             {batch.items.map((it, itIdx) => (
                               <div key={it.id || itIdx} className="flex items-center justify-between gap-2 text-[9.5px]">
@@ -541,24 +565,29 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                           </div>
                         </td>
 
-                        {/* TOTAL QTY */}
-                        <td className="py-2 px-1 text-center font-black font-mono text-[10px] text-slate-900 align-middle">
-                          {batch.totalQty}
-                        </td>
-
-                        {/* TOTAL BELI */}
-                        <td className="py-2 px-2 text-right font-black font-mono text-[10px] text-slate-900 align-middle whitespace-nowrap">
-                          {formatRupiah(batch.totalBeli)}
-                        </td>
-
-                        {/* TOKO */}
+                        {/* 5. TOKO */}
                         <td className="py-2 px-1.5 text-center whitespace-nowrap align-middle">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] border ${getTokoBadgeStyle(batch.toko)}`}>
                             {batch.toko}
                           </span>
                         </td>
 
-                        {/* STATUS PAYMENT 1-CLICK TOGGLE */}
+                        {/* 6. QTY */}
+                        <td className="py-2 px-1 text-center font-black font-mono text-[10px] text-slate-900 align-middle">
+                          {batch.totalQty}
+                        </td>
+
+                        {/* 7. H. BELI */}
+                        <td className="py-2 px-2 text-right font-black font-mono text-[10px] text-slate-900 align-middle whitespace-nowrap">
+                          {formatRupiah(batch.totalBeli)}
+                        </td>
+
+                        {/* 8. TOTAL */}
+                        <td className="py-2 px-2 text-right font-black font-mono text-[10px] text-emerald-800 align-middle whitespace-nowrap">
+                          {formatRupiah(batch.totalJual || batch.totalBeli)}
+                        </td>
+
+                        {/* 9. STATUS PAYMENT 1-CLICK TOGGLE */}
                         <td className="py-2 px-1.5 text-center whitespace-nowrap align-middle">
                           <button
                             type="button"
@@ -574,9 +603,26 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                           </button>
                         </td>
 
-                        {/* AKSI MENU: Floating Portal 3-Dots */}
+                        {/* 10. AKSI: Quick Delete & 3-Dots */}
                         <td className="py-2 px-1 text-center align-middle">
-                          <div className="flex items-center justify-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onDeleteTransaction) {
+                                  onDeleteTransaction(batch);
+                                } else if (onDeleteInvoice) {
+                                  onDeleteInvoice(batch.id);
+                                } else {
+                                  onDeleteOrder(batch.id);
+                                }
+                              }}
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent transition-all cursor-pointer active:scale-95"
+                              title="Hapus Transaksi"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                             <button
                               type="button"
                               onClick={(e) => {
@@ -627,6 +673,17 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       onEdit={onEditOrder}
       onDuplicate={onDuplicateOrder}
       onDelete={onDeleteOrder}
+      onDeleteBatch={() => {
+        if (activeMenu?.batch) {
+          if (onDeleteTransaction) {
+            onDeleteTransaction(activeMenu.batch);
+          } else if (onDeleteInvoice) {
+            onDeleteInvoice(activeMenu.batch.id);
+          } else {
+            onDeleteOrder(activeMenu.batch.id);
+          }
+        }
+      }}
     />
   </div>
 );

@@ -214,7 +214,7 @@ async function startServer() {
   app.post('/api/sheets-delete', async (req, res) => {
     try {
       const sheet = (req.body.sheet || req.query.sheet || 'pesanan') as string;
-      const { rowIndex, match } = req.body;
+      const { rowIndex, rowIndices, match, deleteAllMatches } = req.body;
 
       if (!isSheetsConfigured()) {
         return res.json({
@@ -226,8 +226,18 @@ async function startServer() {
 
       const result = await deleteSheetRow(sheet, {
         rowIndex: rowIndex ? Number(rowIndex) : undefined,
+        rowIndices: Array.isArray(rowIndices) ? rowIndices.map(Number) : undefined,
         match,
+        deleteAllMatches: !!deleteAllMatches,
       });
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          error: result.error || `Gagal menghapus baris dari sheet "${sheet}"`,
+          ...result,
+        });
+      }
 
       res.json({
         success: true,
@@ -237,7 +247,7 @@ async function startServer() {
       });
     } catch (err: any) {
       console.warn('[Sheets DELETE Warning]:', err?.message || err);
-      res.json({
+      res.status(500).json({
         success: false,
         error: err?.message || 'Gagal menghapus baris dari Google Sheets API',
       });

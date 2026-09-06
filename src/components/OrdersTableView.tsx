@@ -37,6 +37,7 @@ interface OrdersTableViewProps {
   onEditOrder: (order: OrderItem) => void;
   onDuplicateOrder: (order: OrderItem) => void;
   onDeleteOrder: (id: string) => void;
+  onDeleteBatchOrders?: (items: OrderItem[]) => void;
   onOpenInvoiceModal: (items: OrderItem[], kitchenName: string, storeName: string) => void;
   onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
 }
@@ -51,6 +52,7 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
   onEditOrder,
   onDuplicateOrder,
   onDeleteOrder,
+  onDeleteBatchOrders,
   onOpenInvoiceModal,
   onExportInvoicePdf,
 }) => {
@@ -406,9 +408,9 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
         <table className="w-full text-left border-collapse text-[9.5px] relative">
           <thead className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 shadow-2xs">
             <tr className="text-[8.5px] font-black text-slate-700 uppercase tracking-tight">
-              {/* 1. DATE */}
-              <th className="py-2 px-1 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[70px]">
-                DATE
+              {/* 1. NO */}
+              <th className="py-2 px-1 text-center w-6 bg-slate-100 sticky top-0">
+                NO
               </th>
               {/* 2. DAPUR */}
               <th className="py-2 px-1 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px]">
@@ -418,27 +420,35 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
               <th className="py-2 px-1.5 bg-slate-100 sticky top-0 min-w-[120px]">
                 ITEM
               </th>
-              {/* 4. QTY */}
+              {/* 4. DATE */}
+              <th className="py-2 px-1 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[70px]">
+                DATE
+              </th>
+              {/* 5. QTY */}
               <th className="py-2 px-1 text-center w-7 bg-slate-100 sticky top-0">
                 QTY
               </th>
-              {/* 5. H. JUAL */}
-              <th className="py-2 px-1.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[80px]">
-                H. JUAL
-              </th>
-              {/* 6. H. BELI */}
-              <th className="py-2 px-1.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[80px]">
-                H. BELI
-              </th>
-              {/* 7. TOKO */}
+              {/* 6. TOKO */}
               <th className="py-2 px-1 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[70px]">
                 TOKO
               </th>
-              {/* 8. PAYMENT & DELIVERY */}
-              <th className="py-2 px-1.5 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[130px]">
-                PAYMENT &amp; DELIVERY
+              {/* 7. PAYMENT */}
+              <th className="py-2 px-1.5 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[65px]">
+                PAYMENT
               </th>
-              {/* 9. AKSI */}
+              {/* 8. DILEVERY */}
+              <th className="py-2 px-1.5 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[65px]">
+                DILEVERY
+              </th>
+              {/* 9. H. JUAL */}
+              <th className="py-2 px-1.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[80px]">
+                H. JUAL
+              </th>
+              {/* 10. H. BELI */}
+              <th className="py-2 px-1.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[80px]">
+                H. BELI
+              </th>
+              {/* 11. AKSI */}
               <th className="py-2 px-1 text-center w-12 bg-slate-100 sticky top-0">
                 AKSI
               </th>
@@ -458,15 +468,13 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
                       isLastInGroup ? 'border-b-2 border-slate-200' : 'border-b border-slate-100'
                     }`}
                   >
-                    {/* 1. DATE (MERGED PER GROUP) */}
+                    {/* 1. NO (MERGED PER GROUP) */}
                     {isFirst && (
                       <td
                         rowSpan={rowSpan}
-                        className="py-1 px-1 text-center font-mono whitespace-nowrap align-middle border-r border-slate-100 bg-slate-50/30"
+                        className="py-1 px-1 text-center font-mono text-[9px] font-bold text-slate-400 align-middle border-r border-slate-100 bg-slate-50/30"
                       >
-                        <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1 py-0.5 rounded border border-slate-200/80">
-                          {formatTanggalDisatuin(group.tanggal)}
-                        </span>
+                        {group.groupIndex}
                       </td>
                     )}
 
@@ -492,12 +500,84 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
                       </div>
                     </td>
 
-                    {/* 4. QTY (PER ROW ITEM) */}
-                    <td className="py-1 px-1 text-center font-black font-mono text-[9.5px] text-slate-900 align-middle">
+                    {/* 4. DATE (MERGED PER GROUP) */}
+                    {isFirst && (
+                      <td
+                        rowSpan={rowSpan}
+                        className="py-1 px-1 text-center font-mono whitespace-nowrap align-middle border-r border-slate-100 bg-slate-50/30"
+                      >
+                        <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1 py-0.5 rounded border border-slate-200/80">
+                          {formatTanggalDisatuin(group.tanggal)}
+                        </span>
+                      </td>
+                    )}
+
+                    {/* 5. QTY (PER ROW ITEM) */}
+                    <td className="py-1 px-1 text-center font-black font-mono text-[9.5px] text-slate-900 align-middle border-r border-slate-100">
                       {item.qty}
                     </td>
 
-                    {/* 5. H. JUAL (PER ROW ITEM) */}
+                    {/* 6. TOKO (MERGED PER GROUP) */}
+                    {isFirst && (
+                      <td
+                        rowSpan={rowSpan}
+                        className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100"
+                      >
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] border ${getTokoBadgeStyle(group.toko)}`}>
+                          {group.toko}
+                        </span>
+                      </td>
+                    )}
+
+                    {/* 7. PAYMENT (MERGED PER GROUP WITH 1-CLICK TOGGLE) */}
+                    {isFirst && (
+                      <td
+                        rowSpan={rowSpan}
+                        className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextStatus: PaymentStatus = group.payStatus === 'PAID' ? 'UNPAID' : 'PAID';
+                            handleGroupPaymentChange(group.items, nextStatus);
+                          }}
+                          className={`text-[8px] font-black px-1.5 py-0.5 rounded border cursor-pointer transition-all active:scale-95 ${
+                            group.payStatus === 'PAID'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                              : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                          }`}
+                          title="Klik untuk ubah Payment (PAID / UNPAID)"
+                        >
+                          {group.payStatus === 'PAID' ? 'PAID' : 'UNPAID'}
+                        </button>
+                      </td>
+                    )}
+
+                    {/* 8. DILEVERY (MERGED PER GROUP WITH 1-CLICK TOGGLE) */}
+                    {isFirst && (
+                      <td
+                        rowSpan={rowSpan}
+                        className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextStatus: DeliveryStatus = group.delStatus === 'DONE' ? 'PENDING' : 'DONE';
+                            handleGroupDeliveryChange(group.items, nextStatus);
+                          }}
+                          className={`text-[8px] font-black px-1.5 py-0.5 rounded border cursor-pointer transition-all active:scale-95 ${
+                            group.delStatus === 'DONE'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                              : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                          }`}
+                          title="Klik untuk ubah Delivery (DONE / PENDING)"
+                        >
+                          {group.delStatus === 'DONE' ? 'DONE' : 'PENDING'}
+                        </button>
+                      </td>
+                    )}
+
+                    {/* 9. H. JUAL (PER ROW ITEM) */}
                     <td className="py-1 px-1.5 text-right whitespace-nowrap align-middle">
                       <div className="font-bold text-slate-900 font-mono text-[9px]">
                         {formatRupiah(item.qty * item.hargaJual)}
@@ -507,7 +587,7 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
                       </div>
                     </td>
 
-                    {/* 6. H. BELI (PER ROW ITEM) */}
+                    {/* 10. H. BELI (PER ROW ITEM) */}
                     <td className="py-1 px-1.5 text-right whitespace-nowrap align-middle">
                       <div className="font-semibold text-slate-600 font-mono text-[9px]">
                         {formatRupiah(item.qty * item.hargaBeli)}
@@ -517,63 +597,7 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
                       </div>
                     </td>
 
-                    {/* 7. TOKO (MERGED PER GROUP) */}
-                    {isFirst && (
-                      <td
-                        rowSpan={rowSpan}
-                        className="py-1 px-1 text-center whitespace-nowrap align-middle border-l border-r border-slate-100"
-                      >
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] border ${getTokoBadgeStyle(group.toko)}`}>
-                          {group.toko}
-                        </span>
-                      </td>
-                    )}
-
-                    {/* 8. PAYMENT & DELIVERY (MERGED PER GROUP WITH 1-CLICK TOGGLE BUTTONS) */}
-                    {isFirst && (
-                      <td
-                        rowSpan={rowSpan}
-                        className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100"
-                      >
-                        <div className="flex items-center justify-center gap-1">
-                          {/* Payment Toggle Pill */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextStatus: PaymentStatus = group.payStatus === 'PAID' ? 'UNPAID' : 'PAID';
-                              handleGroupPaymentChange(group.items, nextStatus);
-                            }}
-                            className={`text-[8px] font-black px-1.5 py-0.5 rounded border cursor-pointer transition-all active:scale-95 ${
-                              group.payStatus === 'PAID'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                                : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-                            }`}
-                            title="Klik untuk ubah Payment (PAID / UNPAID)"
-                          >
-                            {group.payStatus === 'PAID' ? 'PAID' : 'UNPAID'}
-                          </button>
-
-                          {/* Delivery Toggle Pill */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextStatus: DeliveryStatus = group.delStatus === 'DONE' ? 'PENDING' : 'DONE';
-                              handleGroupDeliveryChange(group.items, nextStatus);
-                            }}
-                            className={`text-[8px] font-black px-1.5 py-0.5 rounded border cursor-pointer transition-all active:scale-95 ${
-                              group.delStatus === 'DONE'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                                : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-                            }`}
-                            title="Klik untuk ubah Delivery (DONE / PENDING)"
-                          >
-                            {group.delStatus === 'DONE' ? 'DONE' : 'PENDING'}
-                          </button>
-                        </div>
-                      </td>
-                    )}
-
-                    {/* 9. AKSI (MERGED PER GROUP) */}
+                    {/* 11. AKSI (MERGED PER GROUP) */}
                     {isFirst && (
                       <td
                         rowSpan={rowSpan}
@@ -581,8 +605,7 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
                       >
                         <div className="flex items-center justify-center space-x-0.5">
                           {/* 
-                            REVISION REQUIREMENT 3: 1-Click Instant Invoice PDF Download!
-                            Immediately writes Dapur as recipient, '-' for phone/address, and triggers download directly!
+                            1-Click Instant Invoice PDF Download
                           */}
                           <button
                             onClick={() => {
@@ -648,6 +671,15 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
       onEdit={onEditOrder}
       onDuplicate={onDuplicateOrder}
       onDelete={onDeleteOrder}
+      onDeleteBatch={() => {
+        if (activeMenu?.group) {
+          if (onDeleteBatchOrders) {
+            onDeleteBatchOrders(activeMenu.group.items);
+          } else {
+            activeMenu.group.items.forEach((it) => onDeleteOrder(it.id));
+          }
+        }
+      }}
     />
   </div>
 );

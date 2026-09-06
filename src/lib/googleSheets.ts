@@ -327,14 +327,28 @@ export async function updateGroupStatus(
 }
 
 /**
- * Delete row from Google Sheets
+ * Delete row(s) from Google Sheets
  */
 export async function deleteRow(
   sheet: SheetName,
-  match: Record<string, any>,
-  rowIndex?: number
+  optionsOrMatch: Record<string, any> | { match?: Record<string, any>; rowIndex?: number; rowIndices?: number[]; deleteAllMatches?: boolean },
+  legacyRowIndex?: number
 ): Promise<ApiResponse> {
   try {
+    let match: Record<string, any> | undefined;
+    let rowIndex: number | undefined = legacyRowIndex;
+    let rowIndices: number[] | undefined;
+    let deleteAllMatches: boolean | undefined;
+
+    if (optionsOrMatch && ('match' in optionsOrMatch || 'rowIndex' in optionsOrMatch || 'rowIndices' in optionsOrMatch || 'deleteAllMatches' in optionsOrMatch)) {
+      match = optionsOrMatch.match;
+      rowIndex = optionsOrMatch.rowIndex ?? legacyRowIndex;
+      rowIndices = optionsOrMatch.rowIndices;
+      deleteAllMatches = optionsOrMatch.deleteAllMatches;
+    } else {
+      match = optionsOrMatch as Record<string, any>;
+    }
+
     const response = await fetch('/api/sheets-delete', {
       method: 'POST',
       headers: {
@@ -344,6 +358,8 @@ export async function deleteRow(
         sheet,
         match,
         rowIndex,
+        rowIndices,
+        deleteAllMatches,
       }),
     });
 
@@ -351,13 +367,15 @@ export async function deleteRow(
     if (!response.ok || !json.success) {
       return {
         success: false,
-        error: json.error || `HTTP ${response.status}: Gagal menghapus baris`,
+        error: json.error || `HTTP ${response.status}: Gagal menghapus baris dari sheet "${sheet}"`,
       };
     }
 
     return {
       success: true,
       message: json.message,
+      deletedCount: json.deletedCount,
+      deletedRowIndices: json.deletedRowIndices,
     };
   } catch (err: any) {
     console.error(`[GoogleSheets API] Error deleteRow (${sheet}):`, err);

@@ -569,26 +569,43 @@ export default function App() {
 
   const handleDeleteOrder = (id: string) => {
     const targetOrder = orders.find((o) => o.id === id);
+    const targetInvoice = !targetOrder ? invoices.find((inv) => inv.id === id || inv.items?.some((it) => it.id === id)) : undefined;
+
     setConfirmState({
       isOpen: true,
       title: 'Konfirmasi Hapus Pesanan',
-      message: 'Apakah Anda yakin ingin menghapus barang ini dari daftar pesanan?',
+      message: 'Apakah Anda yakin ingin menghapus item ini?',
       onConfirm: async () => {
         setOrders((prev) => prev.filter((o) => o.id !== id));
+        if (targetInvoice) {
+          setInvoices((prev) => prev.filter((inv) => inv.id !== targetInvoice.id));
+        }
         setConfirmState(null);
-        showToast('Pesanan berhasil dihapus', 'delete');
+        showToast('Item berhasil dihapus', 'delete');
 
         if (targetOrder) {
           const res = await deleteRow('pesanan', {
-            ITEM: targetOrder.namaBarang,
-            DATE: targetOrder.tanggal,
-            DAPUR: targetOrder.tujuanDapur,
-            TOKO: targetOrder.toko,
+            match: {
+              ITEM: targetOrder.namaBarang,
+              DATE: targetOrder.tanggal,
+              DAPUR: targetOrder.tujuanDapur,
+              TOKO: targetOrder.toko,
+            },
+            rowIndex: targetOrder.rowIndex,
           });
           if (!res.success) {
             setGasError(res.error || 'Gagal hapus data di Google Sheets');
             showToast(`Dihapus lokal (Gagal hapus di Sheets: ${res.error})`, 'error');
           }
+        } else if (targetInvoice) {
+          await deleteRow('transaksi', {
+            match: {
+              TANGGAL: targetInvoice.tanggalPrint || targetInvoice.tanggal,
+              TOKO: targetInvoice.toko,
+              PEMASOK: targetInvoice.pemasok,
+            },
+            rowIndex: targetInvoice.rowIndex,
+          });
         }
       },
     });
@@ -1032,15 +1049,127 @@ export default function App() {
     }
   };
 
-  const handleDeleteInvoice = (id: string) => {
+  const handleDeleteTransaction = (batch: any) => {
+    const batchDesc = `${batch.toko || batch.tujuanDapur || 'Transaksi'} (${batch.tanggal})`;
     setConfirmState({
       isOpen: true,
-      title: 'Hapus Riwayat Invoice',
-      message: 'Apakah Anda yakin ingin menghapus riwayat invoice ini?',
-      onConfirm: () => {
+      title: 'Konfirmasi Hapus Transaksi',
+      message: `Hapus transaksi untuk ${batchDesc}? Data di sheet transaksi dan pesanan terkait di Google Sheets akan dihapus.`,
+      onConfirm: async () => {
+        // 1. Local state updates
+        const batchItemIds = new Set((batch.items || []).map((it: any) => it.id));
+        setInvoices((prev) =>
+          prev.filter((inv) => {
+            if (inv.id === batch.id) return false;
+            const invDate = inv.tanggalPrint || inv.tanggal;
+            if (
+              invDate === batch.tanggal &&
+              (inv.toko || '') === (batch.toko || '') &&
+              (inv.pemasok || '') === (batch.pemasok || '')
+            ) {
+              return false;
+            }
+            return true;
+          })
+        );
+
+        setOrders((prev) =>
+          prev.filter((o) => {
+            if (batchItemIds.has(o.id)) return false;
+            if (
+              o.tanggal === batch.tanggal &&
+              (o.toko === batch.toko || o.tujuanDapur === batch.tujuanDapur) &&
+              o.pemasok === batch.pemasok
+            ) {
+              return false;
+            }
+            return true;
+          })
+        );
+
+        setConfirmState(null);
+        showToast(`Transaksi ${batchDesc} berhasil dihapus`, 'delete');
+
+        // 2. Google Sheets sync: Delete from sheet "transaksi"
+        setIsSyncingGas(true);
+        try {
+          const txMatch: Record<string, any> = {
+            TANGGAL: batch.tanggal,
+          };
+          if (batch.pemasok) txMatch.PEMASOK = batch.pemasok;
+          if (batch.toko) txMatch.TOKO = batch.toko;
+          if (batch.items && batch.items.length > 0 && batch.items[0].namaBarang) {
+            txMatch.BARANG = batch.items[0].namaBarang;
+          }
+
+          const resTx = await deleteRow('transaksi', {
+            match: txMatch,
+          });
+
+          if (!resTx.success) {
+            console.warn('Gagal hapus di sheet transaksi:', resTx.error);
+          }
+
+          // 3. Delete matching items from sheet "pesanan"
+          if (batch.items && batch.items.length > 0) {
+            for (const item of batch.items) {
+              await deleteRow('pesanan', {
+                match: {
+                  ITEM: item.namaBarang,
+                  DATE: item.tanggal || batch.tanggal,
+                  DAPUR: item.tujuanDapur || batch.tujuanDapur,
+                  TOKO: item.toko || batch.toko,
+                },
+                rowIndex: item.rowIndex,
+              });
+            }
+          } else {
+            await deleteRow('pesanan', {
+              match: {
+                DATE: batch.tanggal,
+                DAPUR: batch.tujuanDapur,
+                TOKO: batch.toko,
+              },
+              deleteAllMatches: true,
+            });
+          }
+        } catch (err) {
+          console.warn('Error syncing delete transaction:', err);
+        } finally {
+          setIsSyncingGas(false);
+        }
+      },
+    });
+  };
+
+  const handleDeleteInvoice = (id: string) => {
+    const targetInvoice = invoices.find((inv) => inv.id === id);
+    setConfirmState({
+      isOpen: true,
+      title: 'Hapus Transaksi',
+      message: 'Apakah Anda yakin ingin menghapus transaksi ini? Data di Google Sheets akan dihapus.',
+      onConfirm: async () => {
         setInvoices((prev) => prev.filter((inv) => inv.id !== id));
         setConfirmState(null);
-        showToast('Riwayat invoice dihapus', 'delete');
+        showToast('Transaksi berhasil dihapus', 'delete');
+
+        if (targetInvoice) {
+          setIsSyncingGas(true);
+          try {
+            await deleteRow('transaksi', {
+              match: {
+                TANGGAL: targetInvoice.tanggalPrint || targetInvoice.tanggal,
+                TOKO: targetInvoice.toko,
+                PEMASOK: targetInvoice.pemasok,
+              },
+              rowIndex: targetInvoice.rowIndex,
+            });
+          } catch (e) {
+            console.warn('Error deleting invoice from sheet:', e);
+          } finally {
+            setIsSyncingGas(false);
+          }
+        }
       },
     });
   };
@@ -1198,6 +1327,7 @@ export default function App() {
                   onOpenInvoiceModal={handleStartInvoiceFlow}
                   onExportInvoicePdf={handleDirect1ClickExportInvoicePdf}
                   onDeleteInvoice={handleDeleteInvoice}
+                  onDeleteTransaction={handleDeleteTransaction}
                   onOpenAddModal={handleOpenAddModal}
                 />
               </motion.div>

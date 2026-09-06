@@ -36,7 +36,7 @@ export default async function handler(req: any, res: any) {
   try {
     const body = parseBody(req);
     const sheet = (body.sheet || req.query?.sheet || 'pesanan') as string;
-    const { rowIndex, match } = body;
+    const { rowIndex, rowIndices, match, deleteAllMatches } = body;
 
     if (!isSheetsConfigured()) {
       return res.status(200).json({
@@ -48,8 +48,19 @@ export default async function handler(req: any, res: any) {
 
     const result = await deleteSheetRow(sheet, {
       rowIndex: rowIndex ? Number(rowIndex) : undefined,
+      rowIndices: Array.isArray(rowIndices) ? rowIndices.map(Number) : undefined,
       match,
+      deleteAllMatches: !!deleteAllMatches,
     });
+
+    if (!result.success) {
+      return res.status(200).json({
+        success: false,
+        configured: true,
+        error: result.error || `Gagal menghapus baris dari sheet "${sheet}"`,
+        ...result,
+      });
+    }
 
     return res.status(200).json({
       success: true,
