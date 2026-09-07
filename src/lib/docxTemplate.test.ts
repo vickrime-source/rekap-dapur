@@ -8,7 +8,15 @@ import {
   TEMPLATE_URLS,
 } from './docxTemplate';
 import { compressDocxImagesClient } from './clientDocxCompressor';
-import { generateInvoiceNumber, formatRupiah, parseIndonesianNumber } from './formatters';
+import {
+  generateInvoiceNumber,
+  formatRupiah,
+  parseIndonesianNumber,
+  formatTanggalInvoice,
+  formatSppgKitchenName,
+  resolveRecipientSppgName,
+} from './formatters';
+import { generateInvoiceHtmlString } from './htmlInvoicePdf';
 import JSZip from 'jszip';
 import PizZip from 'pizzip';
 
@@ -182,6 +190,67 @@ describe('Invoice Processing & Template TDD Tests', () => {
       const invNo = generateInvoiceNumber('Cluring');
       expect(invNo).toMatch(/^INV\//);
       expect(invNo).toContain('CLUR');
+    });
+  });
+
+  describe('Invoice Date & SPPG Kitchen Name Formatting (User Specific Guidelines)', () => {
+    it('should format date with day name in uppercase and full month (SENIN, 27 Juli 2026)', () => {
+      expect(formatTanggalInvoice('2026-07-27')).toBe('SENIN, 27 Juli 2026');
+      expect(formatTanggalInvoice('2026-08-11')).toBe('SELASA, 11 Agustus 2026');
+    });
+
+    it('should resolve kitchen names to uppercase SPPG {NAMA DAPUR}', () => {
+      expect(formatSppgKitchenName('Cluring')).toBe('SPPG CLURING');
+      expect(formatSppgKitchenName('siliragung')).toBe('SPPG SILIRAGUNG');
+      expect(formatSppgKitchenName('Rejoagung')).toBe('SPPG REJOAGUNG');
+      expect(formatSppgKitchenName('SPPG Cluring')).toBe('SPPG CLURING');
+      expect(formatSppgKitchenName('')).toBe('SPPG');
+
+      // resolveRecipientSppgName should ignore '-' or generic 'dapur' and use actual kitchen
+      expect(resolveRecipientSppgName('-', 'Cluring')).toBe('SPPG CLURING');
+      expect(resolveRecipientSppgName('', 'Siliragung')).toBe('SPPG SILIRAGUNG');
+      expect(resolveRecipientSppgName('Rejoagung', undefined)).toBe('SPPG REJOAGUNG');
+    });
+
+    it('should render exact format in HTML template across HTG, ADIFRUITA, LUWENG BOGA, PROHE', () => {
+      const stores = ['HTG', 'ADIFRUITA', 'LUWENG BOGA', 'PROHE'];
+
+      for (const store of stores) {
+        const html = generateInvoiceHtmlString({
+          storeName: store,
+          kitchenName: 'Cluring',
+          items: [
+            {
+              id: '1',
+              namaBarang: 'Beras Super',
+              qty: 10,
+              hargaJual: 14000,
+              toko: store,
+              tujuanDapur: 'Cluring',
+              tanggal: '2026-07-27',
+            } as any,
+          ],
+          invoiceNumber: 'INV/TEST/001',
+          customTanggal: '2026-07-27',
+        });
+
+        // Tanggal with Day
+        expect(html).toContain('Tanggal :</strong> SENIN, 27 Juli 2026');
+
+        // Top-right recipient format:
+        // Kepada Yth.
+        // SPPG CLURING
+        // -
+        expect(html).toContain('Kepada Yth.');
+        expect(html).toContain('SPPG CLURING');
+        expect(html).toContain('>-<');
+
+        // Tanda Terima:
+        // Tanda Terima
+        // (SPPG CLURING)
+        expect(html).toContain('Tanda Terima');
+        expect(html).toContain('(SPPG CLURING)');
+      }
     });
   });
 });

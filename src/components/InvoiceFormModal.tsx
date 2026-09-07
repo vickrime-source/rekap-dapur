@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, FileText, ArrowRight, User, MapPin, Phone, CreditCard, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { OrderItem, Kitchen } from '../types';
-import { parseIndonesianNumber, formatRupiah, formatRupiahInput, parseRupiahInput } from '../lib/formatters';
+import { parseIndonesianNumber, formatRupiah, formatRupiahInput, parseRupiahInput, formatSppgKitchenName, resolveRecipientSppgName } from '../lib/formatters';
 
 interface InvoiceFormModalProps {
   isOpen: boolean;
@@ -31,7 +31,8 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({
   kitchens = [],
   onConfirm,
 }) => {
-  const [recipientName, setRecipientName] = useState('-');
+  const initialKitchen = kitchenName || items[0]?.tujuanDapur || '';
+  const [recipientName, setRecipientName] = useState(formatSppgKitchenName(initialKitchen));
   const [address, setAddress] = useState('-');
   const [phone, setPhone] = useState('-');
   const [bayarInput, setBayarInput] = useState<string>('Rp0');
@@ -51,7 +52,8 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({
     if (isOpen) {
       setError('');
       setBayarInput('Rp0');
-      setRecipientName('-');
+      const targetKitchen = kitchenName || items[0]?.tujuanDapur || '';
+      setRecipientName(formatSppgKitchenName(targetKitchen));
       setAddress('-');
       setPhone('-');
     }
@@ -62,11 +64,6 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!recipientName.trim()) {
-      setError('Nama Penerima wajib diisi');
-      return;
-    }
-
     if (parsedBayar > totalAmount) {
       setError('Jumlah bayar tidak boleh melebihi total');
       return;
@@ -74,12 +71,13 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({
 
     const mainKitchen = kitchenName || items[0]?.tujuanDapur || '';
     const mainStore = storeName || items[0]?.toko || '';
+    const finalRecipient = resolveRecipientSppgName(recipientName, mainKitchen, items);
 
     onConfirm({
       items,
       kitchenName: mainKitchen,
       storeName: mainStore,
-      recipientName: recipientName.trim() || '-',
+      recipientName: finalRecipient,
       address: address.trim() || '-',
       phone: phone.trim() || '-',
       bayar: parsedBayar,

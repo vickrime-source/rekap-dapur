@@ -1,7 +1,7 @@
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { OrderItem } from '../types';
-import { formatRupiah, formatTanggalRealtime, parseIndonesianNumber } from './formatters';
+import { formatRupiah, formatTanggalInvoice, resolveRecipientSppgName, parseIndonesianNumber } from './formatters';
 import { getStoreProfile, StoreProfile } from './storeProfiles';
 
 export interface HtmlInvoiceOptions {
@@ -9,7 +9,7 @@ export interface HtmlInvoiceOptions {
   kitchenName: string;
   items: OrderItem[];
   invoiceNumber: string;
-  bayar: number;
+  bayar?: number;
   customNama?: string;
   customAlamat?: string;
   customNomor?: string;
@@ -32,10 +32,8 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
   const bayar = parseIndonesianNumber(options.bayar || 0);
   const sisa = Math.max(0, totalJual - bayar);
 
-  const recipientName = options.customNama || options.kitchenName || 'Dapur';
-  const recipientAddress = options.customAlamat || 'Banyuwangi';
-  const recipientPhone = options.customNomor || '-';
-  const invoiceDate = options.customTanggal || formatTanggalRealtime(items[0]?.tanggal || new Date().toISOString().split('T')[0]);
+  const recipientName = resolveRecipientSppgName(options.customNama, options.kitchenName, items);
+  const invoiceDate = formatTanggalInvoice(options.customTanggal || items[0]?.tanggal || new Date());
 
   const rowsHtml = items
     .map((item, idx) => {
@@ -98,8 +96,7 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
             <div style="font-size: 9.5pt; line-height: 1.4; font-family: Arial, sans-serif;">
               <div style="font-weight: 700; margin-bottom: 2px;">Kepada Yth.</div>
               <div style="font-weight: 700; font-size: 10pt; color: #000000;">${recipientName}</div>
-              <div style="color: #222222;">${recipientAddress}</div>
-              ${recipientPhone && recipientPhone !== '-' ? `<div style="color: #222222; font-size: 9pt;">${recipientPhone}</div>` : ''}
+              <div style="color: #222222;">-</div>
             </div>
           </td>
         </tr>
@@ -171,7 +168,7 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
               Tanda Terima
             </div>
             <div style="font-size: 10pt; font-weight: 700; display: inline-block; min-width: 140px; font-family: Arial, sans-serif;">
-              ( ${recipientName} )
+              (${recipientName})
             </div>
           </td>
 

@@ -3,7 +3,7 @@ import {
   Trash2, 
   Plus, 
   Check, 
-  Clock, 
+  AlertCircle, 
   Edit2, 
   X, 
   Truck,
@@ -87,7 +87,7 @@ export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = ({
               </>
             ) : (
               <>
-                <Clock className="w-3 h-3 stroke-[2.5]" />
+                <AlertCircle className="w-3 h-3 stroke-[2.5]" />
                 <span>PENDING</span>
               </>
             )}

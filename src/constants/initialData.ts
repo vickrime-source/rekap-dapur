@@ -1,4 +1,5 @@
 import { Kitchen, Store, OrderItem } from '../types';
+import { getTodayWIB } from '../lib/formatters';
 
 export const INITIAL_PEMASOK: string[] = [
   "Pemasok 1",
@@ -117,6 +118,6 @@ export const INITIAL_KITCHENS: Kitchen[] = [
   }
 ];
 
-export const DEFAULT_DATE = new Date().toISOString().split('T')[0];
+export const DEFAULT_DATE = getTodayWIB();
 
 export const INITIAL_ORDERS: OrderItem[] = [];

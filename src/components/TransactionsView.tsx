@@ -17,7 +17,7 @@ import {
   Activity
 } from 'lucide-react';
 import { OrderItem, Kitchen, PaymentStatus, DeliveryStatus } from '../types';
-import { formatRupiah, formatTanggalDisatuin, getTokoBadgeStyle } from '../lib/formatters';
+import { formatRupiah, formatTanggalDisatuin, getTokoBadgeStyle, formatJam } from '../lib/formatters';
 import { motion, AnimatePresence } from 'motion/react';
 import { Pagination } from './Pagination';
 import { TableSkeleton } from './TableSkeleton';
@@ -27,6 +27,7 @@ interface TransactionBatch {
   id: string;
   batchIndex: number;
   tanggal: string;
+  createdAt?: string;
   tujuanDapur: string;
   toko: string;
   pemasok: string;
@@ -159,6 +160,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         id: key,
         batchIndex: idx++,
         tanggal: first.tanggal,
+        createdAt: first.createdAt,
         tujuanDapur: first.tujuanDapur,
         toko: first.toko,
         pemasok: first.pemasok,
@@ -196,6 +198,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             id: inv.id || key,
             batchIndex: idx++,
             tanggal: invDate,
+            createdAt: inv.createdAt,
             tujuanDapur: invDapur,
             toko: invToko,
             pemasok: invPemasok,
@@ -390,7 +393,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                     {/* Total Rupiah */}
                     <div className="text-right">
                       <span className="text-[8px] text-slate-600 block font-medium">Total Beli</span>
-                      <span className="font-black font-mono text-[11px] text-slate-900">
+                      <span className="font-black font-nominal text-[11px] text-slate-900">
                         {formatRupiah(batch.totalBeli)}
                       </span>
                     </div>
@@ -403,7 +406,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         <div className="font-bold text-slate-800 truncate">
                           • {it.namaBarang}
                         </div>
-                        <div className="text-[9px] font-mono font-semibold text-slate-600 whitespace-nowrap">
+                        <div className="text-[9px] font-nominal font-bold text-slate-600 whitespace-nowrap">
                           {it.qty} × {formatRupiah(it.hargaBeli)}
                         </div>
                       </div>
@@ -585,7 +588,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                                 <div className="font-bold text-slate-900 truncate">
                                   • {it.namaBarang}
                                 </div>
-                                <div className="text-[8.5px] font-mono text-slate-500 whitespace-nowrap">
+                                <div className="text-[8.5px] font-nominal font-semibold text-slate-500 whitespace-nowrap">
                                   {it.qty} × {formatRupiah(it.hargaBeli)}
                                 </div>
                               </div>
@@ -601,17 +604,17 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         </td>
 
                         {/* 6. QTY */}
-                        <td className="py-2 px-1 text-center font-black font-mono text-[10px] text-slate-900 align-middle">
+                        <td className="py-2 px-1 text-center font-black font-nominal text-[10px] text-slate-900 align-middle">
                           {batch.totalQty}
                         </td>
 
                         {/* 7. H. BELI */}
-                        <td className="py-2 px-2 text-right font-black font-mono text-[10px] text-slate-900 align-middle whitespace-nowrap">
+                        <td className="py-2 px-2 text-right font-black font-nominal text-[10px] text-slate-900 align-middle whitespace-nowrap">
                           {formatRupiah(batch.totalBeli)}
                         </td>
 
                         {/* 8. TOTAL */}
-                        <td className="py-2 px-2 text-right font-black font-mono text-[10px] text-emerald-800 align-middle whitespace-nowrap">
+                        <td className="py-2 px-2 text-right font-black font-nominal text-[10px] text-emerald-800 align-middle whitespace-nowrap">
                           {formatRupiah(batch.totalJual || batch.totalBeli)}
                         </td>
 

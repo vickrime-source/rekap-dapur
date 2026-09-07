@@ -1,22 +1,16 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Search, 
-  Plus, 
   Store as StoreIcon,
   Utensils,
   Calendar as CalendarIcon,
-  Filter,
-  Activity,
   ChevronDown,
-  DollarSign,
-  TrendingUp,
-  Package,
   X
 } from 'lucide-react';
 import { OrderItem, Kitchen, Store as StoreType, PaymentStatus, DeliveryStatus } from '../types';
 import { OrdersTableView } from './OrdersTableView';
 import { CalendarPickerModal } from './CalendarPickerModal';
-import { formatRupiah, formatTanggal } from '../lib/formatters';
+import { formatTanggal, parseDateSafe, normalizeDateSimple, isOrderToday } from '../lib/formatters';
 
 interface DashboardViewProps {
   orders: OrderItem[];
@@ -71,9 +65,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       // Date filter (if active)
       if (useDateFilter) {
         if (endDate && endDate !== selectedDate) {
-          if (item.tanggal < selectedDate || item.tanggal > endDate) return false;
+          const itemDate = parseDateSafe(item.tanggal);
+          const start = parseDateSafe(selectedDate);
+          const end = parseDateSafe(endDate);
+          if (itemDate && start && end) {
+            if (itemDate < start || itemDate > end) return false;
+          }
         } else {
-          if (item.tanggal !== selectedDate) return false;
+          const itemNorm = normalizeDateSimple(item.tanggal);
+          const selNorm = normalizeDateSimple(selectedDate);
+          const isMatch = itemNorm === selNorm || isOrderToday(item, selectedDate);
+          if (!isMatch) return false;
         }
       }
 
@@ -117,12 +119,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Pill Filters Group */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-          {/* Pill 1: Filter Icon (Purple) + Semua Jasa / Toko + Chevron */}
+          {/* Pill 1: Store Icon (Purple) + Semua Toko + Chevron */}
           <div className="relative inline-flex items-center">
             <div className="rounded-full px-4 py-2 bg-white border border-indigo-200/90 shadow-2xs hover:border-indigo-400 hover:shadow-xs transition-all flex items-center gap-2 cursor-pointer">
-              <Filter className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <StoreIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
               <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
-                {selectedStoreFilter === 'all' ? 'Semua Jasa' : `Toko ${selectedStoreFilter}`}
+                {selectedStoreFilter === 'all' ? 'Semua Toko' : `Toko ${selectedStoreFilter}`}
               </span>
               <ChevronDown className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
             </div>
@@ -131,7 +133,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onChange={(e) => setSelectedStoreFilter(e.target.value)}
               className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs"
             >
-              <option value="all">Semua Jasa ({stores.length} Toko)</option>
+              <option value="all">Semua Toko ({stores.length})</option>
               {stores.map((st) => (
                 <option key={st.id} value={st.nama}>
                   Toko {st.nama}
@@ -140,12 +142,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </select>
           </div>
 
-          {/* Pill 2: Activity Icon (Purple) + Semua Progres / Dapur + Chevron */}
+          {/* Pill 2: Utensils Icon (Purple) + Semua Dapur + Chevron */}
           <div className="relative inline-flex items-center">
             <div className="rounded-full px-4 py-2 bg-white border border-indigo-200/90 shadow-2xs hover:border-indigo-400 hover:shadow-xs transition-all flex items-center gap-2 cursor-pointer">
-              <Activity className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <Utensils className="w-3.5 h-3.5 text-purple-600 shrink-0" />
               <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
-                {selectedKitchenFilter === 'all' ? 'Semua Progres' : `Dapur ${selectedKitchenFilter}`}
+                {selectedKitchenFilter === 'all' ? 'Semua Dapur' : `Dapur ${selectedKitchenFilter}`}
               </span>
               <ChevronDown className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
             </div>
@@ -154,7 +156,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onChange={(e) => setSelectedKitchenFilter(e.target.value)}
               className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs"
             >
-              <option value="all">Semua Progres ({kitchens.length} Dapur)</option>
+              <option value="all">Semua Dapur ({kitchens.length})</option>
               {kitchens.map((k) => (
                 <option key={k.id} value={k.nama}>
                   Dapur {k.nama}

@@ -7,7 +7,7 @@ interface SplashScreenProps {
 }
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
-  const [statusText, setStatusText] = useState('Menyiapkan Rekap Dapur Pro...');
+  const [statusText, setStatusText] = useState('Menyiapkan Rekap Dapur...');
   const [progress, setProgress] = useState(15);
 
   useEffect(() => {
@@ -78,7 +78,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
           className="space-y-1"
         >
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-            <span>Rekap Dapur Pro</span>
+            <span>Rekap Dapur</span>
           </h1>
           <p className="text-xs text-slate-400 font-medium">
             Sistem Ringkasan Pesanan Supplier &amp; Dapur Harian

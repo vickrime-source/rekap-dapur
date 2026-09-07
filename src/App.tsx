@@ -32,7 +32,7 @@ import { ConfirmModal } from './components/ConfirmModal';
 import { ExportHistorySheet } from './components/ExportHistorySheet';
 import { SyncBottomSheet } from './components/SyncBottomSheet';
 import { Toast, ToastMessage, ToastType } from './components/Toast';
-import { generateInvoiceNumber, parseIndonesianNumber } from './lib/formatters';
+import { generateInvoiceNumber, parseIndonesianNumber, getTodayWIB, getNowWIBISOString } from './lib/formatters';
 import { 
   addRow, 
   updateRow,
@@ -46,6 +46,12 @@ import {
   buildTransaksiPayload,
   buildNotesPayload
 } from './lib/googleSheets';
+import { 
+  getSyncQueue, 
+  enqueueSync, 
+  processSyncQueue, 
+  isDeviceOnline 
+} from './lib/syncQueue';
 import { downloadDocxInvoice } from './lib/docxTemplate';
 import { exportHtmlInvoicePdf } from './lib/htmlInvoicePdf';
 import { motion, AnimatePresence } from 'motion/react';
@@ -60,9 +66,11 @@ export default function App() {
   const [exportHistory, setExportHistory] = useLocalStorage<ExportHistoryItem[]>('dapur_export_history_v1', []);
   const [notes, setNotes] = useLocalStorage<NoteItem[]>('dapur_highlight_notes_v1', []);
 
-  // Google Sheets Sync State
+  // Google Sheets Sync State & Offline Queue
   const [isSyncingGas, setIsSyncingGas] = useState(false);
   const [gasError, setGasError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState<boolean>(() => isDeviceOnline());
+  const [pendingQueueCount, setPendingQueueCount] = useState<number>(() => getSyncQueue().length);
 
   // Export background tracking state
   const [isExportingActive, setIsExportingActive] = useState(false);
@@ -98,7 +106,31 @@ export default function App() {
 
       if (!pesananRes.error && Array.isArray(pesananRes.data) && pesananRes.data.length > 0) {
         const mappedOrders = pesananRes.data.map(mapRawOrder);
-        setOrders(mappedOrders);
+        const queue = getSyncQueue();
+        const pendingAddedOrders = queue
+          .filter((q) => q.type === 'add_row' && q.sheet === 'pesanan')
+          .map((q) => q.payload);
+
+        setOrders((prevOrders) => {
+          // Keep local orders that are still pending upload
+          const pendingUnsynced = prevOrders.filter((po) =>
+            pendingAddedOrders.some(
+              (p) =>
+                p &&
+                p.ITEM === po.namaBarang &&
+                p.DATE === po.tanggal &&
+                p.DAPUR === po.tujuanDapur
+            )
+          );
+          // Combine pending items with sheet orders (sheet orders are source of truth from Cloud)
+          const merged = [...pendingUnsynced];
+          for (const mo of mappedOrders) {
+            if (!merged.some((item) => item.id === mo.id)) {
+              merged.push(mo);
+            }
+          }
+          return merged;
+        });
         loadedOrdersCount = mappedOrders.length;
         hasAnySuccess = true;
       }
@@ -216,9 +248,7 @@ export default function App() {
 
   // Navigation State
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(() => getTodayWIB());
 
   // Modal States
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
@@ -245,6 +275,80 @@ export default function App() {
   const [isTextImportOpen, setIsTextImportOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Background queue processor: uploads queued offline changes to Google Sheets
+  const handleProcessQueueAndSync = async (showNotice = false) => {
+    if (!isDeviceOnline()) {
+      if (showNotice) showToast('Perangkat sedang offline. Data tetap tersimpan aman di HP.', 'info');
+      return;
+    }
+    const queue = getSyncQueue();
+    if (queue.length > 0) {
+      setIsSyncingGas(true);
+      const result = await processSyncQueue();
+      setIsSyncingGas(false);
+      setPendingQueueCount(result.remainingCount);
+      if (result.processedCount > 0) {
+        showToast(`${result.processedCount} data tersimpan di HP berhasil diunggah ke Google Sheets! Data sekarang aktif untuk semua perangkat.`, 'success');
+        await loadSpreadsheetData(false);
+      } else if (!result.success && result.lastError) {
+        setGasError(result.lastError);
+        if (showNotice) showToast(`Sebagian antrean belum terunggah: ${result.lastError}`, 'error');
+      }
+    } else {
+      await loadSpreadsheetData(showNotice);
+    }
+  };
+
+  // Automatic multi-device & offline queue sync listeners
+  React.useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      showToast('Internet terhubung! Mengunggah antrean perubahan ke Google Sheets...', 'info');
+      handleProcessQueueAndSync(true);
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      showToast('Mode offline aktif. Perubahan tetap tersimpan di HP dan akan otomatis diunggah ke Google Sheets saat ada sinyal.', 'info');
+    };
+
+    const handleQueueChange = (e: any) => {
+      setPendingQueueCount(e?.detail?.count ?? getSyncQueue().length);
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && isDeviceOnline()) {
+        handleProcessQueueAndSync(false);
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('rekap_dapur_sync_queue_change', handleQueueChange as EventListener);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // Periodic sync polling (every 25s): auto uploads any pending offline queue
+    // and pulls latest updates from Google Sheets so input from other phones automatically appears!
+    const interval = setInterval(() => {
+      if (isDeviceOnline()) {
+        const q = getSyncQueue();
+        if (q.length > 0) {
+          handleProcessQueueAndSync(false);
+        } else if (document.visibilityState === 'visible' && !isOrderModalOpen && !isInvoiceFormOpen && !isInvoiceModalOpen) {
+          loadSpreadsheetData(false);
+        }
+      }
+    }, 25000);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('rekap_dapur_sync_queue_change', handleQueueChange as EventListener);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(interval);
+    };
+  }, [isOrderModalOpen, isInvoiceFormOpen, isInvoiceModalOpen]);
 
   // Handlers for Order CRUD
   const handleToggleStatus = (id: string) => {
@@ -289,9 +393,25 @@ export default function App() {
     );
     if (!res.success) {
       setGasError(res.error || 'Gagal update status pembayaran di Google Sheets');
-      showToast(`Status lokal diubah (Gagal sync Sheets: ${res.error})`, 'error');
+      enqueueSync({
+        type: 'update_row',
+        sheet: 'pesanan',
+        match: {
+          ITEM: targetOrder.namaBarang,
+          DATE: targetOrder.tanggal,
+          DAPUR: targetOrder.tujuanDapur,
+          TOKO: targetOrder.toko,
+        },
+        data: {
+          PAYMENT: paymentStatus,
+          STATUS: newStatus,
+        },
+        rowIndex: targetOrder.rowIndex,
+        description: `Update bayar (${paymentStatus}) ${targetOrder.namaBarang}`
+      });
+      showToast(`Status lokal diubah (Tersimpan di HP & masuk antrean upload Google Sheets)`, 'info');
     } else {
-      showToast(`Status pembayaran berhasil diperbarui (${paymentStatus})`, 'success');
+      showToast(`Status pembayaran berhasil diperbarui (${paymentStatus}) & tersimpan ke Cloud`, 'success');
     }
   };
 
@@ -329,9 +449,25 @@ export default function App() {
     );
     if (!res.success) {
       setGasError(res.error || 'Gagal update status pengiriman di Google Sheets');
-      showToast(`Status lokal diubah (Gagal sync Sheets: ${res.error})`, 'error');
+      enqueueSync({
+        type: 'update_row',
+        sheet: 'pesanan',
+        match: {
+          ITEM: targetOrder.namaBarang,
+          DATE: targetOrder.tanggal,
+          DAPUR: targetOrder.tujuanDapur,
+          TOKO: targetOrder.toko,
+        },
+        data: {
+          DILEVERY: deliveryStatus,
+          STATUS: newStatus,
+        },
+        rowIndex: targetOrder.rowIndex,
+        description: `Update kirim (${deliveryStatus}) ${targetOrder.namaBarang}`
+      });
+      showToast(`Status lokal diubah (Tersimpan di HP & masuk antrean upload Google Sheets)`, 'info');
     } else {
-      showToast(`Status pengiriman berhasil diperbarui (${deliveryStatus})`, 'success');
+      showToast(`Status pengiriman berhasil diperbarui (${deliveryStatus}) & tersimpan ke Cloud`, 'success');
     }
   };
 
@@ -370,9 +506,24 @@ export default function App() {
     );
     if (!res.success) {
       setGasError(res.error || 'Gagal update pembayaran grup di Google Sheets');
-      showToast(`Status grup lokal diubah (Gagal sync Sheets: ${res.error})`, 'error');
+      enqueueSync({
+        type: 'update_group',
+        sheet: 'pesanan',
+        match: {
+          DATE: first.tanggal,
+          DAPUR: first.tujuanDapur,
+          TOKO: first.toko,
+        },
+        data: {
+          PAYMENT: paymentStatus,
+          STATUS: paymentStatus === 'PAID' ? 'selesai' : 'pending',
+        },
+        rowIndices: rowIndices.length > 0 ? rowIndices : undefined,
+        description: `Update grup payment ${first.tujuanDapur}`
+      });
+      showToast(`Status grup lokal diubah (Tersimpan di HP & masuk antrean upload Google Sheets)`, 'info');
     } else {
-      showToast(`Status pembayaran grup berhasil diperbarui (${paymentStatus})`, 'success');
+      showToast(`Status pembayaran grup berhasil diperbarui (${paymentStatus}) & tersimpan ke Cloud`, 'success');
     }
   };
 
@@ -411,9 +562,24 @@ export default function App() {
     );
     if (!res.success) {
       setGasError(res.error || 'Gagal update pengiriman grup di Google Sheets');
-      showToast(`Status pengiriman grup lokal diubah (Gagal sync Sheets: ${res.error})`, 'error');
+      enqueueSync({
+        type: 'update_group',
+        sheet: 'pesanan',
+        match: {
+          DATE: first.tanggal,
+          DAPUR: first.tujuanDapur,
+          TOKO: first.toko,
+        },
+        data: {
+          DILEVERY: deliveryStatus,
+          STATUS: deliveryStatus === 'DONE' ? 'selesai' : 'pending',
+        },
+        rowIndices: rowIndices.length > 0 ? rowIndices : undefined,
+        description: `Update grup delivery ${first.tujuanDapur}`
+      });
+      showToast(`Status pengiriman grup lokal diubah (Tersimpan di HP & masuk antrean upload Google Sheets)`, 'info');
     } else {
-      showToast(`Status pengiriman grup berhasil diperbarui (${deliveryStatus})`, 'success');
+      showToast(`Status pengiriman grup berhasil diperbarui (${deliveryStatus}) & tersimpan ke Cloud`, 'success');
     }
   };
 
@@ -421,7 +587,7 @@ export default function App() {
     const duplicated: OrderItem = {
       ...item,
       id: `ord-dup-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      createdAt: new Date().toISOString(),
+      createdAt: getNowWIBISOString(),
     };
 
     // Always preserve data locally
@@ -435,7 +601,13 @@ export default function App() {
       showToast('Pesanan berhasil diduplikasi & tersimpan ke Google Sheets', 'success');
     } else {
       setGasError(res.error || 'Gagal tersambung ke Google Sheets');
-      showToast(`Pesanan diduplikasi di HP/Lokal! (Gagal sync Google Sheets: ${res.error || '404 Error'})`, 'error');
+      enqueueSync({
+        type: 'add_row',
+        sheet: 'pesanan',
+        payload: buildPesananPayload(duplicated),
+        description: `Duplikasi pesanan ${duplicated.namaBarang}`
+      });
+      showToast('Pesanan diduplikasi di HP (Offline). Masuk antrean upload ke Google Sheets.', 'info');
     }
   };
 
@@ -459,7 +631,7 @@ export default function App() {
         ...(oldOrder || {}),
         ...orderData,
         id: editId,
-        createdAt: oldOrder?.createdAt || new Date().toISOString(),
+        createdAt: oldOrder?.createdAt || getNowWIBISOString(),
       } as OrderItem;
 
       setOrders((prev) =>
@@ -484,14 +656,29 @@ export default function App() {
         setIsSyncingGas(false);
         if (!res.success) {
           setGasError(res.error || 'Gagal update di Google Sheets');
-          showToast(`Gagal update di Spreadsheet: ${res.error}`, 'error');
+          enqueueSync({
+            type: 'update_row',
+            sheet: 'pesanan',
+            match: {
+              ITEM: oldOrder.namaBarang,
+              DATE: oldOrder.tanggal,
+              DAPUR: oldOrder.tujuanDapur,
+              TOKO: oldOrder.toko,
+            },
+            data: buildPesananPayload(updatedOrder),
+            rowIndex: oldOrder.rowIndex,
+            description: `Update pesanan ${updatedOrder.namaBarang}`
+          });
+          showToast(`Pesanan diperbarui di HP (Offline). Masuk antrean upload Google Sheets.`, 'info');
+        } else {
+          showToast('Pesanan berhasil diperbarui & tersimpan ke Cloud', 'edit');
         }
       }
       return;
     }
 
     const itemsToAdd = Array.isArray(orderData) ? orderData : [orderData];
-    const createdDate = new Date().toISOString();
+    const createdDate = getNowWIBISOString();
 
     const newOrdersAdded: OrderItem[] = itemsToAdd.map((item, idx) => ({
       ...item,
@@ -501,6 +688,7 @@ export default function App() {
 
     // Local-First: ALWAYS save new orders to local state & localStorage immediately
     setOrders((prev) => [...newOrdersAdded, ...prev]);
+    setSelectedDate(getTodayWIB());
 
     setIsSyncingGas(true);
     let successCount = 0;
@@ -514,6 +702,12 @@ export default function App() {
         successCount++;
       } else {
         lastError = res.error || 'Gagal menyimpan ke Google Sheets';
+        enqueueSync({
+          type: 'add_row',
+          sheet: 'pesanan',
+          payload: buildPesananPayload(newOrderItem),
+          description: `Tambah ${newOrderItem.namaBarang}`
+        });
       }
     }
 
@@ -533,37 +727,39 @@ export default function App() {
         status: firstItem.paymentStatus || 'UNPAID',
       });
       const txRes = await addRow('transaksi', txPayload);
-      if (txRes.success) {
-        const newInvoiceRec: InvoiceRecord = {
-          id: `tx-${Date.now()}`,
-          invoiceNumber: `TRX-${Date.now().toString().slice(-6)}`,
-          tanggalPrint: firstItem.tanggal,
-          createdAt: createdDate,
-          tujuanDapur: firstItem.tujuanDapur,
-          toko: firstItem.toko,
-          items: newOrdersAdded,
-          totalBeli,
-          totalJual,
-          totalProfit: totalJual - totalBeli,
-          pemasok: firstItem.pemasok,
-          status: firstItem.paymentStatus || 'UNPAID',
-        };
-        setInvoices((prev) => [newInvoiceRec, ...prev]);
-      } else {
-        console.warn('Gagal append ke sheet transaksi:', txRes.error);
+      const newInvoiceRec: InvoiceRecord = {
+        id: `tx-${Date.now()}`,
+        invoiceNumber: `TRX-${Date.now().toString().slice(-6)}`,
+        tanggalPrint: firstItem.tanggal,
+        createdAt: createdDate,
+        tujuanDapur: firstItem.tujuanDapur,
+        toko: firstItem.toko,
+        items: newOrdersAdded,
+        totalBeli,
+        totalJual,
+        totalProfit: totalJual - totalBeli,
+        pemasok: firstItem.pemasok,
+        status: firstItem.paymentStatus || 'UNPAID',
+      };
+      setInvoices((prev) => [newInvoiceRec, ...prev]);
+
+      if (!txRes.success) {
+        enqueueSync({
+          type: 'add_row',
+          sheet: 'transaksi',
+          payload: txPayload,
+          description: `Transaksi ${firstItem.toko || firstItem.tujuanDapur}`
+        });
       }
     }
 
     setIsSyncingGas(false);
 
     if (successCount === newOrdersAdded.length) {
-      showToast(`${successCount} pesanan berhasil ditambahkan & tersimpan ke Google Sheets`, 'success');
-    } else if (successCount > 0) {
-      setGasError(lastError);
-      showToast(`Tersimpan lokal. ${successCount}/${newOrdersAdded.length} terkirim ke Sheets (${lastError})`, 'error');
+      showToast(`${successCount} pesanan tersimpan ke Google Sheets & dapat dilihat di semua perangkat`, 'success');
     } else {
       setGasError(lastError);
-      showToast(`Pesanan TERSIMPAN DI HP/LOKAL! (Gagal sync Google Sheets: ${lastError})`, 'error');
+      showToast(`${newOrdersAdded.length} pesanan tersimpan di HP. Otomatis diunggah ke Google Sheets saat ada internet agar terlihat di perangkat lain!`, 'info');
     }
   };
 
@@ -595,10 +791,24 @@ export default function App() {
           });
           if (!res.success) {
             setGasError(res.error || 'Gagal hapus data di Google Sheets');
-            showToast(`Dihapus lokal (Gagal hapus di Sheets: ${res.error})`, 'error');
+            enqueueSync({
+              type: 'delete_row',
+              sheet: 'pesanan',
+              options: {
+                match: {
+                  ITEM: targetOrder.namaBarang,
+                  DATE: targetOrder.tanggal,
+                  DAPUR: targetOrder.tujuanDapur,
+                  TOKO: targetOrder.toko,
+                },
+                rowIndex: targetOrder.rowIndex,
+              },
+              description: `Hapus ${targetOrder.namaBarang}`
+            });
+            showToast(`Dihapus di HP. Masuk antrean hapus Google Sheets`, 'info');
           }
         } else if (targetInvoice) {
-          await deleteRow('transaksi', {
+          const resInv = await deleteRow('transaksi', {
             match: {
               TANGGAL: targetInvoice.tanggalPrint || targetInvoice.tanggal,
               TOKO: targetInvoice.toko,
@@ -606,6 +816,21 @@ export default function App() {
             },
             rowIndex: targetInvoice.rowIndex,
           });
+          if (!resInv.success) {
+            enqueueSync({
+              type: 'delete_row',
+              sheet: 'transaksi',
+              options: {
+                match: {
+                  TANGGAL: targetInvoice.tanggalPrint || targetInvoice.tanggal,
+                  TOKO: targetInvoice.toko,
+                  PEMASOK: targetInvoice.pemasok,
+                },
+                rowIndex: targetInvoice.rowIndex,
+              },
+              description: `Hapus transaksi ${targetInvoice.toko}`
+            });
+          }
         }
       },
     });
@@ -691,10 +916,22 @@ export default function App() {
       addRow('pesanan', buildPesananPayload(newOrderFromNote))
         .then((orderRes) => {
           if (!orderRes.success) {
-            console.warn('Gagal sync pesanan dari note ke sheet pesanan:', orderRes.error);
+            enqueueSync({
+              type: 'add_row',
+              sheet: 'pesanan',
+              payload: buildPesananPayload(newOrderFromNote),
+              description: `Tambah pesanan dari note: ${itemName}`
+            });
           }
         })
-        .catch((err) => console.warn('Gagal sync pesanan dari note:', err))
+        .catch((err) => {
+          enqueueSync({
+            type: 'add_row',
+            sheet: 'pesanan',
+            payload: buildPesananPayload(newOrderFromNote),
+            description: `Tambah pesanan dari note: ${itemName}`
+          });
+        })
         .finally(() => setIsSyncingGas(false));
 
       // 4. Sinkronisasi perubahan status ke sheet "notes"
@@ -708,7 +945,25 @@ export default function App() {
         {
           STATUS: 'DONE',
         }
-      ).catch((err) => console.warn('Gagal sync status note ke sheet notes:', err));
+      ).then((res) => {
+        if (!res.success) {
+          enqueueSync({
+            type: 'update_row',
+            sheet: 'notes',
+            match: { ID: target.id, CATATAN: target.catatan, DAPUR: target.tujuanDapur },
+            data: { STATUS: 'DONE' },
+            description: `Status note DONE: ${target.catatan}`
+          });
+        }
+      }).catch((err) => {
+        enqueueSync({
+          type: 'update_row',
+          sheet: 'notes',
+          match: { ID: target.id, CATATAN: target.catatan, DAPUR: target.tujuanDapur },
+          data: { STATUS: 'DONE' },
+          description: `Status note DONE: ${target.catatan}`
+        });
+      });
 
     } else {
       // Batal centang / Kembalikan ke Follow Up
@@ -728,7 +983,25 @@ export default function App() {
         {
           STATUS: 'FOLLOW UP',
         }
-      ).catch((err) => console.warn('Gagal sync status note ke sheet notes:', err));
+      ).then((res) => {
+        if (!res.success) {
+          enqueueSync({
+            type: 'update_row',
+            sheet: 'notes',
+            match: { ID: target.id, CATATAN: target.catatan, DAPUR: target.tujuanDapur },
+            data: { STATUS: 'FOLLOW UP' },
+            description: `Status note FOLLOW UP: ${target.catatan}`
+          });
+        }
+      }).catch((err) => {
+        enqueueSync({
+          type: 'update_row',
+          sheet: 'notes',
+          match: { ID: target.id, CATATAN: target.catatan, DAPUR: target.tujuanDapur },
+          data: { STATUS: 'FOLLOW UP' },
+          description: `Status note FOLLOW UP: ${target.catatan}`
+        });
+      });
     }
   };
 
@@ -744,7 +1017,16 @@ export default function App() {
         DAPUR: target.tujuanDapur,
       });
       if (!res.success) {
-        console.warn('Gagal hapus note di Google Sheets:', res.error);
+        enqueueSync({
+          type: 'delete_row',
+          sheet: 'notes',
+          options: {
+            ID: target.id,
+            CATATAN: target.catatan,
+            DAPUR: target.tujuanDapur,
+          },
+          description: `Hapus note: ${target.catatan}`
+        });
       }
     }
   };
@@ -763,7 +1045,12 @@ export default function App() {
     // 2-Way Sync to Google Sheets sheet "notes"
     const res = await addRow('notes', buildNotesPayload(newNote));
     if (!res.success) {
-      console.warn('Note tersimpan lokal, gagal sync ke Google Sheets:', res.error);
+      enqueueSync({
+        type: 'add_row',
+        sheet: 'notes',
+        payload: buildNotesPayload(newNote),
+        description: `Tambah note: ${newNote.catatan}`
+      });
     }
   };
 
@@ -1213,16 +1500,22 @@ export default function App() {
         successCount++;
       } else {
         lastError = saveRes.error || 'Gagal menyimpan ke Google Sheets';
+        enqueueSync({
+          type: 'add_row',
+          sheet: 'pesanan',
+          payload: buildPesananPayload(newOrderItem),
+          description: `Import ${newOrderItem.namaBarang}`
+        });
       }
     }
 
     setIsSyncingGas(false);
 
     if (successCount === newOrdersAdded.length) {
-      showToast(`${successCount} item import berhasil tersimpan ke Google Sheets`, 'success');
+      showToast(`${successCount} item import tersimpan ke Google Sheets & aktif di semua perangkat`, 'success');
     } else {
       setGasError(lastError);
-      showToast(`${newOrdersAdded.length} item TERSIMPAN DI HP/LOKAL! (${successCount}/${newOrdersAdded.length} sync Sheets: ${lastError})`, 'error');
+      showToast(`${newOrdersAdded.length} item import tersimpan di HP. Otomatis diunggah ke Google Sheets saat ada internet agar terlihat di perangkat lain!`, 'info');
     }
   };
 
@@ -1258,6 +1551,8 @@ export default function App() {
         isSyncingGas={isSyncingGas}
         isExportingActive={isExportingActive}
         exportHistoryCount={exportHistory.length}
+        pendingSyncCount={pendingQueueCount}
+        isOnline={isOnline}
       />
 
       {/* Main Content Body */}
@@ -1464,6 +1759,9 @@ export default function App() {
         isSyncing={isSyncingGas}
         syncError={gasError}
         lastSyncedTime={lastSyncedTime}
+        pendingQueueCount={pendingQueueCount}
+        isDeviceOnline={isOnline}
+        onProcessQueue={() => handleProcessQueueAndSync(true)}
         onOpenSettings={() => {
           setIsSyncSheetOpen(false);
           setIsSettingsOpen(true);

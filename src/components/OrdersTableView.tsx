@@ -10,7 +10,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { OrderItem, PaymentStatus, DeliveryStatus } from '../types';
-import { formatRupiah, formatTanggalDisatuin, getTokoBadgeStyle } from '../lib/formatters';
+import { formatRupiah, formatTanggalDisatuin, getTokoBadgeStyle, parseIndonesianNumber, formatJam } from '../lib/formatters';
 import { motion, AnimatePresence } from 'motion/react';
 import { Pagination } from './Pagination';
 import { TableSkeleton } from './TableSkeleton';
@@ -21,6 +21,7 @@ interface OrderGroup {
   groupIndex: number;
   tujuanDapur: string;
   tanggal: string;
+  createdAt?: string;
   toko: string;
   payStatus: PaymentStatus;
   delStatus: DeliveryStatus;
@@ -153,6 +154,7 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
         groupIndex: idx++,
         tujuanDapur: first.tujuanDapur,
         tanggal: first.tanggal,
+        createdAt: first.createdAt,
         toko: first.toko,
         payStatus,
         delStatus,
@@ -236,7 +238,8 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
               const isPaid = group.payStatus === 'PAID';
               const isDelivered = group.delStatus === 'DONE';
               const totalHjual = group.items.reduce(
-                (sum, it) => sum + (Number(it.qty) || 0) * (Number(it.hargaJual) || 0),
+                (sum, it) =>
+                  sum + (parseIndonesianNumber(it.qty) || 0) * (parseIndonesianNumber(it.hargaJual) || 0),
                 0
               );
               const visibleItems = isExpanded ? group.items : group.items.slice(0, 2);
@@ -340,7 +343,7 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
                     {/* Total Rupiah */}
                     <div className="text-right">
                       <span className="text-[8px] text-slate-600 block font-medium">Total Jual</span>
-                      <span className="font-black font-mono text-[11px] text-slate-900">
+                      <span className="font-black font-nominal text-[11px] text-slate-900">
                         {formatRupiah(totalHjual)}
                       </span>
                     </div>
@@ -358,8 +361,8 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
                             </span>
                           )}
                         </div>
-                        <div className="text-[9px] font-mono font-semibold text-slate-600 whitespace-nowrap">
-                          {it.qty} × {formatRupiah(it.hargaJual)}
+                        <div className="text-[9px] font-nominal font-bold text-slate-600 whitespace-nowrap">
+                          {it.qty} × {formatRupiah(parseIndonesianNumber(it.hargaJual) || 0)}
                         </div>
                       </div>
                     ))}
@@ -500,11 +503,11 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
                       </div>
                     </td>
 
-                    {/* 4. DATE (MERGED PER GROUP) */}
+                    {/* 4. DATE (MERGED PER GROUP WITH DAY ON TOP) */}
                     {isFirst && (
                       <td
                         rowSpan={rowSpan}
-                        className="py-1 px-1 text-center font-mono whitespace-nowrap align-middle border-r border-slate-100 bg-slate-50/30"
+                        className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100 bg-slate-50/30"
                       >
                         <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1 py-0.5 rounded border border-slate-200/80">
                           {formatTanggalDisatuin(group.tanggal)}
@@ -513,7 +516,7 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
                     )}
 
                     {/* 5. QTY (PER ROW ITEM) */}
-                    <td className="py-1 px-1 text-center font-black font-mono text-[9.5px] text-slate-900 align-middle border-r border-slate-100">
+                    <td className="py-1 px-1 text-center font-black font-nominal text-[9.5px] text-slate-900 align-middle border-r border-slate-100">
                       {item.qty}
                     </td>
 
@@ -579,21 +582,25 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
 
                     {/* 9. H. JUAL (PER ROW ITEM) */}
                     <td className="py-1 px-1.5 text-right whitespace-nowrap align-middle">
-                      <div className="font-bold text-slate-900 font-mono text-[9px]">
-                        {formatRupiah(item.qty * item.hargaJual)}
+                      <div className="font-bold text-slate-900 font-nominal text-[9px]">
+                        {formatRupiah(
+                          (parseIndonesianNumber(item.qty) || 0) * (parseIndonesianNumber(item.hargaJual) || 0)
+                        )}
                       </div>
-                      <div className="text-[7.5px] text-slate-400 font-mono">
-                        @{formatRupiah(item.hargaJual)}
+                      <div className="text-[7.5px] text-slate-400 font-nominal">
+                        @{formatRupiah(parseIndonesianNumber(item.hargaJual) || 0)}
                       </div>
                     </td>
 
                     {/* 10. H. BELI (PER ROW ITEM) */}
                     <td className="py-1 px-1.5 text-right whitespace-nowrap align-middle">
-                      <div className="font-semibold text-slate-600 font-mono text-[9px]">
-                        {formatRupiah(item.qty * item.hargaBeli)}
+                      <div className="font-semibold text-slate-600 font-nominal text-[9px]">
+                        {formatRupiah(
+                          (parseIndonesianNumber(item.qty) || 0) * (parseIndonesianNumber(item.hargaBeli) || 0)
+                        )}
                       </div>
-                      <div className="text-[7.5px] text-slate-400 font-mono">
-                        @{formatRupiah(item.hargaBeli)}
+                      <div className="text-[7.5px] text-slate-400 font-nominal">
+                        @{formatRupiah(parseIndonesianNumber(item.hargaBeli) || 0)}
                       </div>
                     </td>
 

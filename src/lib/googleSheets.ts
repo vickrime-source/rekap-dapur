@@ -1,4 +1,5 @@
 import { OrderItem, InvoiceRecord, NoteItem, PaymentStatus, DeliveryStatus } from '../types';
+import { parseIndonesianNumber, formatTanggalBackend, formatJamBackend } from './formatters';
 
 export type SheetName = 'pesanan' | 'transaksi' | 'notes';
 
@@ -402,6 +403,7 @@ export function buildPesananPayload(item: Partial<OrderItem> & {
   status?: string;
   hargaJual?: number;
   hargaBeli?: number;
+  createdAt?: string;
 }) {
   const payStatus = item.paymentStatus || (item.status === 'selesai' ? 'PAID' : 'UNPAID');
   const delStatus = item.deliveryStatus || (item.status === 'selesai' ? 'DONE' : 'PENDING');
@@ -410,7 +412,8 @@ export function buildPesananPayload(item: Partial<OrderItem> & {
   return {
     DAPUR: item.tujuanDapur || '',
     ITEM: item.namaBarang || '',
-    DATE: item.tanggal ? normalizeDate(item.tanggal) : new Date().toISOString().split('T')[0],
+    DATE: formatTanggalBackend(item.tanggal),
+    'CREATED AT': formatJamBackend(item.createdAt),
     QTY: Number(item.qty) || 0,
     TOKO: item.toko || '',
     PAYMENT: payStatus,
@@ -499,12 +502,56 @@ export function normalizeDeliveryStatus(val: any, fallbackStatus: string = 'pend
 }
 
 /**
+ * Flexible field extractor that searches row object keys case-insensitively,
+ * ignoring dots, spaces, underscores, and dashes.
+ */
+export function getRowField(row: any, ...keys: string[]): any {
+  if (!row || typeof row !== 'object') return undefined;
+
+  // 1. Direct key match
+  for (const k of keys) {
+    if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
+      return row[k];
+    }
+  }
+
+  // 2. Normalized key match (clean all whitespace, dots, underscores, dashes)
+  const cleanTargets = new Set(
+    keys.map((k) => k.toUpperCase().replace(/[\s\.\_\-\:\/\\]/g, ''))
+  );
+
+  const rowKeys = Object.keys(row);
+  for (const rk of rowKeys) {
+    const cleanRk = rk.toUpperCase().replace(/[\s\.\_\-\:\/\\]/g, '');
+    if (cleanTargets.has(cleanRk)) {
+      if (row[rk] !== undefined && row[rk] !== null && String(row[rk]).trim() !== '') {
+        return row[rk];
+      }
+    }
+  }
+
+  // 3. Substring match fallback
+  for (const rk of rowKeys) {
+    const cleanRk = rk.toUpperCase().replace(/[\s\.\_\-\:\/\\]/g, '');
+    for (const target of cleanTargets) {
+      if (cleanRk.includes(target) || target.includes(cleanRk)) {
+        if (row[rk] !== undefined && row[rk] !== null && String(row[rk]).trim() !== '') {
+          return row[rk];
+        }
+      }
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Mapper helper untuk baris raw dari Sheet Pesanan ke TypeScript OrderItem
  */
 export function mapRawOrder(row: any): OrderItem {
-  const statusStr = (row.STATUS || row.status || 'pending').toString().toLowerCase();
-  const rawPay = row.PAYMENT ?? row.paymentStatus ?? row.payment_status ?? row.Status_Bayar;
-  const rawDel = row.DILEVERY ?? row.DELIVERY ?? row.deliveryStatus ?? row.delivery_status ?? row.Status_Kirim;
+  const statusStr = (getRowField(row, 'STATUS', 'status', 'Status Pesanan') || 'pending').toString().toLowerCase();
+  const rawPay = getRowField(row, 'PAYMENT', 'paymentStatus', 'payment_status', 'Status_Bayar', 'Status Bayar', 'BAYAR', 'bayar');
+  const rawDel = getRowField(row, 'DILEVERY', 'DELIVERY', 'deliveryStatus', 'delivery_status', 'Status_Kirim', 'Status Kirim', 'KIRIM', 'kirim');
 
   const paymentStatus = normalizePaymentStatus(rawPay, statusStr);
   const deliveryStatus = normalizeDeliveryStatus(rawDel, statusStr);
@@ -516,24 +563,77 @@ export function mapRawOrder(row: any): OrderItem {
       ? 'selesai'
       : 'pending';
 
-  const rawDate = row.DATE || row.date || row.tanggal || row.Tanggal || '';
+  const rawDate = getRowField(row, 'DATE', 'date', 'tanggal', 'Tanggal', 'TGL', 'tgl') || '';
   const normalizedTanggal = normalizeDate(rawDate);
 
+  const rawHargaBeli = getRowField(
+    row,
+    'H. BELI',
+    'HBELI',
+    'HARGA BELI',
+    'HARGABELI',
+    'HARGA_BELI',
+    'H.BELI',
+    'H BELI',
+    'Harga Beli',
+    'hargaBeli',
+    'harga_beli',
+    'BELI',
+    'MODAL'
+  );
+  const hargaBeli = parseIndonesianNumber(rawHargaBeli);
+
+  const rawHargaJual = getRowField(
+    row,
+    'H. JUAL',
+    'HJUAL',
+    'HARGA JUAL',
+    'HARGAJUAL',
+    'HARGA_JUAL',
+    'H.JUAL',
+    'H JUAL',
+    'Harga Jual',
+    'hargaJual',
+    'harga_jual',
+    'JUAL',
+    'HARGA'
+  );
+  const hargaJual = parseIndonesianNumber(rawHargaJual);
+
+  const rawQty = getRowField(row, 'QTY', 'qty', 'Qty', 'jumlah', 'JUMLAH', 'KUANTITAS');
+  const qty = parseIndonesianNumber(rawQty) || 1;
+
+  const rawItem = getRowField(row, 'ITEM', 'item', 'Item', 'namaBarang', 'nama_barang', 'Nama Barang', 'BARANG', 'barang', 'PRODUK');
+  const namaBarang = (rawItem || '').toString().trim();
+
+  const rawToko = getRowField(row, 'TOKO', 'toko', 'Toko', 'STORE', 'store');
+  const toko = (rawToko || '').toString().trim();
+
+  const rawDapur = getRowField(row, 'DAPUR', 'dapur', 'Dapur', 'tujuanDapur', 'tujuan_dapur', 'Tujuan Dapur', 'KITCHEN');
+  const tujuanDapur = (rawDapur || '').toString().trim();
+
+  const rawPemasok = getRowField(row, 'PEMASOK', 'pemasok', 'Pemasok', 'SUPPLIER', 'supplier', 'VENDOR');
+  const pemasok = (rawPemasok || 'Pemasok 1').toString().trim();
+
+  const rawCatatan = getRowField(row, 'catatan', 'Catatan', 'CATATAN', 'NOTE', 'notes', 'NOTES', 'KETERANGAN');
+
+  const rawId = getRowField(row, 'NO', 'no', 'id', 'ID', 'kode', 'KODE');
+
   return {
-    id: (row.NO || row.no || row.id || row.ID || `ord-${row.rowIndex || Date.now()}-${Math.floor(Math.random() * 1000)}`).toString(),
-    namaBarang: (row.ITEM || row.item || row.namaBarang || row.nama_barang || row['Nama Barang'] || '').toString(),
-    qty: Number(row.QTY || row.qty || row.Qty || row.jumlah) || 0,
-    hargaBeli: Number(row['H. BELI'] || row['H.BELI'] || row.hargaBeli || row.harga_beli || row['Harga Beli']) || 0,
-    hargaJual: Number(row['H. JUAL'] || row['H.JUAL'] || row.hargaJual || row.harga_jual || row['Harga Jual']) || 0,
-    toko: (row.TOKO || row.toko || row.Toko || '').toString(),
-    tujuanDapur: (row.DAPUR || row.dapur || row.tujuanDapur || row.tujuan_dapur || row['Tujuan Dapur'] || '').toString(),
-    pemasok: (row.PEMASOK || row.pemasok || row.Pemasok || 'Pemasok 1').toString(),
+    id: (rawId || `ord-${row.rowIndex || Date.now()}-${Math.floor(Math.random() * 1000)}`).toString(),
+    namaBarang,
+    qty,
+    hargaBeli,
+    hargaJual,
+    toko,
+    tujuanDapur,
+    pemasok,
     status,
     paymentStatus,
     deliveryStatus,
     tanggal: normalizedTanggal,
-    createdAt: (row.createdAt || row.created_at || new Date().toISOString()).toString(),
-    catatan: (row.catatan || row.Catatan || '').toString(),
+    createdAt: (row['CREATED AT'] || row['CREATED_AT'] || row.createdAt || row.created_at || row.JAM || row.jam || row.TIME || row.time || new Date().toISOString()).toString(),
+    catatan: (rawCatatan || '').toString(),
     rowIndex: row.rowIndex ? Number(row.rowIndex) : undefined,
   };
 }
@@ -624,9 +724,9 @@ export function mapRawInvoice(row: any): InvoiceRecord {
     tujuanDapur: (row.DAPUR || row.dapur || row.tujuanDapur || row.tujuan_dapur || '').toString(),
     toko: (row.TOKO || row.toko || row.Toko || '').toString(),
     items,
-    totalBeli: Number(row['H. BELI'] || row.totalBeli || row.total_beli) || 0,
-    totalJual: Number(row.TOTAL || row.totalJual || row.total_jual) || 0,
-    totalProfit: Number(row.totalProfit || row.total_profit) || 0,
+    totalBeli: parseIndonesianNumber(getRowField(row, 'H. BELI', 'HBELI', 'totalBeli', 'total_beli', 'TOTALBELI')),
+    totalJual: parseIndonesianNumber(getRowField(row, 'TOTAL', 'totalJual', 'total_jual', 'TOTALJUAL', 'H. JUAL', 'HJUAL')),
+    totalProfit: parseIndonesianNumber(getRowField(row, 'totalProfit', 'total_profit', 'LABA', 'PROFIT', 'laba', 'profit')),
     rowIndex: row.rowIndex ? Number(row.rowIndex) : undefined,
     pemasok: (row.PEMASOK || row.pemasok || items[0]?.pemasok || 'Pemasok 1').toString(),
     status: (row.STATUS || row.status || 'PAID').toString(),

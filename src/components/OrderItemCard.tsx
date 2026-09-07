@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   CheckCircle2, 
-  Clock, 
+  AlertCircle, 
   Store as StoreIcon, 
   Utensils, 
   Truck, 
@@ -71,7 +71,7 @@ export const OrderItemCard: React.FC<OrderItemCardProps> = ({
                 </>
               ) : (
                 <>
-                  <Clock className="w-3.5 h-3.5 text-[#EF4444]" />
+                  <AlertCircle className="w-3.5 h-3.5 text-[#EF4444]" />
                   Pending
                 </>
               )}

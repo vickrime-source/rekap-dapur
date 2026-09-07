@@ -15,7 +15,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { OrderItem } from '../types';
-import { formatRupiah, formatTanggalRealtime, parseIndonesianNumber } from '../lib/formatters';
+import { formatRupiah, formatTanggalRealtime, formatTanggalInvoice, resolveRecipientSppgName, parseIndonesianNumber } from '../lib/formatters';
 import { getStoreProfile } from '../lib/storeProfiles';
 import { printHtmlInvoiceDirectly } from '../lib/htmlInvoicePdf';
 import { motion, AnimatePresence } from 'motion/react';
@@ -95,7 +95,9 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   const mainKitchen = tujuanDapur || displayItems[0]?.tujuanDapur || 'Dapur';
   const mainStore = toko || displayItems[0]?.toko || 'HTG';
   const profile = getStoreProfile(mainStore);
-  const invoiceDate = formatTanggalRealtime(displayItems[0]?.tanggal || new Date().toISOString().split('T')[0]);
+  
+  const finalRecipientName = resolveRecipientSppgName(recipientName, mainKitchen, displayItems);
+  const invoiceDate = formatTanggalInvoice(displayItems[0]?.tanggal || new Date());
 
   const handleDirectPrint = () => {
     if (onSaveInvoiceRecord) {
@@ -107,9 +109,9 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
       items: displayItems,
       invoiceNumber,
       bayar,
-      customNama: recipientName || mainKitchen,
-      customAlamat: recipientAddress || 'Banyuwangi',
-      customNomor: recipientPhone || invoiceNumber,
+      customNama: finalRecipientName,
+      customAlamat: '-',
+      customNomor: '-',
       customTanggal: invoiceDate,
     });
   };
@@ -125,9 +127,10 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         items: displayItems,
         invoiceNumber,
         bayar,
-        customNama: recipientName || mainKitchen,
-        customAlamat: recipientAddress || 'Banyuwangi',
-        customNomor: recipientPhone || invoiceNumber,
+        customNama: finalRecipientName,
+        customAlamat: '-',
+        customNomor: '-',
+        customTanggal: invoiceDate,
         type: 'pdf',
       });
     }
@@ -145,9 +148,10 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         items: displayItems,
         invoiceNumber,
         bayar,
-        customNama: recipientName || mainKitchen,
-        customAlamat: recipientAddress || 'Banyuwangi',
-        customNomor: recipientPhone || invoiceNumber,
+        customNama: finalRecipientName,
+        customAlamat: '-',
+        customNomor: '-',
+        customTanggal: invoiceDate,
         type: 'docx',
       });
     }
@@ -264,11 +268,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                         </p>
                         <div className="text-[10px] text-slate-800 space-y-0.5">
                           <p className="font-semibold text-slate-900">Kepada Yth.</p>
-                          <p className="font-bold text-slate-900">{recipientName || mainKitchen}</p>
-                          <p className="text-slate-700">{recipientAddress || 'Banyuwangi'}</p>
-                          {recipientPhone && recipientPhone !== '-' && (
-                            <p className="text-slate-600">{recipientPhone}</p>
-                          )}
+                          <p className="font-bold text-slate-900">{finalRecipientName}</p>
+                          <p className="text-slate-700">-</p>
                         </div>
                       </div>
                     </div>
@@ -331,8 +332,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                     <div className="flex justify-between items-start text-center text-[10px]">
                       <div className="w-1/2">
                         <p className="font-semibold mb-12">Tanda Terima</p>
-                        <p className="font-bold border-b border-slate-400 pb-0.5 inline-block min-w-[90px]">
-                          ({recipientName || mainKitchen})
+                        <p className="font-bold inline-block min-w-[90px]">
+                          ({finalRecipientName})
                         </p>
                       </div>
 

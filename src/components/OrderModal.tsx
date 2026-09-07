@@ -12,7 +12,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { OrderItem, Kitchen, Store as StoreType } from '../types';
-import { formatRupiah, formatRupiahInput, parseRupiahInput } from '../lib/formatters';
+import { formatRupiah, formatRupiahInput, parseRupiahInput, getTodayWIB } from '../lib/formatters';
 import { getItemSuggestions } from '../lib/suggestions';
 import { parseVoiceInput } from '../lib/voiceParser';
 import { motion, AnimatePresence } from 'motion/react';
@@ -107,7 +107,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       setPemasok('');
       setPaymentStatus('UNPAID');
       setDeliveryStatus('PENDING');
-      setTanggal(selectedDate || new Date().toISOString().split('T')[0]);
+      setTanggal(selectedDate || getTodayWIB());
       setCatatan('');
     }
 
@@ -443,9 +443,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               <h2 className="text-base font-black text-slate-900 tracking-tight">
                 {initialData ? 'Edit Pesanan Dapur' : 'Input Pesanan Baru'}
               </h2>
-              <p className="text-[11px] text-slate-500 font-medium">
-                Isi data pesanan atau gunakan tombol suara untuk input cepat
-              </p>
             </div>
 
             <button
@@ -585,7 +582,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                       <input
                         type="text"
                         required
-                        placeholder="Ketik atau ucapkan: Ayam, Ikan, Telur..."
                         value={row.namaBarang}
                         onChange={(e) => handleItemNameChange(row.id, e.target.value)}
                         onKeyDown={(e) => handleItemKeyDown(row.id, e)}

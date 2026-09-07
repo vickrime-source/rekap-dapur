@@ -901,7 +901,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                   <div>
                     <h3 className="text-lg font-black text-slate-900">
-                      Rekap Dapur Pro
+                      Rekap Dapur
                     </h3>
                     <p className="text-xs text-slate-500 font-medium mt-0.5">
                       Tambahkan ke Layar Utama HP untuk pengalaman seperti aplikasi native.

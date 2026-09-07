@@ -56,23 +56,24 @@ export async function compressDocxImagesClient(
       if (imgUint8Array.byteLength < 60 * 1024) continue;
 
       try {
-        const compressedArrayBuffer = await compressImageBlobInBrowser(
+        const result = await compressImageBlobInBrowser(
           imgUint8Array,
           ext === 'png' ? 'image/png' : 'image/jpeg'
         );
 
         if (
-          compressedArrayBuffer &&
-          compressedArrayBuffer.byteLength < imgUint8Array.byteLength
+          result &&
+          result.buffer &&
+          result.buffer.byteLength < imgUint8Array.byteLength
         ) {
           console.log(
-            `[Client DOCX Compressor] Compressed ${filePath}: ${(
+            `[Client DOCX Compressor] Processed ${filePath} | Format: ${result.format} | Size: ${(
               imgUint8Array.byteLength / 1024
             ).toFixed(1)} KB -> ${(
-              compressedArrayBuffer.byteLength / 1024
+              result.buffer.byteLength / 1024
             ).toFixed(1)} KB`
           );
-          zip.file(filePath, compressedArrayBuffer);
+          zip.file(filePath, result.buffer);
           compressedCount++;
         }
       } catch (imgErr) {
@@ -115,7 +116,7 @@ export async function compressDocxImagesClient(
 function compressImageBlobInBrowser(
   uint8Array: Uint8Array,
   mimeType: string
-): Promise<ArrayBuffer | null> {
+): Promise<{ buffer: ArrayBuffer; format: string } | null> {
   return new Promise((resolve) => {
     const blob = new Blob([uint8Array], { type: mimeType });
     const blobUrl = URL.createObjectURL(blob);
@@ -153,7 +154,26 @@ function compressImageBlobInBrowser(
       // Draw image onto canvas
       ctx.drawImage(img, 0, 0, width, height);
 
-      // Convert to JPEG at 0.75 quality for dramatic size reduction
+      // Check for transparency
+      let hasAlpha = false;
+      if (mimeType === 'image/png' || mimeType === 'image/webp') {
+        try {
+          const imageData = ctx.getImageData(0, 0, width, height).data;
+          for (let i = 3; i < imageData.length; i += 4) {
+            if (imageData[i] < 255) {
+              hasAlpha = true;
+              break;
+            }
+          }
+        } catch (e) {
+          // Cross-origin issues or memory limit, default to safe PNG
+          hasAlpha = true;
+        }
+      }
+
+      const outputMime = hasAlpha ? 'image/png' : 'image/jpeg';
+      const outputQuality = hasAlpha ? undefined : 0.75; // PNG quality is ignored in toBlob
+
       canvas.toBlob(
         async (outBlob) => {
           if (!outBlob) {
@@ -161,10 +181,10 @@ function compressImageBlobInBrowser(
             return;
           }
           const buf = await outBlob.arrayBuffer();
-          resolve(buf);
+          resolve({ buffer: buf, format: outputMime });
         },
-        'image/jpeg',
-        0.75
+        outputMime,
+        outputQuality
       );
     };
 

@@ -1,8 +1,8 @@
 import { google } from 'googleapis';
 
 export const SHEET_SCHEMAS: Record<string, string[]> = {
-  pesanan: ['NO', 'DAPUR', 'ITEM', 'DATE', 'QTY', 'TOKO', 'PAYMENT', 'DILEVERY', 'H. JUAL', 'H. BELI'],
-  transaksi: ['NO', 'TANGGAL', 'PEMASOK', 'BARANG', 'TOKO', 'QTY', 'H. BELI', 'TOTAL', 'STATUS'],
+  pesanan: ['NO', 'DAPUR', 'ITEM', 'DATE', 'QTY', 'TOKO', 'PAYMENT', 'DILEVERY', 'H. JUAL', 'H. BELI', 'CREATED AT'],
+  transaksi: ['NO', 'TANGGAL', 'PEMASOK', 'BARANG', 'TOKO', 'QTY', 'H. BELI', 'TOTAL', 'STATUS', 'CREATED AT'],
   notes: ['ID', 'DAPUR', 'ITEM', 'CATATAN', 'STATUS', 'CREATED_AT'],
 };
 
@@ -25,6 +25,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
   ID: ['ID', 'NO', 'KODE'],
   NO: ['NO', 'ID', 'INVOICENUMBER', 'NOMORINVOICE'],
   CATATAN: ['CATATAN', 'NOTE', 'NOTES', 'KETERANGAN'],
+  'CREATED AT': ['CREATED AT', 'CREATED_AT', 'JAM', 'TIME', 'TIMESTAMP', 'WAKTU', 'CREATEDAT'],
 };
 
 export function cleanHeaderKey(key: string): string {
@@ -302,7 +303,44 @@ export async function getSheetRows(sheetName: string, customRange?: string) {
 
     headers.forEach((header, colIdx) => {
       if (header) {
-        obj[header] = row[colIdx] !== undefined ? row[colIdx] : '';
+        const val = row[colIdx] !== undefined ? row[colIdx] : '';
+        obj[header] = val;
+
+        const clean = cleanHeaderKey(header);
+        if (['HJUAL', 'HARGAJUAL', 'HGAJUAL', 'HARGA_JUAL', 'TOTALJUAL', 'SALESPRICE', 'JUAL'].includes(clean)) {
+          obj['H. JUAL'] = val;
+          obj['hargaJual'] = val;
+        } else if (['HBELI', 'HARGABELI', 'HGABELI', 'HARGA_BELI', 'TOTALBELI', 'BUYPRICE', 'BELI', 'MODAL'].includes(clean)) {
+          obj['H. BELI'] = val;
+          obj['hargaBeli'] = val;
+        } else if (['QTY', 'JUMLAH', 'KUANTITAS', 'COUNT', 'BANYAK'].includes(clean)) {
+          obj['QTY'] = val;
+          obj['qty'] = val;
+        } else if (['ITEM', 'BARANG', 'NAMABARANG', 'NAMA_BARANG', 'NAMA', 'PRODUK'].includes(clean)) {
+          obj['ITEM'] = val;
+          obj['namaBarang'] = val;
+        } else if (['DATE', 'TANGGAL', 'TGL'].includes(clean)) {
+          obj['DATE'] = val;
+          obj['tanggal'] = val;
+        } else if (['DAPUR', 'TUJUANDAPUR', 'TUJUAN_DAPUR', 'KITCHEN'].includes(clean)) {
+          obj['DAPUR'] = val;
+          obj['tujuanDapur'] = val;
+        } else if (['TOKO', 'TOKOKITA', 'STORE'].includes(clean)) {
+          obj['TOKO'] = val;
+          obj['toko'] = val;
+        } else if (['PEMASOK', 'SUPPLIER', 'VENDOR'].includes(clean)) {
+          obj['PEMASOK'] = val;
+          obj['pemasok'] = val;
+        } else if (['PAYMENT', 'BAYAR', 'STATUSBAYAR', 'STATUS_BAYAR', 'PAYMENTSTATUS'].includes(clean)) {
+          obj['PAYMENT'] = val;
+          obj['paymentStatus'] = val;
+        } else if (['DILEVERY', 'DELIVERY', 'KIRIM', 'STATUSKIRIM', 'STATUS_KIRIM', 'DELIVERYSTATUS'].includes(clean)) {
+          obj['DILEVERY'] = val;
+          obj['deliveryStatus'] = val;
+        } else if (['CREATEDAT', 'CREATED_AT', 'JAM', 'TIME', 'TIMESTAMP', 'WAKTU'].includes(clean)) {
+          obj['CREATED AT'] = val;
+          obj['createdAt'] = val;
+        }
       }
     });
 
@@ -362,9 +400,36 @@ export async function addSheetRow(sheetName: string, rowData: Record<string, any
     });
   }
 
+  // If pesanan sheet is missing CREATED AT in header, append CREATED AT column header
+  if (sheetName.toLowerCase() === 'pesanan' && findColIdx('CREATED AT', headers) === -1) {
+    headers.push('CREATED AT');
+    const colLetter = colIndexToLetter(headers.length - 1);
+    try {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `'${exactTitle}'!${colLetter}1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [['CREATED AT']],
+        },
+      });
+    } catch {
+      // ignore if header update fails
+    }
+  }
+
+  // Prepare normalized rowData
+  const normalizedData = { ...rowData };
+  if (sheetName.toLowerCase() === 'pesanan') {
+    if (!normalizedData['CREATED AT'] && !normalizedData['createdAt']) {
+      const now = new Date();
+      normalizedData['CREATED AT'] = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    }
+  }
+
   // Map data to ordered row values using findColIdx
   const rowValues = new Array(headers.length).fill('');
-  for (const [key, val] of Object.entries(rowData)) {
+  for (const [key, val] of Object.entries(normalizedData)) {
     if (val !== undefined && val !== null) {
       const idx = findColIdx(key, headers);
       if (idx !== -1) {

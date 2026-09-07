@@ -9,6 +9,8 @@ import {
   formatRupiah,
   formatTanggal,
   formatTanggalRealtime,
+  formatTanggalInvoice,
+  resolveRecipientSppgName,
   parseIndonesianNumber,
   generateInvoiceNumber,
 } from './formatters';
@@ -152,12 +154,12 @@ export function prepareScopedInvoiceData(options: ExportInvoiceOptions) {
     (validItems[0] as any)?.nomorInvoice ||
     generateInvoiceNumber(kitchenName);
 
-  const formattedDate = targetDate ? formatTanggal(targetDate, false) : formatTanggalRealtime();
+  const formattedDate = targetDate ? formatTanggalInvoice(targetDate) : formatTanggalInvoice(new Date());
   const rawDate = targetDate || new Date().toISOString().split('T')[0];
 
-  const displayNama = options.customNama || kitchenName;
-  const displayAlamat = options.customAlamat || 'Banyuwangi';
-  const displayNomor = options.customNomor || autoInvoiceNo;
+  const displayNama = resolveRecipientSppgName(options.customNama, kitchenName, validItems);
+  const displayAlamat = '-';
+  const displayNomor = '-';
 
   // 3. Calculate TOTAL using parseIndonesianNumber
   let grandTotal = 0;

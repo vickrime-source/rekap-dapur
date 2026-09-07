@@ -6,6 +6,9 @@ import {
   AlertCircle, 
   FileSpreadsheet, 
   Settings,
+  CloudUpload,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { checkGoogleSheetsConnection } from '../lib/googleSheets';
@@ -21,6 +24,9 @@ interface SyncBottomSheetProps {
   notesCount?: number;
   onOpenSettings: () => void;
   lastSyncedTime?: string;
+  pendingQueueCount?: number;
+  isDeviceOnline?: boolean;
+  onProcessQueue?: () => void;
 }
 
 export const SyncBottomSheet: React.FC<SyncBottomSheetProps> = ({
@@ -34,6 +40,9 @@ export const SyncBottomSheet: React.FC<SyncBottomSheetProps> = ({
   notesCount = 0,
   onOpenSettings,
   lastSyncedTime,
+  pendingQueueCount = 0,
+  isDeviceOnline = true,
+  onProcessQueue,
 }) => {
   const [connectionInfo, setConnectionInfo] = useState<{
     configured: boolean;
@@ -187,16 +196,69 @@ export const SyncBottomSheet: React.FC<SyncBottomSheetProps> = ({
               </div>
             </div>
 
+            {/* Network & Offline Queue Status Card */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200/90 rounded-2xl flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                  isDeviceOnline ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {isDeviceOnline ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                    <span>{isDeviceOnline ? 'Internet Terhubung' : 'Mode Offline (Tanpa Internet)'}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium truncate">
+                    {pendingQueueCount > 0
+                      ? `${pendingQueueCount} perubahan disimpan di HP (antre upload)`
+                      : 'Semua perubahan lokal sudah tersinkron ke Cloud'}
+                  </p>
+                </div>
+              </div>
+
+              {pendingQueueCount > 0 && onProcessQueue && (
+                <button
+                  type="button"
+                  onClick={onProcessQueue}
+                  disabled={!isDeviceOnline || isSyncing}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-[11px] font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer whitespace-nowrap"
+                >
+                  <CloudUpload className="w-3.5 h-3.5" />
+                  <span>Upload ({pendingQueueCount})</span>
+                </button>
+              )}
+            </div>
+
+            {/* Cross-Device Multi-Device Note */}
+            <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl text-[11px] text-indigo-900 leading-relaxed">
+              <div className="font-bold flex items-center gap-1 text-indigo-950 mb-0.5">
+                <span>Sinkronisasi Lintas HP &amp; Perangkat:</span>
+              </div>
+              Data yang dibuat di HP ini otomatis disimpan ke memori HP terlebih dahulu saat offline, lalu langsung diunggah ke Google Sheets saat ada sinyal internet agar <strong>bisa langsung dilihat oleh HP atau perangkat lain secara bersamaan</strong>.
+            </div>
+
             {/* Sync Action Buttons */}
             <div className="space-y-2 pt-1">
               <button
                 type="button"
-                onClick={onTriggerSync}
+                onClick={() => {
+                  if (pendingQueueCount > 0 && onProcessQueue) {
+                    onProcessQueue();
+                  } else {
+                    onTriggerSync();
+                  }
+                }}
                 disabled={isSyncing}
                 className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] disabled:opacity-50 text-white rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
               >
                 <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                <span>{isSyncing ? 'Sedang Menyinkronkan...' : 'Sinkronkan Sekarang'}</span>
+                <span>
+                  {isSyncing 
+                    ? 'Sedang Menyinkronkan...' 
+                    : pendingQueueCount > 0 
+                    ? `Upload Antrean Offline (${pendingQueueCount}) & Sinkronkan` 
+                    : 'Sinkronkan Sekarang'}
+                </span>
               </button>
 
               <button

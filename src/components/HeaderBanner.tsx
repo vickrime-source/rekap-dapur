@@ -3,11 +3,10 @@ import { motion } from 'motion/react';
 import { 
   Settings, 
   ShoppingBag, 
-  Clock,
+  AlertCircle,
   Download,
   Loader2,
   Receipt,
-  FileSpreadsheet,
   Plus,
   CheckCircle2,
   Circle,
@@ -17,10 +16,17 @@ import {
   Tag,
   Mic,
   Scale,
-  Check
+  Check,
+  TrendingUp
 } from 'lucide-react';
 import { OrderItem, NoteItem, Kitchen } from '../types';
-import { parseIndonesianNumber } from '../lib/formatters';
+import { 
+  parseIndonesianNumber, 
+  formatRupiah, 
+  parseDateSafe, 
+  isOrderToday, 
+  isOrderThisMonth 
+} from '../lib/formatters';
 
 interface HeaderBannerProps {
   orders: OrderItem[];
@@ -32,10 +38,12 @@ interface HeaderBannerProps {
   onOpenNewNoteSheet: (startVoice?: boolean) => void;
   onOpenSettings: () => void;
   onOpenExportHistory: () => void;
-  onOpenSyncSheet: () => void;
+  onOpenSyncSheet?: () => void;
   isSyncingGas?: boolean;
   isExportingActive?: boolean;
   exportHistoryCount?: number;
+  pendingSyncCount?: number;
+  isOnline?: boolean;
 }
 
 export const HeaderBanner: React.FC<HeaderBannerProps> = ({
@@ -51,22 +59,27 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
   isSyncingGas = false,
   isExportingActive = false,
   exportHistoryCount = 0,
+  pendingSyncCount = 0,
+  isOnline = true,
 }) => {
+  // Default to 'hari_ini' so user immediately sees today's orders and pending
   const [period, setPeriod] = useState<'hari_ini' | 'bulan_ini' | 'all_time'>('hari_ini');
 
-  // Filter orders according to active period selection
+  // Filter orders according to active period selection with robust date & WIB parsing
   const filteredOrders = useMemo(() => {
     if (!orders || orders.length === 0) return [];
     
-    if (period === 'hari_ini') {
-      const targetDate = selectedDate || new Date().toISOString().split('T')[0];
-      return orders.filter((o) => o.tanggal === targetDate);
-    } else if (period === 'bulan_ini') {
-      const monthKey = (selectedDate || new Date().toISOString().split('T')[0]).substring(0, 7);
-      return orders.filter((o) => o.tanggal && o.tanggal.startsWith(monthKey));
-    } else {
+    if (period === 'all_time') {
       return orders;
     }
+
+    if (period === 'hari_ini') {
+      return orders.filter((o) => isOrderToday(o, selectedDate));
+    } else if (period === 'bulan_ini') {
+      return orders.filter((o) => isOrderThisMonth(o, selectedDate));
+    }
+
+    return orders;
   }, [orders, period, selectedDate]);
 
   // Status helper for accurate pending count synchronized with table grouping
@@ -79,6 +92,16 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
   // Dynamic calculations
   const totalOrders = filteredOrders.length;
   const totalPending = filteredOrders.filter(isItemPending).length;
+
+  // Total Laba Bersih: (Harga Jual - Harga Beli) x Qty
+  const totalLaba = useMemo(() => {
+    return filteredOrders.reduce((sum, item) => {
+      const qty = parseIndonesianNumber(item.qty) || 0;
+      const beli = parseIndonesianNumber(item.hargaBeli) || 0;
+      const jual = parseIndonesianNumber(item.hargaJual) || 0;
+      return sum + ((jual - beli) * qty);
+    }, 0);
+  }, [filteredOrders]);
 
   return (
     <header className="no-print px-3 pt-3 pb-2 max-w-5xl mx-auto w-full font-sans">
@@ -93,27 +116,15 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
               <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-md shadow-indigo-600/30 flex-shrink-0">
                 <Receipt className="w-5 h-5" />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex items-center gap-2">
                 <h1 className="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-none flex items-center gap-1.5 whitespace-nowrap">
-                  <span>Rekap Dapur Pro</span>
+                  <span>Rekap Dapur</span>
                 </h1>
               </div>
             </div>
 
-            {/* Mobile Header Action Icons (Sync, Download History, Settings) */}
+            {/* Mobile Header Action Icons (Download History, Settings) */}
             <div className="sm:hidden flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={onOpenSyncSheet}
-                title="Buka Sinkronisasi Google Sheets"
-                className="relative p-2 rounded-2xl bg-slate-100/90 text-emerald-700 hover:bg-emerald-50 active:scale-95 border border-slate-200 flex items-center justify-center transition-all cursor-pointer"
-              >
-                <FileSpreadsheet className={`w-4 h-4 ${isSyncingGas ? 'animate-spin text-emerald-600' : ''}`} />
-                {isSyncingGas && (
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping" />
-                )}
-              </button>
-
               <button
                 type="button"
                 onClick={onOpenExportHistory}
@@ -182,15 +193,6 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
             <div className="hidden sm:flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={onOpenSyncSheet}
-                title="Buka Sinkronisasi Google Sheets"
-                className="p-2 rounded-2xl bg-slate-100/90 hover:bg-emerald-50 text-emerald-700 active:scale-95 border border-slate-200/80 transition-all cursor-pointer"
-              >
-                <FileSpreadsheet className={`w-4 h-4 ${isSyncingGas ? 'animate-spin text-emerald-600' : ''}`} />
-              </button>
-
-              <button
-                type="button"
                 onClick={onOpenExportHistory}
                 title="Riwayat Cetak & Download PDF/DOCX"
                 className={`relative p-2 rounded-2xl border transition-all cursor-pointer active:scale-95 ${
@@ -242,7 +244,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
                   <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 block">
                     PESANAN
                   </span>
-                  <span className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+                  <span className="text-base sm:text-lg font-black font-nominal text-slate-900 leading-tight">
                     {totalOrders} <span className="text-[10px] font-bold text-slate-500">Item</span>
                   </span>
                 </div>
@@ -253,14 +255,31 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
             <div className="flex-1 bg-rose-50/80 border border-rose-200/80 rounded-2xl p-2.5 flex items-center justify-between shadow-[inset_1px_1px_2px_rgba(255,255,255,0.9)]">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-sm shadow-rose-500/30 flex-shrink-0">
-                  <Clock className="w-4 h-4" />
+                  <AlertCircle className="w-4 h-4" />
                 </div>
                 <div>
                   <span className="text-[10px] font-black uppercase tracking-wider text-rose-700 block">
                     PENDING
                   </span>
-                  <span className="text-base sm:text-lg font-black text-rose-700 leading-tight">
+                  <span className="text-base sm:text-lg font-black font-nominal text-rose-700 leading-tight">
                     {totalPending} <span className="text-[10px] font-bold text-rose-600/80">Item</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Box 3: TOTAL LABA BERSIH */}
+            <div className="flex-1 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl p-2.5 flex items-center justify-between shadow-[inset_1px_1px_2px_rgba(255,255,255,0.9)]">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shadow-emerald-500/30 flex-shrink-0">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 block">
+                    TOTAL LABA BERSIH
+                  </span>
+                  <span className="text-base sm:text-lg font-black font-nominal text-emerald-950 leading-tight truncate block">
+                    {formatRupiah(totalLaba)}
                   </span>
                 </div>
               </div>
@@ -303,7 +322,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
             </div>
 
             {/* List of Notes with Interactive Check Dot Status */}
-            <div className="mt-2 space-y-1.5 max-h-[85px] overflow-y-auto pr-1">
+            <div className="mt-2 space-y-1.5 max-h-[145px] overflow-y-auto pr-1">
               {notes.length === 0 ? (
                 <div className="text-center py-2 text-slate-400 text-[11px] font-medium italic">
                   Belum ada catatan follow up. Klik <strong>Mic</strong> atau <strong>+ New Note</strong> untuk menambah.
