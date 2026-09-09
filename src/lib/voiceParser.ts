@@ -20,6 +20,34 @@ export interface ParsedVoiceNote {
   catatan?: string;
 }
 
+export type VoiceIntent = 'CREATE_NOTE' | 'CREATE_ORDER' | 'EDIT_ORDER';
+
+export interface SmartVoiceResult {
+  intent: VoiceIntent;
+  // Note:
+  noteText?: string;
+  noteDapur?: string;
+  // Order:
+  namaBarang?: string;
+  qty?: number;
+  satuan?: string;
+  hargaBeli?: number;
+  hargaJual?: number;
+  tujuanDapur?: string;
+  toko?: string;
+  pemasok?: string;
+  catatan?: string;
+  // Edit Order:
+  targetBarang?: string;
+  targetDapur?: string;
+  newQty?: number;
+  newSatuan?: string;
+  newHargaBeli?: number;
+  newHargaJual?: number;
+  newNamaBarang?: string;
+  rawTranscript: string;
+}
+
 const INDO_NUMBER_WORDS: Record<string, number> = {
   'setengah': 0.5,
   'seperempat': 0.25,
@@ -58,224 +86,190 @@ const UNIT_MAPPING: Record<string, string> = {
   'gram': 'Gram',
   'ons': 'Ons',
   'ikat': 'Ikat',
-  'tray': 'Tray',
-  'trey': 'Tray',
+  'bungkus': 'Pcs',
+  'bks': 'Pcs',
   'pcs': 'Pcs',
-  'pc': 'Pcs',
-  'buah': 'Pcs',
   'biji': 'Pcs',
+  'buah': 'Pcs',
   'butir': 'Pcs',
-  'pack': 'Pack',
-  'pak': 'Pack',
-  'bungkus': 'Pack',
-  'bks': 'Pack',
-  'liter': 'Liter',
-  'ltr': 'Liter',
+  'potong': 'Pcs',
+  'ekor': 'Pcs',
+  'tray': 'Tray',
+  'keranjang': 'Keranjang',
+  'kotak': 'Box',
   'box': 'Box',
-  'dus': 'Box',
-  'kardus': 'Box',
   'karung': 'Karung',
   'sak': 'Karung',
-  'ekor': 'Ekor',
-  'botol': 'Botol',
+  'pack': 'Pack',
+  'pak': 'Pack',
+  'dus': 'Box',
+  'liter': 'Liter',
+  'ltr': 'Liter',
   'btl': 'Botol',
-  'kaleng': 'Kaleng',
-  'porsi': 'Porsi',
-  'lembar': 'Lembar',
+  'botol': 'Botol',
   'sisir': 'Sisir',
 };
 
-// Capitalize title
-export function capitalizeWords(str: string): string {
+function capitalizeWords(str: string): string {
   if (!str) return '';
   return str
+    .toLowerCase()
     .split(' ')
     .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
 }
 
+/**
+ * Parse price string like "30 ribu", "30rb", "30.000", "25 k" into number 30000
+ */
+function parsePriceFromIndonesian(text: string): number {
+  if (!text) return 0;
+  const clean = text.toLowerCase().trim();
+  
+  const ribuMatch = clean.match(/([\d.,]+)\s*(ribu|rb|k)/i);
+  if (ribuMatch) {
+    const base = parseFloat(ribuMatch[1].replace(/\./g, '').replace(',', '.'));
+    return Math.round(base * 1000);
+  }
+
+  const rawNum = clean.replace(/[^\d]/g, '');
+  return parseInt(rawNum, 10) || 0;
+}
+
 export function parseVoiceInput(
-  transcript: string,
+  rawTranscript: string,
   availableKitchens: Array<{ id?: string; nama: string }> = [],
   availableStores: Array<{ id?: string; nama: string }> = [],
   availablePemasok: string[] = []
 ): ParsedVoiceNote {
-  const rawTranscript = transcript.trim();
-  let text = rawTranscript.toLowerCase();
+  if (!rawTranscript || typeof rawTranscript !== 'string') {
+    return {
+      rawTranscript: '',
+      namaBarang: 'Pesanan Baru',
+      qty: 1,
+      satuan: 'Kg',
+    };
+  }
 
-  let detectedKitchen: string | undefined = undefined;
-  let detectedStore: string | undefined = undefined;
-  let detectedPemasok: string | undefined = undefined;
+  let text = rawTranscript.toLowerCase().trim();
 
-  // 1. Check if kitchen is mentioned (e.g. "dapur siliragung" or "untuk siliragung" or just "siliragung")
+  // 1. Detect Kitchen
+  let detectedKitchen = '';
   for (const k of availableKitchens) {
     const kName = k.nama.toLowerCase();
-    const patterns = [
-      new RegExp(`\\bdapur\\s+${kName}\\b`, 'i'),
-      new RegExp(`\\bke\\s+dapur\\s+${kName}\\b`, 'i'),
-      new RegExp(`\\buntuk\\s+dapur\\s+${kName}\\b`, 'i'),
-      new RegExp(`\\buntuk\\s+${kName}\\b`, 'i'),
-      new RegExp(`\\b${kName}\\b`, 'i'),
-    ];
-
-    for (const pat of patterns) {
-      if (pat.test(text)) {
-        detectedKitchen = k.nama;
-        text = text.replace(pat, ' ').trim();
-        break;
-      }
+    const regex = new RegExp(`\\b(dapur\\s+)?${kName}\\b`, 'i');
+    if (regex.test(text)) {
+      detectedKitchen = k.nama;
+      text = text.replace(regex, ' ').trim();
+      break;
     }
-    if (detectedKitchen) break;
   }
 
-  // 1b. Check if store is mentioned (e.g. "toko htg", "htg", "luweng boga", "prohe", "adifruita")
+  // 2. Detect Store
+  let detectedStore = '';
   for (const s of availableStores) {
     const sName = s.nama.toLowerCase();
-    const patterns = [
-      new RegExp(`\\btoko\\s+${sName}\\b`, 'i'),
-      new RegExp(`\\bdari\\s+toko\\s+${sName}\\b`, 'i'),
-      new RegExp(`\\b${sName}\\b`, 'i'),
-    ];
-    for (const pat of patterns) {
-      if (pat.test(text)) {
-        detectedStore = s.nama;
-        text = text.replace(pat, ' ').trim();
-        break;
-      }
+    const regex = new RegExp(`\\b(toko\\s+)?${sName}\\b`, 'i');
+    if (regex.test(text)) {
+      detectedStore = s.nama;
+      text = text.replace(regex, ' ').trim();
+      break;
     }
-    if (detectedStore) break;
   }
 
-  // 1c. Check if supplier is mentioned
+  // 3. Detect Pemasok
+  let detectedPemasok = '';
   for (const p of availablePemasok) {
     const pName = p.toLowerCase();
-    const patterns = [
-      new RegExp(`\\bpemasok\\s+${pName}\\b`, 'i'),
-      new RegExp(`\\bsupplier\\s+${pName}\\b`, 'i'),
-      new RegExp(`\\bdari\\s+${pName}\\b`, 'i'),
-      new RegExp(`\\b${pName}\\b`, 'i'),
-    ];
-    for (const pat of patterns) {
-      if (pat.test(text)) {
-        detectedPemasok = p;
-        text = text.replace(pat, ' ').trim();
-        break;
-      }
-    }
-    if (detectedPemasok) break;
-  }
-
-  // Fallback: If kitchen wasn't matched from list, check for "dapur [nama]"
-  if (!detectedKitchen) {
-    const genericKitchenMatch = text.match(/\bdapur\s+([a-zA-Z0-9_-]+)\b/i);
-    if (genericKitchenMatch) {
-      detectedKitchen = capitalizeWords(genericKitchenMatch[1]);
-      text = text.replace(genericKitchenMatch[0], ' ').trim();
+    const regex = new RegExp(`\\b(pemasok\\s+|supplier\\s+)?${pName}\\b`, 'i');
+    if (regex.test(text)) {
+      detectedPemasok = p;
+      text = text.replace(regex, ' ').trim();
+      break;
     }
   }
 
-  // 1d. Extract Harga Beli (e.g. "beli 30 ribu satuanya", "beli 30rb", "h.beli 30.000")
-  let detectedHargaBeli: number | undefined = undefined;
-  const hargaBeliRegex = /(?:harga\s+)?(?:beli|h\.?\s*beli)\s*[:=]?\s*(?:rp\.?\s*)?(\d+(?:[.,]\d+)?)\s*(ribu|rb|k|jt|juta)?(?:\s*satuann?ya|\s*per\s*[a-zA-Z]+)?/i;
-  const beliMatch = text.match(hargaBeliRegex);
+  // 4. Detect Buying and Selling Prices
+  let detectedHargaBeli = 0;
+  let detectedHargaJual = 0;
+
+  const beliRegex = /(?:beli|harga\s*beli|kulak|kulakan)\s*(?:sebesar|nya|satuan|satuannya)?\s*([\d.,]+\s*(?:ribu|rb|k|\d{3,}))/i;
+  const beliMatch = text.match(beliRegex);
   if (beliMatch) {
-    const num = parseFloat(beliMatch[1].replace(',', '.'));
-    const unit = (beliMatch[2] || '').toLowerCase();
-    let multiplier = 1;
-    if (unit === 'ribu' || unit === 'rb' || unit === 'k') multiplier = 1000;
-    else if (unit === 'jt' || unit === 'juta') multiplier = 1000000;
-    else if (num < 1000) multiplier = 1000; // Indonesian spoken convention "beli 30" -> 30000
-
-    detectedHargaBeli = Math.round(num * multiplier);
+    detectedHargaBeli = parsePriceFromIndonesian(beliMatch[1]);
     text = text.replace(beliMatch[0], ' ').trim();
   }
 
-  // 1e. Extract Harga Jual (e.g. "jual 35 ribu", "jual 35rb", "harga jual 35.000")
-  let detectedHargaJual: number | undefined = undefined;
-  const hargaJualRegex = /(?:harga\s+)?(?:jual|h\.?\s*jual)\s*[:=]?\s*(?:rp\.?\s*)?(\d+(?:[.,]\d+)?)\s*(ribu|rb|k|jt|juta)?(?:\s*satuann?ya|\s*per\s*[a-zA-Z]+)?/i;
-  const jualMatch = text.match(hargaJualRegex);
+  const jualRegex = /(?:jual|harga\s*jual)\s*(?:sebesar|nya|satuan|satuannya)?\s*([\d.,]+\s*(?:ribu|rb|k|\d{3,}))/i;
+  const jualMatch = text.match(jualRegex);
   if (jualMatch) {
-    const num = parseFloat(jualMatch[1].replace(',', '.'));
-    const unit = (jualMatch[2] || '').toLowerCase();
-    let multiplier = 1;
-    if (unit === 'ribu' || unit === 'rb' || unit === 'k') multiplier = 1000;
-    else if (unit === 'jt' || unit === 'juta') multiplier = 1000000;
-    else if (num < 1000) multiplier = 1000; // Indonesian spoken convention "jual 35" -> 35000
-
-    detectedHargaJual = Math.round(num * multiplier);
+    detectedHargaJual = parsePriceFromIndonesian(jualMatch[1]);
     text = text.replace(jualMatch[0], ' ').trim();
   }
 
-  // Remove trailing "satuanya" or "satuannya" or "per kilo" if left over
-  text = text.replace(/\b(?:satuann?ya|per\s*(?:kilo|kg|pcs|biji|ikat|tray|pack|ekor))\b/gi, ' ').trim();
-
-  // Normalize multi-word numbers: "satu setengah" -> "1.5", "dua setengah" -> "2.5"
-  text = text.replace(/\bsatu\s+setengah\b/g, '1.5');
-  text = text.replace(/\bdua\s+setengah\b/g, '2.5');
-  text = text.replace(/\btiga\s+setengah\b/g, '3.5');
-  text = text.replace(/\bempat\s+setengah\b/g, '4.5');
-  text = text.replace(/\blima\s+setengah\b/g, '5.5');
-
-  // Replace Indonesian single word numbers
-  for (const [word, num] of Object.entries(INDO_NUMBER_WORDS)) {
-    const reg = new RegExp(`\\b${word}\\b`, 'g');
-    text = text.replace(reg, num.toString());
-  }
-
+  // 5. Detect Quantity & Unit
   let qty = 1;
   let satuan = 'Kg';
   let namaBarang = '';
   let catatan = '';
 
-  // 2. Pattern A: Number + Unit
-  // e.g. "ayam 4 kg", "tomat 2.5 kilo", "telur 5 tray", "bayam 10 ikat"
-  const unitKeys = Object.keys(UNIT_MAPPING).sort((a, b) => b.length - a.length).join('|');
-  const qtyUnitRegex = new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(${unitKeys})\\b`, 'i');
-
+  const unitsPattern = Object.keys(UNIT_MAPPING).sort((a, b) => b.length - a.length).join('|');
+  const qtyUnitRegex = new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(${unitsPattern})\\b`, 'i');
   const match = text.match(qtyUnitRegex);
 
   if (match) {
     const rawQty = match[1].replace(',', '.');
     qty = parseFloat(rawQty) || 1;
-    const rawUnit = match[2].toLowerCase();
-    satuan = UNIT_MAPPING[rawUnit] || 'Kg';
+    satuan = UNIT_MAPPING[match[2].toLowerCase()] || 'Kg';
 
-    // The text before the match is usually the item name
     const matchIndex = match.index || 0;
     const beforeText = text.substring(0, matchIndex).trim();
     const afterText = text.substring(matchIndex + match[0].length).trim();
 
-    namaBarang = beforeText;
-    catatan = afterText;
-
-    // If item name was empty before (e.g. "4 kg ayam"), check afterText
-    if (!namaBarang && afterText) {
-      namaBarang = afterText;
-      catatan = '';
+    namaBarang = beforeText || afterText;
+    if (beforeText && afterText) {
+      catatan = afterText;
     }
   } else {
-    // 3. Pattern B: Just number without explicit unit (e.g. "ayam 4")
-    const justNumberRegex = /(\d+(?:[.,]\d+)?)/;
-    const numMatch = text.match(justNumberRegex);
+    // Number word + Unit (e.g. "dua kg")
+    const wordsPattern = Object.keys(INDO_NUMBER_WORDS).sort((a, b) => b.length - a.length).join('|');
+    const wordUnitRegex = new RegExp(`(${wordsPattern})\\s*(${unitsPattern})\\b`, 'i');
+    const wordMatch = text.match(wordUnitRegex);
 
-    if (numMatch) {
-      const rawQty = numMatch[1].replace(',', '.');
-      qty = parseFloat(rawQty) || 1;
-      const numIndex = numMatch.index || 0;
-      const beforeText = text.substring(0, numIndex).trim();
-      const afterText = text.substring(numIndex + numMatch[0].length).trim();
+    if (wordMatch) {
+      qty = INDO_NUMBER_WORDS[wordMatch[1].toLowerCase()] || 1;
+      satuan = UNIT_MAPPING[wordMatch[2].toLowerCase()] || 'Kg';
+
+      const matchIndex = wordMatch.index || 0;
+      const beforeText = text.substring(0, matchIndex).trim();
+      const afterText = text.substring(matchIndex + wordMatch[0].length).trim();
 
       namaBarang = beforeText || afterText;
       if (beforeText && afterText) {
         catatan = afterText;
       }
-      satuan = 'Kg'; // default fallback for kitchen items
     } else {
-      // 4. No numbers found, entire text is item or note
-      namaBarang = text;
-      qty = 1;
-      satuan = 'Kg';
+      const justNumberRegex = /(\d+(?:[.,]\d+)?)/;
+      const numMatch = text.match(justNumberRegex);
+
+      if (numMatch) {
+        const rawQty = numMatch[1].replace(',', '.');
+        qty = parseFloat(rawQty) || 1;
+        const numIndex = numMatch.index || 0;
+        const beforeText = text.substring(0, numIndex).trim();
+        const afterText = text.substring(numIndex + numMatch[0].length).trim();
+
+        namaBarang = beforeText || afterText;
+        if (beforeText && afterText) {
+          catatan = afterText;
+        }
+        satuan = 'Kg';
+      } else {
+        namaBarang = text;
+        qty = 1;
+        satuan = 'Kg';
+      }
     }
   }
 
@@ -307,27 +301,12 @@ export function parseVoiceInput(
   };
 }
 
-/**
- * Smart voice order parser for direct order creation (e.g. from hold-to-talk mic)
- * Example input: "dapur cluring 10 kg ayam beli 30 ribu satuanya jual 35 ribu"
- */
 export function parseVoiceOrderSmart(
   transcript: string,
   availableKitchens: Array<{ id?: string; nama: string }> = [],
   availableStores: Array<{ id?: string; nama: string }> = [],
   availablePemasok: string[] = []
-): {
-  namaBarang: string;
-  qty: number;
-  satuan: string;
-  hargaBeli: number;
-  hargaJual: number;
-  tujuanDapur: string;
-  toko: string;
-  pemasok: string;
-  catatan?: string;
-  rawTranscript: string;
-} {
+) {
   const parsed = parseVoiceInput(transcript, availableKitchens, availableStores, availablePemasok);
 
   const finalKitchen =
@@ -353,5 +332,93 @@ export function parseVoiceOrderSmart(
     toko: finalStore,
     pemasok: finalPemasok,
     catatan: parsed.catatan,
+  };
+}
+
+/**
+ * Universal Intent-Aware Voice Assistant Parser (handles Note, Order, and Edit Order)
+ */
+export function parseVoiceAssistantSmart(
+  transcript: string,
+  availableKitchens: Array<{ id?: string; nama: string }> = [],
+  availableStores: Array<{ id?: string; nama: string }> = [],
+  availablePemasok: string[] = []
+): SmartVoiceResult {
+  const clean = transcript.trim();
+  const lower = clean.toLowerCase();
+
+  // 1. Intent: CREATE_NOTE ("buat notes..", "catat..", "note..", "tulis catatan..")
+  const noteRegex = /^(?:buat\s+(?:notes|note|catatan)|catat|tulis\s+(?:catatan|note)|note)\b/i;
+  if (noteRegex.test(lower)) {
+    let noteText = clean.replace(noteRegex, '').replace(/^[:\s-]+/, '').trim();
+    if (!noteText) noteText = clean;
+
+    // Detect kitchen in note if mentioned
+    let detectedDapur = '';
+    for (const k of availableKitchens) {
+      if (new RegExp(`\\b${k.nama}\\b`, 'i').test(noteText)) {
+        detectedDapur = k.nama;
+        break;
+      }
+    }
+
+    return {
+      intent: 'CREATE_NOTE',
+      noteText: capitalizeWords(noteText),
+      noteDapur: detectedDapur,
+      rawTranscript: transcript,
+    };
+  }
+
+  // 2. Intent: EDIT_ORDER ("edit harga/item/kg/", "ubah..", "ganti..", "koreksi..")
+  const editRegex = /^(?:edit|ubah|ganti|koreksi|revisi)\b/i;
+  if (editRegex.test(lower)) {
+    const afterEdit = clean.replace(editRegex, '').trim();
+
+    // Check if editing price: e.g. "edit harga ayam jadi 32 ribu"
+    const priceEditMatch = afterEdit.match(/(?:harga\s*(?:beli|jual)?\s*)?([a-zA-Z\s]+?)\s*(?:jadi|menjadi|=)\s*([\d.,]+\s*(?:ribu|rb|k|\d{3,}))/i);
+    const isBeli = /harga\s*beli|kulak/i.test(afterEdit);
+    const isJual = /harga\s*jual/i.test(afterEdit);
+
+    if (priceEditMatch) {
+      const targetBarang = priceEditMatch[1].replace(/harga\s*(?:beli|jual)?/i, '').trim();
+      const newPrice = parsePriceFromIndonesian(priceEditMatch[2]);
+      return {
+        intent: 'EDIT_ORDER',
+        targetBarang: capitalizeWords(targetBarang),
+        newHargaBeli: isBeli ? newPrice : undefined,
+        newHargaJual: isJual || !isBeli ? newPrice : undefined,
+        rawTranscript: transcript,
+      };
+    }
+
+    // Check if editing qty: e.g. "ganti qty ayam jadi 15 kg"
+    const qtyEditMatch = afterEdit.match(/(?:qty\s*|jumlah\s*)?([a-zA-Z\s]+?)\s*(?:jadi|menjadi|=)\s*(\d+(?:[.,]\d+)?)\s*([a-zA-Z]+)?/i);
+    if (qtyEditMatch) {
+      const targetBarang = qtyEditMatch[1].replace(/(?:qty|jumlah)/i, '').trim();
+      const newQty = parseFloat(qtyEditMatch[2].replace(',', '.')) || 1;
+      const newSatuan = qtyEditMatch[3] ? UNIT_MAPPING[qtyEditMatch[3].toLowerCase()] || 'Kg' : undefined;
+      return {
+        intent: 'EDIT_ORDER',
+        targetBarang: capitalizeWords(targetBarang),
+        newQty,
+        newSatuan,
+        rawTranscript: transcript,
+      };
+    }
+
+    // Generic edit fallback
+    return {
+      intent: 'EDIT_ORDER',
+      targetBarang: capitalizeWords(afterEdit),
+      rawTranscript: transcript,
+    };
+  }
+
+  // 3. Default Intent: CREATE_ORDER ("buat pesan..", "ayam 10 kg..", "pesan..")
+  const orderData = parseVoiceOrderSmart(transcript, availableKitchens, availableStores, availablePemasok);
+  return {
+    intent: 'CREATE_ORDER',
+    ...orderData,
   };
 }

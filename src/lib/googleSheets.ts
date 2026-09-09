@@ -433,7 +433,7 @@ export function buildNotesPayload(note: Partial<NoteItem>) {
   const qtyStr = note.qty ? `${note.qty} ${note.satuan || 'Kg'}` : '';
   return {
     ID: note.id || `note-${Date.now()}`,
-    DAPUR: note.tujuanDapur || 'Siliragung',
+    DAPUR: note.tujuanDapur || '',
     ITEM: note.namaBarang || '',
     QTY: qtyStr,
     CATATAN: note.catatan || '',

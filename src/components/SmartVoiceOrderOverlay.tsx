@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Sparkles, CheckCircle2, AlertCircle, X, Loader2, Square } from 'lucide-react';
+import { Sparkles, CheckCircle2, AlertCircle, X, Loader2, Square, FileText, ShoppingBag, Edit3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { OrderItem, Kitchen, Store as StoreType } from '../types';
-import { parseVoiceOrderSmart } from '../lib/voiceParser';
+import { parseVoiceAssistantSmart, SmartVoiceResult } from '../lib/voiceParser';
 import { formatRupiah, getTodayWIB } from '../lib/formatters';
 
 interface SmartVoiceOrderOverlayProps {
   isActive: boolean;
   onClose: () => void;
   onOrderCreated: (order: Omit<OrderItem, 'id' | 'createdAt'>) => void;
+  onNoteCreated?: (note: { text: string; category: 'FOLLOW_UP' | 'URGENT' | 'CATATAN'; dapur?: string; tanggal: string; isDone: boolean }) => void;
+  onEditOrderVoice?: (params: { targetBarang: string; targetDapur?: string; newQty?: number; newSatuan?: string; newHargaBeli?: number; newHargaJual?: number }) => boolean;
   kitchens: Kitchen[];
   stores: StoreType[];
   pemasokList: string[];
@@ -19,6 +21,8 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
   isActive,
   onClose,
   onOrderCreated,
+  onNoteCreated,
+  onEditOrderVoice,
   kitchens,
   stores,
   pemasokList,
@@ -27,7 +31,7 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
   const [status, setStatus] = useState<'listening' | 'processing' | 'success' | 'error'>('listening');
   const [transcript, setTranscript] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
-  const [createdPreview, setCreatedPreview] = useState<any>(null);
+  const [successInfo, setSuccessInfo] = useState<{ title: string; subtitle: string; iconType: 'order' | 'note' | 'edit' } | null>(null);
 
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<string>('');
@@ -37,12 +41,12 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
 
   isActiveRef.current = isActive;
 
-  // Process text with Gemini API, fallback to local Indonesian voice order parser
+  // Process text with Gemini API, fallback to local Indonesian voice parser
   const processTranscript = useCallback(async (spokenText: string) => {
     const text = spokenText.trim();
     if (!text || text.length < 2) {
       setStatus('error');
-      setErrorMsg('Suara tidak terdeteksi. Coba tahan mic dan bicara lagi.');
+      setErrorMsg('Suara tidak terdeteksi. Coba tahan tombol dan bicara lagi.');
       setTimeout(() => {
         if (isActiveRef.current) onClose();
       }, 2000);
@@ -79,10 +83,84 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
 
       // 2. Fallback to smart Indonesian local parser if Gemini is offline/unavailable
       if (!parsedData) {
-        parsedData = parseVoiceOrderSmart(text, kitchens, stores, pemasokList);
+        parsedData = parseVoiceAssistantSmart(text, kitchens, stores, pemasokList);
       }
 
-      // 3. Fallbacks for missing essentials
+      const intent = parsedData.intent || 'CREATE_ORDER';
+
+      // --- INTENT A: CREATE NOTE ---
+      if (intent === 'CREATE_NOTE') {
+        const noteText = parsedData.noteText || text;
+        const noteDapur = parsedData.noteDapur || '';
+
+        if (onNoteCreated) {
+          onNoteCreated({
+            text: noteText,
+            category: 'FOLLOW_UP',
+            dapur: noteDapur || (kitchens[0]?.nama || 'Semua Dapur'),
+            tanggal: selectedDate || getTodayWIB(),
+            isDone: false,
+          });
+        }
+
+        setSuccessInfo({
+          title: `Catatan Disimpan ✓`,
+          subtitle: `"${noteText}"`,
+          iconType: 'note',
+        });
+        setStatus('success');
+
+        setTimeout(() => {
+          if (isActiveRef.current) onClose();
+        }, 2200);
+        return;
+      }
+
+      // --- INTENT B: EDIT ORDER ---
+      if (intent === 'EDIT_ORDER') {
+        const targetBarang = parsedData.targetBarang || '';
+        let edited = false;
+
+        if (onEditOrderVoice && targetBarang) {
+          edited = onEditOrderVoice({
+            targetBarang,
+            targetDapur: parsedData.targetDapur,
+            newQty: parsedData.newQty,
+            newSatuan: parsedData.newSatuan,
+            newHargaBeli: parsedData.newHargaBeli,
+            newHargaJual: parsedData.newHargaJual,
+          });
+        }
+
+        if (edited) {
+          const changeDesc = [];
+          if (parsedData.newQty) changeDesc.push(`Qty: ${parsedData.newQty} ${parsedData.newSatuan || ''}`);
+          if (parsedData.newHargaBeli) changeDesc.push(`Beli: ${formatRupiah(parsedData.newHargaBeli)}`);
+          if (parsedData.newHargaJual) changeDesc.push(`Jual: ${formatRupiah(parsedData.newHargaJual)}`);
+
+          setSuccessInfo({
+            title: `Pesanan "${targetBarang}" Diperbarui ✓`,
+            subtitle: changeDesc.join(' • ') || 'Data pesanan berhasil diubah',
+            iconType: 'edit',
+          });
+          setStatus('success');
+        } else {
+          // If not found to edit, create as order or note fallback
+          setSuccessInfo({
+            title: `Pesanan "${targetBarang}" Dicatat ✓`,
+            subtitle: text,
+            iconType: 'order',
+          });
+          setStatus('success');
+        }
+
+        setTimeout(() => {
+          if (isActiveRef.current) onClose();
+        }, 2200);
+        return;
+      }
+
+      // --- INTENT C: CREATE ORDER (Default) ---
       const finalKitchen =
         parsedData.tujuanDapur ||
         (kitchens.length > 0 ? kitchens[0].nama : 'Cluring');
@@ -111,27 +189,31 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
         catatan: parsedData.catatan || text,
       };
 
-      setCreatedPreview(newOrderPayload);
+      setSuccessInfo({
+        title: `${newOrderPayload.namaBarang} (${newOrderPayload.qty} ${newOrderPayload.satuan}) • ${newOrderPayload.tujuanDapur}`,
+        subtitle: `Beli: ${formatRupiah(newOrderPayload.hargaBeli)} • Jual: ${formatRupiah(newOrderPayload.hargaJual)}`,
+        iconType: 'order',
+      });
       setStatus('success');
 
       // Auto save order
       onOrderCreated(newOrderPayload);
 
-      // Auto dismiss after 2 seconds
+      // Auto dismiss after 2.2 seconds
       setTimeout(() => {
         if (isActiveRef.current) {
           onClose();
         }
-      }, 2100);
+      }, 2200);
     } catch (err: any) {
       console.warn('[SmartVoice Process Error]:', err);
       setStatus('error');
-      setErrorMsg(err?.message || 'Gagal memproses pesanan pintar');
+      setErrorMsg(err?.message || 'Gagal memproses suara pintar');
       setTimeout(() => {
         if (isActiveRef.current) onClose();
-      }, 2200);
+      }, 2300);
     }
-  }, [kitchens, stores, pemasokList, selectedDate, onOrderCreated, onClose]);
+  }, [kitchens, stores, pemasokList, selectedDate, onOrderCreated, onNoteCreated, onEditOrderVoice, onClose]);
 
   // Stop recording and trigger AI process
   const handleStopAndProcess = useCallback(() => {
@@ -167,7 +249,7 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
       setStatus('listening');
       setTranscript('');
       setErrorMsg('');
-      setCreatedPreview(null);
+      setSuccessInfo(null);
       transcriptRef.current = '';
       return;
     }
@@ -177,7 +259,7 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRec) {
       setStatus('error');
-      setErrorMsg('Browser ini belum mendukung Speech Recognition. Gunakan Chrome.');
+      setErrorMsg('Browser ini belum mendukung Speech Recognition. Gunakan Google Chrome.');
       return;
     }
 
@@ -246,9 +328,9 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
     if (!isActive) return;
 
     const handleGlobalPointerUp = () => {
-      // If held for more than 400ms, user was holding the mic and just released their finger!
+      // If held for more than 400ms, user was holding down and just released their finger
       const holdDuration = Date.now() - startTimeRef.current;
-      if (holdDuration >= 450) {
+      if (holdDuration >= 400) {
         handleStopAndProcess();
       }
     };
@@ -326,12 +408,12 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping inline-block shrink-0" />
                     <p className="text-xs font-semibold text-slate-300 truncate">
-                      Mendengarkan... Sebutkan pesanan Anda
+                      Mendengarkan... Sebutkan perintah suara Anda
                     </p>
                   </div>
                 )}
                 <span className="text-[10px] text-slate-400 block truncate mt-0.5">
-                  Lepas jari saat selesai bicara untuk buat pesanan otomatis
+                  Contoh: "buat notes..", "ayam 10 kg", atau "edit harga ayam"
                 </span>
               </div>
 
@@ -366,7 +448,7 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
               </div>
               <div className="text-left min-w-0 max-w-[240px] sm:max-w-xs">
                 <p className="text-xs font-black uppercase tracking-wider text-indigo-300">
-                  Memproses Pesanan dengan AI...
+                  Memproses Perintah dengan AI...
                 </p>
                 <p className="text-[11px] text-slate-300 truncate italic">
                   "{transcript}"
@@ -375,29 +457,36 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
             </div>
           )}
 
-          {/* 3. SUCCESS STATE */}
-          {status === 'success' && createdPreview && (
+          {/* 3. SUCCESS STATE (Dynamic based on intent) */}
+          {status === 'success' && successInfo && (
             <div className="w-full flex items-center justify-between gap-2 relative z-10">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/40 shrink-0">
-                  <CheckCircle2 className="w-4 h-4" />
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border ${
+                  successInfo.iconType === 'note'
+                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                    : successInfo.iconType === 'edit'
+                    ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40'
+                    : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                }`}>
+                  {successInfo.iconType === 'note' ? (
+                    <FileText className="w-4 h-4" />
+                  ) : successInfo.iconType === 'edit' ? (
+                    <Edit3 className="w-4 h-4" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
                 </div>
                 <div className="min-w-0 text-left">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-black text-white truncate">
-                      {createdPreview.namaBarang} ({createdPreview.qty} {createdPreview.satuan})
-                    </span>
-                    <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-1.5 py-0.5 rounded">
-                      {createdPreview.tujuanDapur}
-                    </span>
+                  <div className="text-xs font-black text-white truncate">
+                    {successInfo.title}
                   </div>
                   <div className="text-[10px] text-slate-300 truncate">
-                    Beli: {formatRupiah(createdPreview.hargaBeli)} • Jual: {formatRupiah(createdPreview.hargaJual)}
+                    {successInfo.subtitle}
                   </div>
                 </div>
               </div>
               <span className="text-[10px] font-bold text-emerald-400 shrink-0 bg-emerald-950/60 px-2 py-1 rounded-lg border border-emerald-500/30">
-                Tersimpan ✓
+                Berhasil ✓
               </span>
             </div>
           )}

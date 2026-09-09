@@ -55,6 +55,12 @@ import {
 } from './lib/syncQueue';
 import { downloadDocxInvoice } from './lib/docxTemplate';
 import { exportHtmlInvoicePdf } from './lib/htmlInvoicePdf';
+import { 
+  sendNewOrderNotification, 
+  sendDailyReportNotification, 
+  getNotificationSettings, 
+  saveNotificationSettings 
+} from './lib/notificationManager';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
@@ -1058,6 +1064,80 @@ export default function App() {
     }
   };
 
+  // Voice Assistant: Edit existing order by spoken commodity name
+  const handleEditOrderVoice = (params: {
+    targetBarang: string;
+    targetDapur?: string;
+    newQty?: number;
+    newSatuan?: string;
+    newHargaBeli?: number;
+    newHargaJual?: number;
+  }): boolean => {
+    const lowerTarget = params.targetBarang.toLowerCase().trim();
+    if (!lowerTarget) return false;
+
+    // Search matching order in current list (prefer pending or newest)
+    const found = orders.find((o) => {
+      const oName = o.namaBarang.toLowerCase();
+      const matchBarang = oName.includes(lowerTarget) || lowerTarget.includes(oName);
+      if (!matchBarang) return false;
+      if (params.targetDapur) {
+        return o.tujuanDapur.toLowerCase().includes(params.targetDapur.toLowerCase());
+      }
+      return true;
+    });
+
+    if (!found) return false;
+
+    const updated: OrderItem = {
+      ...found,
+      qty: params.newQty !== undefined ? params.newQty : found.qty,
+      satuan: params.newSatuan || found.satuan,
+      hargaBeli: params.newHargaBeli !== undefined ? params.newHargaBeli : found.hargaBeli,
+      hargaJual: params.newHargaJual !== undefined ? params.newHargaJual : found.hargaJual,
+    };
+
+    handleSaveOrder(updated, found.id);
+    showToast(`Pesanan "${found.namaBarang}" berhasil diperbarui`, 'success');
+    return true;
+  };
+
+  // Mobile Notification Engine: checks every 30s for scheduled daily report reminder
+  React.useEffect(() => {
+    const checkNotificationSchedule = () => {
+      const settings = getNotificationSettings();
+      if (!settings.enabled || !settings.dailyReportReminder) return;
+
+      const now = new Date();
+      // WIB Timezone UTC+7
+      const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+      const wibDate = new Date(utc + 3600000 * 7);
+      const hours = String(wibDate.getHours()).padStart(2, '0');
+      const minutes = String(wibDate.getMinutes()).padStart(2, '0');
+      const currentTimeStr = `${hours}:${minutes}`;
+      const todayStr = wibDate.toISOString().split('T')[0];
+
+      if (
+        settings.dailyReminderTime === currentTimeStr &&
+        settings.lastDailyNotifiedDate !== todayStr
+      ) {
+        const todayOrders = orders.filter((o) => o.tanggal === todayStr);
+        const totalOmset = todayOrders.reduce((sum, o) => sum + Number(o.qty || 0) * Number(o.hargaJual || o.hargaBeli || 0), 0);
+        const totalBeli = todayOrders.reduce((sum, o) => sum + Number(o.qty || 0) * Number(o.hargaBeli || 0), 0);
+        const totalLaba = totalOmset - totalBeli;
+
+        sendDailyReportNotification(todayOrders.length, totalOmset, totalLaba);
+        saveNotificationSettings({
+          ...settings,
+          lastDailyNotifiedDate: todayStr,
+        });
+      }
+    };
+
+    const interval = setInterval(checkNotificationSchedule, 30000);
+    return () => clearInterval(interval);
+  }, [orders]);
+
   // 1-Click Instant Invoice PDF Download (Requirement #3)
   // No recipient form/preview popup: auto fills recipient with Dapur name, '-' for phone/address,
   // and immediately downloads the PDF!
@@ -1652,6 +1732,7 @@ export default function App() {
               activeTab={activeTab}
               onChangeTab={setActiveTab}
               onOpenAddModal={() => handleOpenAddModal()}
+              onStartVoiceHold={() => setIsSmartVoiceActive(true)}
             />
           </motion.div>
         )}
@@ -1663,7 +1744,16 @@ export default function App() {
         onClose={() => setIsSmartVoiceActive(false)}
         onOrderCreated={(newOrder) => {
           handleSaveOrder(newOrder);
+          sendNewOrderNotification(newOrder.namaBarang, newOrder.qty, newOrder.satuan, newOrder.tujuanDapur);
         }}
+        onNoteCreated={(note) => {
+          handleSaveNote({
+            catatan: note.text,
+            tujuanDapur: note.dapur || kitchens[0]?.nama || 'Cluring',
+            isDone: false,
+          });
+        }}
+        onEditOrderVoice={handleEditOrderVoice}
         kitchens={kitchens}
         stores={stores}
         pemasokList={pemasokList}

@@ -19,16 +19,33 @@ export function getGeminiAI(): GoogleGenAI | null {
   return aiClient;
 }
 
-export interface ParsedVoiceOrderAI {
-  tujuanDapur: string;
-  namaBarang: string;
-  qty: number;
-  satuan: string;
-  hargaBeli: number;
-  hargaJual: number;
+export type VoiceIntent = 'CREATE_NOTE' | 'CREATE_ORDER' | 'EDIT_ORDER';
+
+export interface VoiceAssistantResult {
+  intent: VoiceIntent;
+  // If CREATE_NOTE:
+  noteText?: string;
+  noteDapur?: string;
+  
+  // If CREATE_ORDER:
+  tujuanDapur?: string;
+  namaBarang?: string;
+  qty?: number;
+  satuan?: string;
+  hargaBeli?: number;
+  hargaJual?: number;
   toko?: string;
   pemasok?: string;
   catatan?: string;
+
+  // If EDIT_ORDER:
+  targetBarang?: string;
+  targetDapur?: string;
+  newQty?: number;
+  newSatuan?: string;
+  newHargaBeli?: number;
+  newHargaJual?: number;
+  newNamaBarang?: string;
 }
 
 export async function parseVoiceOrderWithGemini(
@@ -36,30 +53,49 @@ export async function parseVoiceOrderWithGemini(
   availableKitchens: string[] = [],
   availableStores: string[] = [],
   availablePemasok: string[] = []
-): Promise<ParsedVoiceOrderAI | null> {
+): Promise<VoiceAssistantResult | null> {
   const ai = getGeminiAI();
   if (!ai) return null;
 
   const prompt = `Anda adalah asisten AI kasir dan rekap dapur bahasa Indonesia untuk warung/katering.
-Tugas Anda adalah mengekstrak teks ucapan suara pemesanan barang menjadi data pesanan terstruktur JSON.
+Tugas Anda adalah memahami perintah suara pengguna dan menentukan INTENT serta mengekstrak datanya:
 
-Teks ucapan suara:
+Teks ucapan suara pengguna:
 "${transcriptText}"
 
 Daftar Dapur Tersedia: ${availableKitchens.join(', ') || 'Cluring, Siliragung, Glenmore, Sempu, Pesanggaran'}
 Daftar Toko Tersedia: ${availableStores.join(', ') || 'HTG, PROHE, LUWENG BOGA, ADIFRUITA'}
 Daftar Pemasok Tersedia: ${availablePemasok.join(', ') || 'Pemasok 1, Pemasok 2'}
 
-Petunjuk Penting Ekstraksi:
-1. "tujuanDapur": Nama dapur tujuan jika disebutkan (misal: "dapur cluring" -> "Cluring", "siliragung" -> "Siliragung"). Jika tidak disebutkan, gunakan dapur yang paling cocok atau kosongkan.
-2. "namaBarang": Nama komoditas/bahan makanan (misal: "Ayam", "Bawang Merah", "Telur", "Minyak Goreng").
-3. "qty": Jumlah angka (misal: "10 kg" -> 10, "setengah kilo" -> 0.5, "2 tray" -> 2).
-4. "satuan": Satuan (pilih salah satu yang sesuai: "Kg", "Gram", "Pcs", "Ikat", "Tray", "Pack", "Liter", "Box", "Ekor").
-5. "hargaBeli": Harga beli (misal: "beli 30 ribu satuanya" atau "beli 30.000" atau "beli 30rb" -> 30000). Jika tidak disebutkan isi 0.
-6. "hargaJual": Harga jual (misal: "jual 35 ribu" atau "jual 35.000" atau "jual 35rb" -> 35000). Jika tidak disebutkan isi 0.
-7. "toko": Toko jika disebutkan (misal: "toko htg" -> "HTG").
-8. "pemasok": Pemasok jika disebutkan.
-9. "catatan": Catatan tambahan jika ada (misal: permintaan khusus kualitas, jam pengiriman).`;
+KLASIFIKASI INTENT:
+1. "CREATE_NOTE": Jika pengguna mengatakan "buat notes...", "catat...", "tulis catatan...", "note...", atau memberikan instruksi memo/pengingat/follow up.
+   Contoh: "buat notes tolong cek stok ayam besok pagi", "catat jangan lupa konfirmasi toko HTG".
+   Ekstrak:
+   - "noteText": Isi lengkap catatan yang dimaksud.
+   - "noteDapur": Nama dapur jika disebutkan.
+
+2. "CREATE_ORDER": Jika pengguna mengatakan "buat pesan...", "pesan...", "tambah pesanan...", atau langsung menyebut pesanan komoditas seperti "ayam 10 kg", "dapur cluring telur 5 tray beli 30rb jual 35rb".
+   Ekstrak:
+   - "tujuanDapur": Nama dapur tujuan.
+   - "namaBarang": Nama komoditas makanan (misal: "Ayam", "Bawang Merah", "Telur").
+   - "qty": Angka kuantitas (misal 10, 0.5, 2).
+   - "satuan": Satuan (misal: "Kg", "Gram", "Pcs", "Tray", "Pack", "Liter", "Ikat").
+   - "hargaBeli": Angka harga beli dalam rupiah. Jika tidak disebutkan isi 0.
+   - "hargaJual": Angka harga jual dalam rupiah. Jika tidak disebutkan isi 0.
+   - "toko": Nama toko kita jika ada.
+   - "pemasok": Nama supplier jika ada.
+   - "catatan": Catatan pesanan jika ada.
+
+3. "EDIT_ORDER": Jika pengguna mengatakan "edit harga/item/kg...", "ubah...", "ganti qty...", "koreksi harga...", "revisi...".
+   Contoh: "edit harga ayam jadi 32 ribu", "ganti qty ayam dapur cluring jadi 15 kg", "ubah harga beli jadi 28 ribu".
+   Ekstrak:
+   - "targetBarang": Nama komoditas yang ingin diedit (misal: "Ayam").
+   - "targetDapur": Nama dapur yang bersangkutan jika ada.
+   - "newQty": Kuantitas baru jika diubah.
+   - "newSatuan": Satuan baru jika diubah.
+   - "newHargaBeli": Harga beli baru jika diubah.
+   - "newHargaJual": Harga jual baru jika diubah.
+   - "newNamaBarang": Nama barang baru jika diubah.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -70,6 +106,13 @@ Petunjuk Penting Ekstraksi:
         responseSchema: {
           type: Type.OBJECT,
           properties: {
+            intent: {
+              type: Type.STRING,
+              enum: ['CREATE_NOTE', 'CREATE_ORDER', 'EDIT_ORDER'],
+              description: 'Intent dari ucapan pengguna',
+            },
+            noteText: { type: Type.STRING, description: 'Isi catatan jika intent CREATE_NOTE' },
+            noteDapur: { type: Type.STRING, description: 'Dapur tujuan catatan jika ada' },
             tujuanDapur: { type: Type.STRING, description: 'Nama dapur tujuan' },
             namaBarang: { type: Type.STRING, description: 'Nama barang atau bahan makanan' },
             qty: { type: Type.NUMBER, description: 'Jumlah kuantitas angka' },
@@ -79,8 +122,15 @@ Petunjuk Penting Ekstraksi:
             toko: { type: Type.STRING, description: 'Nama toko atau brand kita' },
             pemasok: { type: Type.STRING, description: 'Nama pemasok atau supplier' },
             catatan: { type: Type.STRING, description: 'Catatan tambahan' },
+            targetBarang: { type: Type.STRING, description: 'Nama komoditas target edit' },
+            targetDapur: { type: Type.STRING, description: 'Nama dapur target edit' },
+            newQty: { type: Type.NUMBER, description: 'Qty baru' },
+            newSatuan: { type: Type.STRING, description: 'Satuan baru' },
+            newHargaBeli: { type: Type.NUMBER, description: 'Harga beli baru' },
+            newHargaJual: { type: Type.NUMBER, description: 'Harga jual baru' },
+            newNamaBarang: { type: Type.STRING, description: 'Nama barang baru' },
           },
-          required: ['namaBarang', 'qty', 'satuan', 'hargaBeli', 'hargaJual'],
+          required: ['intent'],
         },
       },
     });
@@ -88,10 +138,13 @@ Petunjuk Penting Ekstraksi:
     const jsonText = response.text?.trim();
     if (!jsonText) return null;
 
-    const data = JSON.parse(jsonText) as ParsedVoiceOrderAI;
+    const data = JSON.parse(jsonText) as VoiceAssistantResult;
     return {
+      intent: data.intent || 'CREATE_ORDER',
+      noteText: data.noteText,
+      noteDapur: data.noteDapur,
       tujuanDapur: data.tujuanDapur || '',
-      namaBarang: data.namaBarang || 'Ayam',
+      namaBarang: data.namaBarang || (data.intent === 'CREATE_ORDER' ? 'Ayam' : ''),
       qty: Number(data.qty) || 1,
       satuan: data.satuan || 'Kg',
       hargaBeli: Number(data.hargaBeli) || 0,
@@ -99,9 +152,16 @@ Petunjuk Penting Ekstraksi:
       toko: data.toko || '',
       pemasok: data.pemasok || '',
       catatan: data.catatan || '',
+      targetBarang: data.targetBarang,
+      targetDapur: data.targetDapur,
+      newQty: data.newQty ? Number(data.newQty) : undefined,
+      newSatuan: data.newSatuan,
+      newHargaBeli: data.newHargaBeli ? Number(data.newHargaBeli) : undefined,
+      newHargaJual: data.newHargaJual ? Number(data.newHargaJual) : undefined,
+      newNamaBarang: data.newNamaBarang,
     };
   } catch (err) {
-    console.warn('[Gemini Voice Order Parser Error]:', err);
+    console.warn('[Gemini Voice Assistant Parser Error]:', err);
     return null;
   }
 }

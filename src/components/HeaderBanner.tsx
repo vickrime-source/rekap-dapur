@@ -14,7 +14,6 @@ import {
   FileText,
   Utensils,
   Tag,
-  Mic,
   Scale,
   Check,
   TrendingUp
@@ -27,6 +26,7 @@ import {
   isOrderToday, 
   isOrderThisMonth 
 } from '../lib/formatters';
+import { AnimatedCounter } from './AnimatedCounter';
 
 interface HeaderBannerProps {
   orders: OrderItem[];
@@ -250,8 +250,9 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
                   <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 block">
                     PESANAN
                   </span>
-                  <span className="text-base sm:text-lg font-black font-nominal text-slate-900 leading-tight">
-                    {totalOrders} <span className="text-[10px] font-bold text-slate-500">Item</span>
+                  <span className="text-base sm:text-lg font-black font-nominal text-slate-900 leading-tight flex items-baseline gap-1">
+                    <AnimatedCounter value={totalOrders} format="number" />
+                    <span className="text-[10px] font-bold text-slate-500">Item</span>
                   </span>
                 </div>
               </div>
@@ -267,8 +268,9 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
                   <span className="text-[10px] font-black uppercase tracking-wider text-rose-700 block">
                     PENDING
                   </span>
-                  <span className="text-base sm:text-lg font-black font-nominal text-rose-700 leading-tight">
-                    {totalPending} <span className="text-[10px] font-bold text-rose-600/80">Item</span>
+                  <span className="text-base sm:text-lg font-black font-nominal text-rose-700 leading-tight flex items-baseline gap-1">
+                    <AnimatedCounter value={totalPending} format="number" />
+                    <span className="text-[10px] font-bold text-rose-600/80">Item</span>
                   </span>
                 </div>
               </div>
@@ -285,7 +287,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
                     TOTAL LABA BERSIH
                   </span>
                   <span className="text-base sm:text-lg font-black font-nominal text-emerald-950 leading-tight truncate block">
-                    {formatRupiah(totalLaba)}
+                    <AnimatedCounter value={totalLaba} format="rupiah" />
                   </span>
                 </div>
               </div>
@@ -305,31 +307,8 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
                 </span>
               </div>
 
-              {/* Action Buttons: Round Mic Button + New Note Button */}
+              {/* Action Button: New Note Button */}
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onMouseDown={onStartVoiceHold}
-                  onMouseUp={onStopVoiceHold}
-                  onTouchStart={onStartVoiceHold}
-                  onTouchEnd={onStopVoiceHold}
-                  onClick={() => {
-                    if (!isVoiceActive && onStartVoiceHold) {
-                      onStartVoiceHold();
-                    } else if (!onStartVoiceHold) {
-                      onOpenNewNoteSheet(true);
-                    }
-                  }}
-                  title="Tahan tombol mic untuk buat pesanan pintar via suara"
-                  className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full text-white flex items-center justify-center shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer ring-2 ${
-                    isVoiceActive
-                      ? 'bg-rose-600 ring-rose-400 animate-pulse'
-                      : 'bg-gradient-to-tr from-rose-500 to-indigo-600 ring-indigo-200/80 shadow-indigo-500/20'
-                  }`}
-                >
-                  <Mic className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                </button>
-
                 <button
                   type="button"
                   onClick={() => onOpenNewNoteSheet(false)}
@@ -345,7 +324,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
             <div className="mt-2 space-y-1.5 max-h-[145px] overflow-y-auto pr-1">
               {notes.length === 0 ? (
                 <div className="text-center py-2 text-slate-400 text-[11px] font-medium italic">
-                  Belum ada catatan follow up. Klik <strong>Mic</strong> atau <strong>+ New Note</strong> untuk menambah.
+                  Belum ada catatan follow up. Klik <strong>+ New Note</strong> untuk menambah catatan.
                 </div>
               ) : (
                 notes.map((note) => {
@@ -382,10 +361,12 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
                           )}
                         </button>
 
-                        {/* Dapur Badge */}
-                        <span className="flex-shrink-0 text-[8.5px] font-black uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
-                          {note.tujuanDapur}
-                        </span>
+                        {/* Dapur Badge (Optional) */}
+                        {note.tujuanDapur ? (
+                          <span className="flex-shrink-0 text-[8.5px] font-black uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            {note.tujuanDapur}
+                          </span>
+                        ) : null}
 
                         {/* Optional Item Name */}
                         {note.namaBarang && (

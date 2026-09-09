@@ -704,28 +704,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                         />
                       </div>
                     </div>
-
-                    {/* Pilihan Satuan Cepat (seperti di notes di lampiran kedua) */}
-                    <div className="flex flex-wrap gap-1 items-center pt-1">
-                      <span className="text-[9.5px] font-bold text-slate-400">Pilih Satuan:</span>
-                      {['Kg', 'Gram', 'Pcs', 'Ikat', 'Tray', 'Pack'].map((u) => {
-                        const isSelected = (row.satuan || 'Kg').toLowerCase() === u.toLowerCase();
-                        return (
-                          <button
-                            key={u}
-                            type="button"
-                            onClick={() => updateItemRow(row.id, 'satuan', u)}
-                            className={`text-[9.5px] font-extrabold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
-                              isSelected
-                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
-                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            {u}
-                          </button>
-                        );
-                      })}
-                    </div>
                   </div>
                 );
               })}
