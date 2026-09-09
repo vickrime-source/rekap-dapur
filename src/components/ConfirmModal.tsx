@@ -8,6 +8,7 @@ interface ConfirmModalProps {
   message: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  isLoading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -18,6 +19,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   message,
   confirmLabel = 'Ya, Hapus',
   cancelLabel = 'Batal',
+  isLoading = false,
   onConfirm,
   onCancel,
 }) => {
@@ -35,7 +37,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <button
             type="button"
             onClick={onCancel}
-            className="absolute top-3 right-3 p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            disabled={isLoading}
+            className="absolute top-3 right-3 p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
           >
             <X className="w-4 h-4" />
           </button>
@@ -56,16 +59,21 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer active:scale-95"
+              disabled={isLoading}
+              className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer active:scale-95 disabled:opacity-50"
             >
               {cancelLabel}
             </button>
             <button
               type="button"
               onClick={onConfirm}
-              className="clay-btn-danger px-4 py-2 text-xs font-extrabold text-white rounded-xl transition-all cursor-pointer active:scale-95"
+              disabled={isLoading}
+              className="clay-btn-danger px-4 py-2 text-xs font-extrabold text-white rounded-xl transition-all cursor-pointer active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
             >
-              {confirmLabel}
+              {isLoading && (
+                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              )}
+              <span>{isLoading ? 'Menghapus...' : confirmLabel}</span>
             </button>
           </div>
         </motion.div>

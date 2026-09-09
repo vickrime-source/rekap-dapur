@@ -26,7 +26,8 @@ interface DashboardViewProps {
   onToggleBatchStatus: (kitchenName: string, date: string, targetStatus: 'pending' | 'selesai') => void;
   onEditOrder: (item: OrderItem) => void;
   onDeleteOrder: (id: string) => void;
-  onDeleteKitchenOrders: (kitchenName: string, date: string) => void;
+  onDeleteBatchOrders?: (items: OrderItem[]) => void;
+  onDeleteKitchenOrders?: (kitchenName: string, date: string) => void;
   onOpenAddModal: (prefilledKitchen?: string) => void;
   onOpenInvoiceModal: (items: OrderItem[], kitchenName?: string, storeName?: string) => void;
   onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
@@ -46,6 +47,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onDuplicateOrder,
   onEditOrder,
   onDeleteOrder,
+  onDeleteBatchOrders,
   onOpenAddModal,
   onOpenInvoiceModal,
   onExportInvoicePdf,
@@ -242,6 +244,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         onEditOrder={onEditOrder}
         onDuplicateOrder={onDuplicateOrder}
         onDeleteOrder={onDeleteOrder}
+        onDeleteBatchOrders={onDeleteBatchOrders}
         onOpenInvoiceModal={onOpenInvoiceModal}
         onExportInvoicePdf={onExportInvoicePdf}
       />

@@ -619,9 +619,10 @@ export function mapRawOrder(row: any): OrderItem {
   const rawCatatan = getRowField(row, 'catatan', 'Catatan', 'CATATAN', 'NOTE', 'notes', 'NOTES', 'KETERANGAN');
 
   const rawId = getRowField(row, 'NO', 'no', 'id', 'ID', 'kode', 'KODE');
+  const stableId = rawId || (row.rowIndex ? `ord-row-${row.rowIndex}` : `ord-${Date.now()}`);
 
   return {
-    id: (rawId || `ord-${row.rowIndex || Date.now()}-${Math.floor(Math.random() * 1000)}`).toString(),
+    id: stableId.toString(),
     namaBarang,
     qty,
     hargaBeli,

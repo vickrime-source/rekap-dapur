@@ -258,11 +258,18 @@ async function startServer() {
     }
   });
 
-  // 5. DELETE: Delete Row (Method: sheets.spreadsheets.batchUpdate deleteDimension)
+  // 5. DELETE: Delete Row Permanently (Method: sheets.spreadsheets.batchUpdate deleteDimension)
   app.post('/api/sheets-delete', async (req, res) => {
     try {
       const sheet = (req.body.sheet || req.query.sheet || 'pesanan') as string;
       const { rowIndex, rowIndices, match, deleteAllMatches } = req.body;
+
+      if (!sheet) {
+        return res.status(400).json({
+          success: false,
+          error: 'Nama sheet ("pesanan" atau "transaksi") wajib disertakan.',
+        });
+      }
 
       if (!isSheetsConfigured()) {
         return res.json({
@@ -273,7 +280,7 @@ async function startServer() {
       }
 
       const result = await deleteSheetRow(sheet, {
-        rowIndex: rowIndex ? Number(rowIndex) : undefined,
+        rowIndex: rowIndex !== undefined && rowIndex !== null && rowIndex !== '' ? Number(rowIndex) : undefined,
         rowIndices: Array.isArray(rowIndices) ? rowIndices.map(Number) : undefined,
         match,
         deleteAllMatches: !!deleteAllMatches,
@@ -290,11 +297,11 @@ async function startServer() {
       res.json({
         success: true,
         configured: true,
-        message: `Baris berhasil dihapus dari sheet "${sheet}"`,
+        message: result.message || `Baris berhasil dihapus permanen dari sheet "${sheet}"`,
         ...result,
       });
     } catch (err: any) {
-      console.warn('[Sheets DELETE Warning]:', err?.message || err);
+      console.error('[Sheets DELETE Error]:', err?.message || err);
       res.status(500).json({
         success: false,
         error: err?.message || 'Gagal menghapus baris dari Google Sheets API',

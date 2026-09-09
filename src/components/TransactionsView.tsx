@@ -37,6 +37,7 @@ interface TransactionBatch {
   totalBeli: number;
   totalJual?: number;
   items: OrderItem[];
+  rowIndex?: number;
 }
 
 interface TransactionsViewProps {
@@ -208,6 +209,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             totalBeli,
             totalJual,
             items,
+            rowIndex: inv.rowIndex,
           });
         }
       });

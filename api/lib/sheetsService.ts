@@ -186,20 +186,123 @@ export function findColIdx(colName: string, headers: string[]): number {
 }
 
 /**
+ * Known default sheet IDs for fast zero-read lookups
+ */
+export const KNOWN_SHEET_IDS: Record<string, number> = {
+  pesanan: 0,
+  transaksi: 104141443,
+  notes: 1699387554,
+};
+
+interface SheetMetaInfo {
+  title: string;
+  sheetId: number;
+}
+
+interface SpreadsheetMetaCache {
+  title: string;
+  sheets: SheetMetaInfo[];
+  timestamp: number;
+}
+
+let metaCache: SpreadsheetMetaCache | null = null;
+const META_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache for spreadsheet structure
+
+interface CachedRows {
+  rows: any[];
+  timestamp: number;
+}
+const rowsCache: Record<string, CachedRows> = {};
+const ROWS_CACHE_TTL_MS = 4000; // 4 seconds cache to deduplicate rapid consecutive calls
+
+export function invalidateSheetCache(sheetName?: string) {
+  if (sheetName) {
+    const key = sheetName.trim().toLowerCase();
+    delete rowsCache[key];
+    delete rowsCache[`${key}_default`];
+    for (const k of Object.keys(rowsCache)) {
+      if (k.startsWith(`${key}_`)) {
+        delete rowsCache[k];
+      }
+    }
+  } else {
+    for (const k of Object.keys(rowsCache)) {
+      delete rowsCache[k];
+    }
+  }
+}
+
+/**
+ * Executes a Google Sheets API call with automatic retry on 429 / Quota Exceeded
+ */
+export async function callWithRetry<T>(fn: () => Promise<T>, retries = 3, baseDelayMs = 1500): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      attempt++;
+      const isQuota =
+        err?.status === 429 ||
+        err?.code === 429 ||
+        (typeof err?.message === 'string' &&
+          (err.message.includes('Quota exceeded') ||
+            err.message.includes('RATE_LIMIT_EXCEEDED') ||
+            err.message.includes('userRateLimitExceeded')));
+
+      if (isQuota && attempt <= retries) {
+        const jitter = Math.floor(Math.random() * 500);
+        const delay = baseDelayMs * Math.pow(2, attempt - 1) + jitter;
+        console.warn(
+          `[Google Sheets API] Rate limit/Quota 429 hit. Retrying attempt ${attempt}/${retries} in ${delay}ms...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+export async function getOrFetchMetadata(forceRefresh = false): Promise<SpreadsheetMetaCache> {
+  const now = Date.now();
+  if (!forceRefresh && metaCache && now - metaCache.timestamp < META_CACHE_TTL_MS) {
+    return metaCache;
+  }
+
+  const { sheets, spreadsheetId } = getSheetsClient();
+  const res = await callWithRetry(() => sheets.spreadsheets.get({ spreadsheetId }));
+  const sheetList: SheetMetaInfo[] = (res.data.sheets || [])
+    .map((s) => ({
+      title: s.properties?.title || '',
+      sheetId: s.properties?.sheetId ?? 0,
+    }))
+    .filter((s) => s.title);
+
+  metaCache = {
+    title: res.data.properties?.title || 'Spreadsheet Tanpa Judul',
+    sheets: sheetList,
+    timestamp: now,
+  };
+
+  return metaCache;
+}
+
+/**
  * Checks connection and returns metadata about the connected spreadsheet
  */
 export async function getSheetsStatus() {
   try {
-    const { sheets, spreadsheetId, clientEmail } = getSheetsClient();
-    const res = await sheets.spreadsheets.get({ spreadsheetId });
-    const sheetTitles = (res.data.sheets || []).map((s) => s.properties?.title || '').filter(Boolean);
+    const { clientEmail, spreadsheetId } = getSheetsClient();
+    const meta = await getOrFetchMetadata(false);
+    const sheetTitles = meta.sheets.map((s) => s.title);
 
     return {
       success: true,
       configured: true,
       clientEmail,
       spreadsheetId,
-      title: res.data.properties?.title || 'Spreadsheet Tanpa Judul',
+      title: meta.title || 'Spreadsheet Tanpa Judul',
       sheets: sheetTitles,
     };
   } catch (err: any) {
@@ -231,16 +334,30 @@ export async function getSheetsStatus() {
  * Returns the exact title found in the spreadsheet.
  */
 export async function ensureSheet(sheetName: string): Promise<string> {
-  const { sheets, spreadsheetId } = getSheetsClient();
-  const meta = await sheets.spreadsheets.get({ spreadsheetId });
   const cleanTarget = sheetName.trim().toLowerCase();
-  const sheetObj = meta.data.sheets?.find(
-    (s) => (s.properties?.title || '').trim().toLowerCase() === cleanTarget
-  );
 
-  if (!sheetObj) {
-    // Add sheet tab with exact lowercase title
-    await sheets.spreadsheets.batchUpdate({
+  // 1. If it's a known default sheet, return immediately! Zero read requests!
+  if (KNOWN_SHEET_IDS[cleanTarget] !== undefined) {
+    return cleanTarget;
+  }
+
+  // 2. Check metadata cache
+  let meta: SpreadsheetMetaCache | null = null;
+  try {
+    meta = await getOrFetchMetadata(false);
+  } catch (err) {
+    console.warn('[ensureSheet] Failed to get metadata, using fallback:', err);
+  }
+
+  const existing = meta?.sheets.find((s) => s.title.trim().toLowerCase() === cleanTarget);
+  if (existing) {
+    return existing.title;
+  }
+
+  // 3. Genuine new sheet tab creation (rare)
+  const { sheets, spreadsheetId } = getSheetsClient();
+  await callWithRetry(() =>
+    sheets.spreadsheets.batchUpdate({
       spreadsheetId,
       requestBody: {
         requests: [
@@ -253,116 +370,141 @@ export async function ensureSheet(sheetName: string): Promise<string> {
           },
         ],
       },
-    });
+    })
+  );
 
-    // Append default headers
-    const defaultHeaders = SHEET_SCHEMAS[cleanTarget] || SHEET_SCHEMAS.pesanan;
-    await sheets.spreadsheets.values.update({
+  metaCache = null;
+
+  const defaultHeaders = SHEET_SCHEMAS[cleanTarget] || SHEET_SCHEMAS.pesanan;
+  await callWithRetry(() =>
+    sheets.spreadsheets.values.update({
       spreadsheetId,
       range: `'${cleanTarget}'!A1`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [defaultHeaders],
       },
-    });
+    })
+  );
 
-    return cleanTarget;
-  }
-
-  return sheetObj.properties?.title || cleanTarget;
+  return cleanTarget;
 }
 
 /**
  * GET Sheet data converted to array of objects with rowIndex
  */
-export async function getSheetRows(sheetName: string, customRange?: string) {
+export async function getSheetRows(sheetName: string, customRange?: string, forceRefresh = false) {
   if (!isSheetsConfigured()) {
     return [];
   }
+
+  const cleanTarget = sheetName.trim().toLowerCase();
+  const cacheKey = `${cleanTarget}_${customRange || 'default'}`;
+  const now = Date.now();
+
+  if (!forceRefresh && rowsCache[cacheKey] && now - rowsCache[cacheKey].timestamp < ROWS_CACHE_TTL_MS) {
+    return rowsCache[cacheKey].rows;
+  }
+
   const { sheets, spreadsheetId } = getSheetsClient();
   const exactTitle = await ensureSheet(sheetName);
 
   // Default range covering all columns
   const range = customRange || `'${exactTitle}'!A:Z`;
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range,
-    valueRenderOption: 'FORMATTED_VALUE',
-  });
 
-  const rawValues = response.data.values || [];
-  if (rawValues.length <= 1) {
-    return [];
-  }
+  try {
+    const response = await callWithRetry(() =>
+      sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range,
+        valueRenderOption: 'FORMATTED_VALUE',
+      })
+    );
 
-  const headers = rawValues[0].map((h) => String(h || '').trim());
+    const rawValues = response.data.values || [];
+    if (rawValues.length <= 1) {
+      rowsCache[cacheKey] = { rows: [], timestamp: now };
+      return [];
+    }
 
-  const rows = rawValues.slice(1).map((row, idx) => {
-    const rowIndex = idx + 2; // Row 1 is header, so row index in Sheets is idx + 2
-    const obj: Record<string, any> = { rowIndex };
+    const headers = rawValues[0].map((h) => String(h || '').trim());
 
-    headers.forEach((header, colIdx) => {
-      if (header) {
-        const val = row[colIdx] !== undefined ? row[colIdx] : '';
-        obj[header] = val;
+    const rows = rawValues.slice(1).map((row, idx) => {
+      const rowIndex = idx + 2; // Row 1 is header, so row index in Sheets is idx + 2
+      const obj: Record<string, any> = { rowIndex };
 
-        const clean = cleanHeaderKey(header);
-        if (['HJUAL', 'HARGAJUAL', 'HGAJUAL', 'HARGA_JUAL', 'TOTALJUAL', 'SALESPRICE', 'JUAL'].includes(clean)) {
-          obj['H. JUAL'] = val;
-          obj['hargaJual'] = val;
-        } else if (['HBELI', 'HARGABELI', 'HGABELI', 'HARGA_BELI', 'TOTALBELI', 'BUYPRICE', 'BELI', 'MODAL'].includes(clean)) {
-          obj['H. BELI'] = val;
-          obj['hargaBeli'] = val;
-        } else if (['QTY', 'JUMLAH', 'KUANTITAS', 'COUNT', 'BANYAK'].includes(clean)) {
-          obj['QTY'] = val;
-          obj['qty'] = val;
-        } else if (['ITEM', 'BARANG', 'NAMABARANG', 'NAMA_BARANG', 'NAMA', 'PRODUK'].includes(clean)) {
-          obj['ITEM'] = val;
-          obj['namaBarang'] = val;
-        } else if (['DATE', 'TANGGAL', 'TGL'].includes(clean)) {
-          obj['DATE'] = val;
-          obj['tanggal'] = val;
-        } else if (['DAPUR', 'TUJUANDAPUR', 'TUJUAN_DAPUR', 'KITCHEN'].includes(clean)) {
-          obj['DAPUR'] = val;
-          obj['tujuanDapur'] = val;
-        } else if (['TOKO', 'TOKOKITA', 'STORE'].includes(clean)) {
-          obj['TOKO'] = val;
-          obj['toko'] = val;
-        } else if (['PEMASOK', 'SUPPLIER', 'VENDOR'].includes(clean)) {
-          obj['PEMASOK'] = val;
-          obj['pemasok'] = val;
-        } else if (['PAYMENT', 'BAYAR', 'STATUSBAYAR', 'STATUS_BAYAR', 'PAYMENTSTATUS'].includes(clean)) {
-          obj['PAYMENT'] = val;
-          obj['paymentStatus'] = val;
-        } else if (['DILEVERY', 'DELIVERY', 'KIRIM', 'STATUSKIRIM', 'STATUS_KIRIM', 'DELIVERYSTATUS'].includes(clean)) {
-          obj['DILEVERY'] = val;
-          obj['deliveryStatus'] = val;
-        } else if (['CREATEDAT', 'CREATED_AT', 'JAM', 'TIME', 'TIMESTAMP', 'WAKTU'].includes(clean)) {
-          obj['CREATED AT'] = val;
-          obj['createdAt'] = val;
+      headers.forEach((header, colIdx) => {
+        if (header) {
+          const val = row[colIdx] !== undefined ? row[colIdx] : '';
+          obj[header] = val;
+
+          const clean = cleanHeaderKey(header);
+          if (['HJUAL', 'HARGAJUAL', 'HGAJUAL', 'HARGA_JUAL', 'TOTALJUAL', 'SALESPRICE', 'JUAL'].includes(clean)) {
+            obj['H. JUAL'] = val;
+            obj['hargaJual'] = val;
+          } else if (['HBELI', 'HARGABELI', 'HGABELI', 'HARGA_BELI', 'TOTALBELI', 'BUYPRICE', 'BELI', 'MODAL'].includes(clean)) {
+            obj['H. BELI'] = val;
+            obj['hargaBeli'] = val;
+          } else if (['QTY', 'JUMLAH', 'KUANTITAS', 'COUNT', 'BANYAK'].includes(clean)) {
+            obj['QTY'] = val;
+            obj['qty'] = val;
+          } else if (['ITEM', 'BARANG', 'NAMABARANG', 'NAMA_BARANG', 'NAMA', 'PRODUK'].includes(clean)) {
+            obj['ITEM'] = val;
+            obj['namaBarang'] = val;
+          } else if (['DATE', 'TANGGAL', 'TGL'].includes(clean)) {
+            obj['DATE'] = val;
+            obj['tanggal'] = val;
+          } else if (['DAPUR', 'TUJUANDAPUR', 'TUJUAN_DAPUR', 'KITCHEN'].includes(clean)) {
+            obj['DAPUR'] = val;
+            obj['tujuanDapur'] = val;
+          } else if (['TOKO', 'TOKOKITA', 'STORE'].includes(clean)) {
+            obj['TOKO'] = val;
+            obj['toko'] = val;
+          } else if (['PEMASOK', 'SUPPLIER', 'VENDOR'].includes(clean)) {
+            obj['PEMASOK'] = val;
+            obj['pemasok'] = val;
+          } else if (['PAYMENT', 'BAYAR', 'STATUSBAYAR', 'STATUS_BAYAR', 'PAYMENTSTATUS'].includes(clean)) {
+            obj['PAYMENT'] = val;
+            obj['paymentStatus'] = val;
+          } else if (['DILEVERY', 'DELIVERY', 'KIRIM', 'STATUSKIRIM', 'STATUS_KIRIM', 'DELIVERYSTATUS'].includes(clean)) {
+            obj['DILEVERY'] = val;
+            obj['deliveryStatus'] = val;
+          } else if (['CREATEDAT', 'CREATED_AT', 'JAM', 'TIME', 'TIMESTAMP', 'WAKTU'].includes(clean)) {
+            obj['CREATED AT'] = val;
+            obj['createdAt'] = val;
+          }
         }
-      }
+      });
+
+      return obj;
     });
 
-    return obj;
-  });
+    const filtered = rows.filter((r) => {
+      return (
+        r.ITEM ||
+        r.BARANG ||
+        r.CATATAN ||
+        r.DAPUR ||
+        r.TOKO ||
+        r.ID ||
+        r.NO ||
+        r.DATE ||
+        r.TANGGAL ||
+        r.PEMASOK ||
+        r.TOTAL ||
+        r.namaBarang
+      );
+    });
 
-  return rows.filter((r) => {
-    return (
-      r.ITEM ||
-      r.BARANG ||
-      r.CATATAN ||
-      r.DAPUR ||
-      r.TOKO ||
-      r.ID ||
-      r.NO ||
-      r.DATE ||
-      r.TANGGAL ||
-      r.PEMASOK ||
-      r.TOTAL ||
-      r.namaBarang
-    );
-  });
+    rowsCache[cacheKey] = { rows: filtered, timestamp: now };
+    return filtered;
+  } catch (err: any) {
+    if (rowsCache[cacheKey] && (err?.status === 429 || err?.message?.includes('Quota exceeded'))) {
+      console.warn(`[getSheetRows] Google Sheets Quota exceeded, returning cached data for "${sheetName}"`);
+      return rowsCache[cacheKey].rows;
+    }
+    throw err;
+  }
 }
 
 /**
@@ -380,24 +522,28 @@ export async function addSheetRow(sheetName: string, rowData: Record<string, any
   const exactTitle = await ensureSheet(sheetName);
 
   // Read current headers from row 1
-  const headerRes = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: `'${exactTitle}'!1:1`,
-  });
+  const headerRes = await callWithRetry(() =>
+    sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `'${exactTitle}'!1:1`,
+    })
+  );
 
   let headers = (headerRes.data.values?.[0] || []).map((h) => String(h || '').trim());
 
   if (headers.length === 0) {
     headers = SHEET_SCHEMAS[sheetName.toLowerCase()] || Object.keys(rowData);
     // Write headers
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `'${exactTitle}'!A1`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [headers],
-      },
-    });
+    await callWithRetry(() =>
+      sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `'${exactTitle}'!A1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [headers],
+        },
+      })
+    );
   }
 
   // If pesanan sheet is missing CREATED AT in header, append CREATED AT column header
@@ -405,14 +551,16 @@ export async function addSheetRow(sheetName: string, rowData: Record<string, any
     headers.push('CREATED AT');
     const colLetter = colIndexToLetter(headers.length - 1);
     try {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId,
-        range: `'${exactTitle}'!${colLetter}1`,
-        valueInputOption: 'USER_ENTERED',
-        requestBody: {
-          values: [['CREATED AT']],
-        },
-      });
+      await callWithRetry(() =>
+        sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: `'${exactTitle}'!${colLetter}1`,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: {
+            values: [['CREATED AT']],
+          },
+        })
+      );
     } catch {
       // ignore if header update fails
     }
@@ -438,15 +586,19 @@ export async function addSheetRow(sheetName: string, rowData: Record<string, any
     }
   }
 
-  const appendRes = await sheets.spreadsheets.values.append({
-    spreadsheetId,
-    range: `'${exactTitle}'!A1`,
-    valueInputOption: 'USER_ENTERED',
-    insertDataOption: 'INSERT_ROWS',
-    requestBody: {
-      values: [rowValues],
-    },
-  });
+  const appendRes = await callWithRetry(() =>
+    sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `'${exactTitle}'!A1`,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: {
+        values: [rowValues],
+      },
+    })
+  );
+
+  invalidateSheetCache(sheetName);
 
   return {
     success: true,
@@ -485,22 +637,27 @@ export async function updateSheetRows(
   // 1. Direct cell range update (e.g. 'pesanan!J5' or 'J5')
   if (options.range && options.value !== undefined) {
     const targetRange = options.range.includes('!') ? options.range : `'${exactTitle}'!${options.range}`;
-    const updateRes = await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: targetRange,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [[options.value]],
-      },
-    });
+    const updateRes = await callWithRetry(() =>
+      sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: targetRange,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [[options.value]],
+        },
+      })
+    );
+    invalidateSheetCache(sheetName);
     return { success: true, updatedCells: updateRes.data.updatedCells, range: targetRange };
   }
 
   // Get sheet headers & all current values for matching
-  const allRes = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: `'${exactTitle}'!A:Z`,
-  });
+  const allRes = await callWithRetry(() =>
+    sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `'${exactTitle}'!A:Z`,
+    })
+  );
   const allValues = allRes.data.values || [];
   if (allValues.length === 0) {
     throw new Error(`Sheet "${exactTitle}" masih kosong, belum ada data untuk diupdate.`);
@@ -596,14 +753,18 @@ export async function updateSheetRows(
   // Optimize: single cell update via values.update
   if (batchData.length === 1) {
     const single = batchData[0];
-    const singleRes = await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: single.range,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: single.values,
-      },
-    });
+    const singleRes = await callWithRetry(() =>
+      sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: single.range,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: single.values,
+        },
+      })
+    );
+
+    invalidateSheetCache(sheetName);
 
     return {
       success: true,
@@ -615,13 +776,17 @@ export async function updateSheetRows(
   }
 
   // Multiple cells update via batchUpdate
-  const batchRes = await sheets.spreadsheets.values.batchUpdate({
-    spreadsheetId,
-    requestBody: {
-      valueInputOption: 'USER_ENTERED',
-      data: batchData,
-    },
-  });
+  const batchRes = await callWithRetry(() =>
+    sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        valueInputOption: 'USER_ENTERED',
+        data: batchData,
+      },
+    })
+  );
+
+  invalidateSheetCache(sheetName);
 
   return {
     success: true,
@@ -650,72 +815,80 @@ export async function deleteSheetRow(
       message: 'Google Sheets Service Account belum dikonfigurasi. Data tersimpan secara lokal.',
     };
   }
-  const { sheets, spreadsheetId } = getSheetsClient();
-  const exactTitle = await ensureSheet(sheetName);
 
-  const meta = await sheets.spreadsheets.get({ spreadsheetId });
-  const sheetObj = meta.data.sheets?.find(
-    (s) => (s.properties?.title || '').toLowerCase() === sheetName.toLowerCase()
-  );
+  const cleanName = sheetName.trim().toLowerCase();
 
-  if (!sheetObj || sheetObj.properties?.sheetId === undefined) {
-    throw new Error(`Sheet "${sheetName}" tidak ditemukan.`);
+  // 1. Resolve numericSheetId without triggering extra read requests
+  let numericSheetId: number | undefined = KNOWN_SHEET_IDS[cleanName];
+
+  if (numericSheetId === undefined) {
+    try {
+      const meta = await getOrFetchMetadata(false);
+      const sheetObj = meta.sheets.find((s) => s.title.trim().toLowerCase() === cleanName);
+      numericSheetId = sheetObj?.sheetId;
+    } catch (e) {
+      console.warn('[deleteSheetRow] Error resolving sheetId from metadata:', e);
+    }
   }
-  const numericSheetId = sheetObj.properties.sheetId;
+
+  if (numericSheetId === undefined) {
+    throw new Error(`Sheet "${sheetName}" tidak ditemukan atau sheetId tidak valid.`);
+  }
 
   let targetRowIndices: number[] = [];
 
+  // A. Fast-path: rowIndices provided directly -> ZERO READ REQUESTS!
   if (Array.isArray(options.rowIndices) && options.rowIndices.length > 0) {
-    targetRowIndices = options.rowIndices.filter((idx) => typeof idx === 'number' && idx >= 2);
-  } else if (options.rowIndex && options.rowIndex >= 2) {
-    targetRowIndices.push(options.rowIndex);
-  } else if (options.match && Object.keys(options.match).length > 0) {
-    const allRes = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: `'${exactTitle}'!A:Z`,
-    });
-    const allValues = allRes.data.values || [];
-    if (allValues.length > 1) {
-      const headers = allValues[0].map((h) => String(h || '').trim());
+    targetRowIndices = options.rowIndices
+      .map(Number)
+      .filter((idx) => !isNaN(idx) && idx >= 2);
+  }
+  // B. Fast-path: single rowIndex provided directly -> ZERO READ REQUESTS!
+  else if (options.rowIndex !== undefined && Number(options.rowIndex) >= 2) {
+    targetRowIndices.push(Number(options.rowIndex));
+  }
+  // C. Fallback: match criteria provided -> search in cached rows first
+  else if (options.match && Object.keys(options.match).length > 0) {
+    const allRows = await getSheetRows(cleanName);
+    for (const r of allRows) {
+      let matches = true;
+      for (const [mKey, mVal] of Object.entries(options.match)) {
+        if (mVal === undefined || mVal === null || mVal === '') continue;
+        const cleanKey = cleanHeaderKey(mKey);
+        let cellVal = r[mKey] ?? r[cleanKey];
 
-      for (let r = 1; r < allValues.length; r++) {
-        const row = allValues[r];
-        let matches = true;
-
-        for (const [mKey, mVal] of Object.entries(options.match)) {
-          if (mVal === undefined || mVal === null || mVal === '') continue;
-          const colIdx = findColIdx(mKey, headers);
-          if (colIdx !== -1) {
-            const cellVal = String(row[colIdx] || '').trim();
-            const expectedVal = String(mVal || '').trim();
-
-            const cleanKey = cleanHeaderKey(mKey);
-            if (cleanKey === 'DATE' || cleanKey === 'TANGGAL' || cleanKey === 'TGL') {
-              if (normalizeDateStr(cellVal) !== normalizeDateStr(expectedVal)) {
-                matches = false;
-                break;
-              }
-            } else if (cleanKey === 'BARANG' || cleanKey === 'ITEM' || cleanKey === 'NAMABARANG') {
-              const cLower = cellVal.toLowerCase();
-              const eLower = expectedVal.toLowerCase();
-              if (cLower !== eLower && !cLower.includes(eLower) && !eLower.includes(cLower)) {
-                matches = false;
-                break;
-              }
-            } else {
-              if (cellVal.toLowerCase() !== expectedVal.toLowerCase()) {
-                matches = false;
-                break;
-              }
-            }
-          }
+        if (cellVal === undefined) {
+          const foundKey = Object.keys(r).find((k) => cleanHeaderKey(k) === cleanKey);
+          cellVal = foundKey ? r[foundKey] : '';
         }
 
-        if (matches) {
-          targetRowIndices.push(r + 1); // 1-based row index
-          if (!options.deleteAllMatches) {
+        const strCell = String(cellVal || '').trim();
+        const strExpected = String(mVal || '').trim();
+
+        if (cleanKey === 'DATE' || cleanKey === 'TANGGAL' || cleanKey === 'TGL') {
+          if (normalizeDateStr(strCell) !== normalizeDateStr(strExpected)) {
+            matches = false;
             break;
           }
+        } else if (cleanKey === 'BARANG' || cleanKey === 'ITEM' || cleanKey === 'NAMABARANG') {
+          const cLower = strCell.toLowerCase();
+          const eLower = strExpected.toLowerCase();
+          if (cLower !== eLower && !cLower.includes(eLower) && !eLower.includes(cLower)) {
+            matches = false;
+            break;
+          }
+        } else {
+          if (strCell.toLowerCase() !== strExpected.toLowerCase()) {
+            matches = false;
+            break;
+          }
+        }
+      }
+
+      if (matches && r.rowIndex && r.rowIndex >= 2) {
+        targetRowIndices.push(r.rowIndex);
+        if (!options.deleteAllMatches) {
+          break;
         }
       }
     }
@@ -726,7 +899,9 @@ export async function deleteSheetRow(
   }
 
   // Sort descending so deletion doesn't shift earlier indices!
-  targetRowIndices.sort((a, b) => b - a);
+  targetRowIndices = Array.from(new Set(targetRowIndices)).sort((a, b) => b - a);
+
+  const { sheets, spreadsheetId } = getSheetsClient();
 
   const requests = targetRowIndices.map((rIdx) => ({
     deleteDimension: {
@@ -739,10 +914,19 @@ export async function deleteSheetRow(
     },
   }));
 
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId,
-    requestBody: { requests },
-  });
+  await callWithRetry(() =>
+    sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: { requests },
+    })
+  );
 
-  return { success: true, deletedRowIndices: targetRowIndices, deletedCount: targetRowIndices.length };
+  invalidateSheetCache(cleanName);
+
+  return {
+    success: true,
+    deletedRowIndices: targetRowIndices,
+    deletedCount: targetRowIndices.length,
+    message: `Berhasil menghapus ${targetRowIndices.length} baris secara permanen dari sheet "${sheetName}".`,
+  };
 }
