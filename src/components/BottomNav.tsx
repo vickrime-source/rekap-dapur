@@ -39,7 +39,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.92 }}
             onClick={onOpenAddModal}
-            className="w-[62px] h-[62px] clay-btn-primary rounded-full flex items-center justify-center text-white border-4 border-[#edf2f9] shadow-[0_12px_24px_rgba(79,70,229,0.45)] focus:outline-none"
+            className="w-[62px] h-[62px] clay-btn-primary rounded-full flex items-center justify-center text-white border-4 border-[#edf2f9] shadow-[0_12px_24px_rgba(79,70,229,0.45)] focus:outline-none cursor-pointer"
             title="Tambah Pesanan Baru"
           >
             <Plus className="w-8 h-8 stroke-[3]" />

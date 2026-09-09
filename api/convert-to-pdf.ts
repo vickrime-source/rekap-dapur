@@ -1,4 +1,5 @@
 import { convertDocxToPdfWithCloudConvert } from './lib/cloudConvert.js';
+import { compressDocxImages } from './lib/compressDocxImages.js';
 
 export const config = {
   api: {
@@ -65,11 +66,26 @@ export default async function handler(req: any, res: any) {
     const finalSizeMB = (finalSizeBytes / (1024 * 1024)).toFixed(2);
     console.log(`[Vercel API /api/convert-to-pdf] Received DOCX binary (${finalSizeBytes} bytes / ${finalSizeMB} MB)`);
 
+    // Safely compress images in DOCX before sending to CloudConvert
+    // Guarantees all async image processing completes via Promise.all and preserves PNG transparency
+    try {
+      const initialSize = docxBuffer.length;
+      docxBuffer = await compressDocxImages(docxBuffer);
+      console.log(
+        `[Vercel API /api/convert-to-pdf] Image compression completed: ${(initialSize / 1024).toFixed(1)} KB -> ${(docxBuffer.length / 1024).toFixed(1)} KB`
+      );
+    } catch (compressErr) {
+      console.warn('[Vercel API /api/convert-to-pdf] Warning during image compression, continuing with original buffer:', compressErr);
+    }
+
+    const compressedSizeBytes = docxBuffer.length;
+    const compressedSizeMB = (compressedSizeBytes / (1024 * 1024)).toFixed(2);
+
     const MAX_PAYLOAD_BYTES = 4.5 * 1024 * 1024;
-    if (finalSizeBytes > MAX_PAYLOAD_BYTES) {
-      console.warn(`[Vercel API /api/convert-to-pdf] Payload size (${finalSizeMB} MB) exceeds 4.5MB limit`);
+    if (compressedSizeBytes > MAX_PAYLOAD_BYTES) {
+      console.warn(`[Vercel API /api/convert-to-pdf] Payload size (${compressedSizeMB} MB) exceeds 4.5MB limit`);
       return res.status(413).json({
-        error: `Ukuran file DOCX (${finalSizeMB} MB) melebihi batas maksimum platform (4.50 MB).`,
+        error: `Ukuran file DOCX (${compressedSizeMB} MB) melebihi batas maksimum platform (4.50 MB).`,
       });
     }
 

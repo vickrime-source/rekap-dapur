@@ -12,6 +12,8 @@ export interface ParsedVoiceNote {
   namaBarang: string;
   qty: number;
   satuan: string;
+  hargaBeli?: number;
+  hargaJual?: number;
   tujuanDapur?: string;
   toko?: string;
   pemasok?: string;
@@ -164,6 +166,50 @@ export function parseVoiceInput(
     if (detectedPemasok) break;
   }
 
+  // Fallback: If kitchen wasn't matched from list, check for "dapur [nama]"
+  if (!detectedKitchen) {
+    const genericKitchenMatch = text.match(/\bdapur\s+([a-zA-Z0-9_-]+)\b/i);
+    if (genericKitchenMatch) {
+      detectedKitchen = capitalizeWords(genericKitchenMatch[1]);
+      text = text.replace(genericKitchenMatch[0], ' ').trim();
+    }
+  }
+
+  // 1d. Extract Harga Beli (e.g. "beli 30 ribu satuanya", "beli 30rb", "h.beli 30.000")
+  let detectedHargaBeli: number | undefined = undefined;
+  const hargaBeliRegex = /(?:harga\s+)?(?:beli|h\.?\s*beli)\s*[:=]?\s*(?:rp\.?\s*)?(\d+(?:[.,]\d+)?)\s*(ribu|rb|k|jt|juta)?(?:\s*satuann?ya|\s*per\s*[a-zA-Z]+)?/i;
+  const beliMatch = text.match(hargaBeliRegex);
+  if (beliMatch) {
+    const num = parseFloat(beliMatch[1].replace(',', '.'));
+    const unit = (beliMatch[2] || '').toLowerCase();
+    let multiplier = 1;
+    if (unit === 'ribu' || unit === 'rb' || unit === 'k') multiplier = 1000;
+    else if (unit === 'jt' || unit === 'juta') multiplier = 1000000;
+    else if (num < 1000) multiplier = 1000; // Indonesian spoken convention "beli 30" -> 30000
+
+    detectedHargaBeli = Math.round(num * multiplier);
+    text = text.replace(beliMatch[0], ' ').trim();
+  }
+
+  // 1e. Extract Harga Jual (e.g. "jual 35 ribu", "jual 35rb", "harga jual 35.000")
+  let detectedHargaJual: number | undefined = undefined;
+  const hargaJualRegex = /(?:harga\s+)?(?:jual|h\.?\s*jual)\s*[:=]?\s*(?:rp\.?\s*)?(\d+(?:[.,]\d+)?)\s*(ribu|rb|k|jt|juta)?(?:\s*satuann?ya|\s*per\s*[a-zA-Z]+)?/i;
+  const jualMatch = text.match(hargaJualRegex);
+  if (jualMatch) {
+    const num = parseFloat(jualMatch[1].replace(',', '.'));
+    const unit = (jualMatch[2] || '').toLowerCase();
+    let multiplier = 1;
+    if (unit === 'ribu' || unit === 'rb' || unit === 'k') multiplier = 1000;
+    else if (unit === 'jt' || unit === 'juta') multiplier = 1000000;
+    else if (num < 1000) multiplier = 1000; // Indonesian spoken convention "jual 35" -> 35000
+
+    detectedHargaJual = Math.round(num * multiplier);
+    text = text.replace(jualMatch[0], ' ').trim();
+  }
+
+  // Remove trailing "satuanya" or "satuannya" or "per kilo" if left over
+  text = text.replace(/\b(?:satuann?ya|per\s*(?:kilo|kg|pcs|biji|ikat|tray|pack|ekor))\b/gi, ' ').trim();
+
   // Normalize multi-word numbers: "satu setengah" -> "1.5", "dua setengah" -> "2.5"
   text = text.replace(/\bsatu\s+setengah\b/g, '1.5');
   text = text.replace(/\bdua\s+setengah\b/g, '2.5');
@@ -252,9 +298,60 @@ export function parseVoiceInput(
     namaBarang: capitalizeWords(namaBarang),
     qty: Math.max(0.1, qty),
     satuan,
+    hargaBeli: detectedHargaBeli,
+    hargaJual: detectedHargaJual,
     tujuanDapur: detectedKitchen,
     toko: detectedStore,
     pemasok: detectedPemasok,
     catatan,
+  };
+}
+
+/**
+ * Smart voice order parser for direct order creation (e.g. from hold-to-talk mic)
+ * Example input: "dapur cluring 10 kg ayam beli 30 ribu satuanya jual 35 ribu"
+ */
+export function parseVoiceOrderSmart(
+  transcript: string,
+  availableKitchens: Array<{ id?: string; nama: string }> = [],
+  availableStores: Array<{ id?: string; nama: string }> = [],
+  availablePemasok: string[] = []
+): {
+  namaBarang: string;
+  qty: number;
+  satuan: string;
+  hargaBeli: number;
+  hargaJual: number;
+  tujuanDapur: string;
+  toko: string;
+  pemasok: string;
+  catatan?: string;
+  rawTranscript: string;
+} {
+  const parsed = parseVoiceInput(transcript, availableKitchens, availableStores, availablePemasok);
+
+  const finalKitchen =
+    parsed.tujuanDapur ||
+    (availableKitchens.length > 0 ? availableKitchens[0].nama : 'Cluring');
+
+  const finalStore =
+    parsed.toko ||
+    (availableStores.length > 0 ? availableStores[0].nama : 'HTG');
+
+  const finalPemasok =
+    parsed.pemasok ||
+    (availablePemasok.length > 0 ? availablePemasok[0] : 'Pemasok 1');
+
+  return {
+    rawTranscript: parsed.rawTranscript,
+    namaBarang: parsed.namaBarang || 'Ayam',
+    qty: parsed.qty || 1,
+    satuan: parsed.satuan || 'Kg',
+    hargaBeli: parsed.hargaBeli || 0,
+    hargaJual: parsed.hargaJual || 0,
+    tujuanDapur: finalKitchen,
+    toko: finalStore,
+    pemasok: finalPemasok,
+    catatan: parsed.catatan,
   };
 }

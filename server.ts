@@ -10,6 +10,7 @@ import {
   getSheetsStatus,
   isSheetsConfigured
 } from './server/sheetsService';
+import { parseVoiceOrderWithGemini } from './server/geminiService';
 
 const TEMPLATE_URLS: Record<string, string> = {
   "LUWENG BOGA": "https://docs.google.com/document/d/1vCwDWoGEQhmyujqTF0l0VVJU3cH8nyxn/export?format=docx",
@@ -67,6 +68,53 @@ async function startServer() {
     } catch (err: any) {
       console.error('[Proxy Server Error]:', err);
       res.status(500).json({ error: err?.message || 'Server error proxying Google Docs template' });
+    }
+  });
+
+  // Convert DOCX to PDF endpoint via CloudConvert with image compression
+  app.post('/api/convert-to-pdf', express.raw({ type: '*/*', limit: '50mb' }), async (req, res) => {
+    try {
+      let downloadName = 'Invoice.pdf';
+      let customApiKey = '';
+      if (req.query?.fileName) downloadName = decodeURIComponent(req.query.fileName as string);
+      if (req.query?.apiKey) customApiKey = decodeURIComponent(req.query.apiKey as string);
+
+      let docxBuffer = req.body;
+      if (typeof req.body === 'string' || (Buffer.isBuffer(req.body) && req.headers['content-type']?.includes('application/json'))) {
+        try {
+          const parsed = JSON.parse(req.body.toString());
+          if (parsed.docxBase64) docxBuffer = Buffer.from(parsed.docxBase64, 'base64');
+          if (parsed.fileName) downloadName = parsed.fileName;
+          if (parsed.apiKey) customApiKey = parsed.apiKey;
+        } catch (_) {}
+      }
+
+      if (!docxBuffer || docxBuffer.length === 0) {
+        return res.status(400).json({ error: 'Data DOCX tidak ditemukan dalam request.' });
+      }
+
+      // Safely compress images using sharp with Promise.all to avoid race conditions
+      try {
+        const { compressDocxImages } = await import('./api/lib/compressDocxImages.js');
+        docxBuffer = await compressDocxImages(docxBuffer);
+      } catch (cErr) {
+        console.warn('[Server convert-to-pdf] Compression warning:', cErr);
+      }
+
+      const apiKey = (process.env.CLOUDCONVERT_API_KEY || customApiKey || '').trim();
+      if (!apiKey) {
+        return res.status(400).json({ error: 'CLOUDCONVERT_API_KEY tidak dikonfigurasi di environment variable server.' });
+      }
+
+      const { convertDocxToPdfWithCloudConvert } = await import('./api/lib/cloudConvert.js');
+      const pdfBuffer = await convertDocxToPdfWithCloudConvert(docxBuffer, apiKey);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+      res.send(pdfBuffer);
+    } catch (err: any) {
+      console.error('[Server convert-to-pdf error]:', err);
+      res.status(500).json({ error: err?.message || 'Gagal konversi PDF' });
     }
   });
 
@@ -250,6 +298,47 @@ async function startServer() {
       res.status(500).json({
         success: false,
         error: err?.message || 'Gagal menghapus baris dari Google Sheets API',
+      });
+    }
+  });
+
+  // 6. AI GEMINI VOICE ORDER PARSER
+  app.post('/api/parse-voice-order', async (req, res) => {
+    try {
+      const { text, kitchens, stores, pemasokList } = req.body;
+      if (!text || typeof text !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: 'Parameter "text" teks suara diperlukan.',
+        });
+      }
+
+      const parsed = await parseVoiceOrderWithGemini(
+        text,
+        Array.isArray(kitchens) ? kitchens : [],
+        Array.isArray(stores) ? stores : [],
+        Array.isArray(pemasokList) ? pemasokList : []
+      );
+
+      if (parsed) {
+        return res.json({
+          success: true,
+          source: 'gemini',
+          data: parsed,
+        });
+      }
+
+      // If Gemini is not configured or failed, client falls back to local Indonesian parser
+      return res.json({
+        success: false,
+        source: 'none',
+        message: 'Gemini AI tidak tersedia, gunakan parser lokal.',
+      });
+    } catch (err: any) {
+      console.warn('[Server voice parse error]:', err);
+      res.status(500).json({
+        success: false,
+        error: err?.message || 'Gagal memproses suara dengan Gemini',
       });
     }
   });

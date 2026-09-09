@@ -44,6 +44,9 @@ interface HeaderBannerProps {
   exportHistoryCount?: number;
   pendingSyncCount?: number;
   isOnline?: boolean;
+  onStartVoiceHold?: () => void;
+  onStopVoiceHold?: () => void;
+  isVoiceActive?: boolean;
 }
 
 export const HeaderBanner: React.FC<HeaderBannerProps> = ({
@@ -61,6 +64,9 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
   exportHistoryCount = 0,
   pendingSyncCount = 0,
   isOnline = true,
+  onStartVoiceHold,
+  onStopVoiceHold,
+  isVoiceActive = false,
 }) => {
   // Default to 'hari_ini' so user immediately sees today's orders and pending
   const [period, setPeriod] = useState<'hari_ini' | 'bulan_ini' | 'all_time'>('hari_ini');
@@ -303,9 +309,23 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => onOpenNewNoteSheet(true)}
-                  title="Input Suara Cepat (Voice Note: contoh 'Ayam 4 kg')"
-                  className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gradient-to-tr from-rose-500 to-indigo-600 text-white flex items-center justify-center shadow-xs shadow-indigo-500/20 hover:scale-110 active:scale-95 transition-all cursor-pointer ring-2 ring-indigo-200/80"
+                  onMouseDown={onStartVoiceHold}
+                  onMouseUp={onStopVoiceHold}
+                  onTouchStart={onStartVoiceHold}
+                  onTouchEnd={onStopVoiceHold}
+                  onClick={() => {
+                    if (!isVoiceActive && onStartVoiceHold) {
+                      onStartVoiceHold();
+                    } else if (!onStartVoiceHold) {
+                      onOpenNewNoteSheet(true);
+                    }
+                  }}
+                  title="Tahan tombol mic untuk buat pesanan pintar via suara"
+                  className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full text-white flex items-center justify-center shadow-xs hover:scale-110 active:scale-95 transition-all cursor-pointer ring-2 ${
+                    isVoiceActive
+                      ? 'bg-rose-600 ring-rose-400 animate-pulse'
+                      : 'bg-gradient-to-tr from-rose-500 to-indigo-600 ring-indigo-200/80 shadow-indigo-500/20'
+                  }`}
                 >
                   <Mic className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </button>

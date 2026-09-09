@@ -294,9 +294,6 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
                 <h3 className="text-sm font-black text-slate-900 tracking-tight">
                   TAMBAH CATATAN
                 </h3>
-                <p className="text-[10px] text-slate-500 font-medium">
-                  Catatan dapur otomatis masuk jadi pesanan saat dicentang
-                </p>
               </div>
             </div>
             <button
@@ -331,21 +328,15 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
 
             {/* Nama Barang with Smart Autocomplete Engine */}
             <div className="relative">
-              <label className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <Tag className="w-3 h-3 text-slate-700" />
-                  <span>NAMA BARANG</span>
-                </span>
-                <span className="text-[9px] font-bold text-indigo-600 flex items-center gap-0.5">
-                  <Sparkles className="w-2.5 h-2.5" />
-                  Auto-Suggest
-                </span>
+              <label className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
+                <Tag className="w-3 h-3 text-slate-700" />
+                <span>NAMA BARANG</span>
               </label>
 
               <input
                 ref={inputRef}
                 type="text"
-                placeholder="Ketik atau sebutkan misal: Ayam, Ikan, Telur..."
+                placeholder="Nama barang..."
                 value={namaBarang}
                 onChange={(e) => handleItemChange(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -471,7 +462,7 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
               </label>
               <textarea
                 rows={2}
-                placeholder="Contoh: Minta yang fresh, kirim sebelum jam 9 pagi..."
+                placeholder="Isi catatan..."
                 value={catatan}
                 onChange={(e) => setCatatan(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-indigo-500 transition-all resize-none"
@@ -484,7 +475,7 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
                 {isListening ? (
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-600 text-[11px] font-bold animate-pulse">
                     <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping inline-block" />
-                    <span>Mendengarkan... {voiceTranscript ? `"${voiceTranscript}"` : 'Sebutkan contoh: "Ayam 4 kg"'}</span>
+                    <span>Mendengarkan... {voiceTranscript ? `"${voiceTranscript}"` : 'Bicara sekarang...'}</span>
                   </div>
                 ) : voiceNotice ? (
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10.5px] font-bold">

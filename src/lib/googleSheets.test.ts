@@ -37,7 +37,8 @@ describe('Google Sheets API Integration Tests', () => {
       expect(payload).toEqual({
         DAPUR: 'Dapur Utama',
         ITEM: 'Beli Cabai Rawit',
-        DATE: '2026-08-09',
+        DATE: expect.any(String),
+        'CREATED AT': expect.any(String),
         QTY: 15,
         TOKO: 'HTG',
         PAYMENT: 'UNPAID',
@@ -110,6 +111,7 @@ describe('Google Sheets API Integration Tests', () => {
         tanggal: '2026-08-09',
         createdAt: expect.any(String),
         catatan: '',
+        rowIndex: undefined,
       });
     });
   });

@@ -530,11 +530,12 @@ export function getRowField(row: any, ...keys: string[]): any {
     }
   }
 
-  // 3. Substring match fallback
+  // 3. Substring match fallback (require minimum length to avoid false positives like "NO" matching "NOTE")
   for (const rk of rowKeys) {
     const cleanRk = rk.toUpperCase().replace(/[\s\.\_\-\:\/\\]/g, '');
+    if (cleanRk.length < 3) continue;
     for (const target of cleanTargets) {
-      if (cleanRk.includes(target) || target.includes(cleanRk)) {
+      if (target.length >= 3 && (cleanRk.includes(target) || target.includes(cleanRk))) {
         if (row[rk] !== undefined && row[rk] !== null && String(row[rk]).trim() !== '') {
           return row[rk];
         }

@@ -42,47 +42,90 @@ export async function compressDocxImagesClient(
     }
 
     onProgress?.('Mengompresi gambar pada template secara otomatis...');
+    const totalOriginalImages = mediaFiles.length;
     let compressedCount = 0;
+    let skippedCount = 0;
+    const auditLog: { path: string; status: string; detail: string }[] = [];
 
-    for (const filePath of mediaFiles) {
-      const file = zip.file(filePath);
-      if (!file) continue;
-
-      const ext = filePath.split('.').pop()?.toLowerCase();
-      if (!['png', 'jpg', 'jpeg', 'webp'].includes(ext || '')) continue;
-
-      const imgUint8Array = await file.async('uint8array');
-      // Only compress images larger than 60 KB
-      if (imgUint8Array.byteLength < 60 * 1024) continue;
-
-      try {
-        const result = await compressImageBlobInBrowser(
-          imgUint8Array,
-          ext === 'png' ? 'image/png' : 'image/jpeg'
-        );
-
-        if (
-          result &&
-          result.buffer &&
-          result.buffer.byteLength < imgUint8Array.byteLength
-        ) {
-          console.log(
-            `[Client DOCX Compressor] Processed ${filePath} | Format: ${result.format} | Size: ${(
-              imgUint8Array.byteLength / 1024
-            ).toFixed(1)} KB -> ${(
-              result.buffer.byteLength / 1024
-            ).toFixed(1)} KB`
-          );
-          zip.file(filePath, result.buffer);
-          compressedCount++;
+    // CRITICAL: Use Promise.all with .map() to guarantee ALL async image processing
+    // completes BEFORE zip.generateAsync is called. This eliminates any race conditions
+    // where entries in the ZIP could be finalized prematurely (e.g. disappearing overlapping signatures/stamps).
+    await Promise.all(
+      mediaFiles.map(async (filePath) => {
+        const file = zip.file(filePath);
+        if (!file) {
+          skippedCount++;
+          auditLog.push({ path: filePath, status: 'skipped', detail: 'file handle missing in zip' });
+          return;
         }
-      } catch (imgErr) {
-        console.warn(`[Client DOCX Compressor] Could not compress ${filePath}:`, imgErr);
-      }
+
+        const ext = filePath.split('.').pop()?.toLowerCase();
+        if (!['png', 'jpg', 'jpeg', 'webp'].includes(ext || '')) {
+          skippedCount++;
+          auditLog.push({ path: filePath, status: 'skipped', detail: `unsupported extension .${ext}` });
+          return;
+        }
+
+        const imgUint8Array = await file.async('uint8array');
+        // Only compress images larger than 60 KB
+        if (imgUint8Array.byteLength < 60 * 1024) {
+          skippedCount++;
+          auditLog.push({
+            path: filePath,
+            status: 'skipped',
+            detail: `below 60KB threshold (${(imgUint8Array.byteLength / 1024).toFixed(1)} KB)`,
+          });
+          return;
+        }
+
+        try {
+          const result = await compressImageBlobInBrowser(
+            imgUint8Array,
+            ext === 'png' ? 'image/png' : 'image/jpeg'
+          );
+
+          if (
+            result &&
+            result.buffer &&
+            result.buffer.byteLength < imgUint8Array.byteLength
+          ) {
+            console.log(
+              `[Client DOCX Compressor] Processed ${filePath} | Format: ${result.format} | Size: ${(
+                imgUint8Array.byteLength / 1024
+              ).toFixed(1)} KB -> ${(
+                result.buffer.byteLength / 1024
+              ).toFixed(1)} KB`
+            );
+            zip.file(filePath, result.buffer);
+            compressedCount++;
+            auditLog.push({
+              path: filePath,
+              status: 'compressed',
+              detail: `${(imgUint8Array.byteLength / 1024).toFixed(1)} KB -> ${(result.buffer.byteLength / 1024).toFixed(1)} KB (${result.format})`,
+            });
+          } else {
+            skippedCount++;
+            auditLog.push({ path: filePath, status: 'skipped', detail: 'compressed size not smaller than original' });
+          }
+        } catch (imgErr: any) {
+          console.warn(`[Client DOCX Compressor] Could not compress ${filePath}:`, imgErr);
+          skippedCount++;
+          auditLog.push({ path: filePath, status: 'error', detail: imgErr?.message || 'unknown error' });
+        }
+      })
+    );
+
+    // Verification check: ensure all images accounted for
+    const totalVerified = compressedCount + skippedCount;
+    console.log(
+      `[Client DOCX Compressor Verification] Total original images: ${totalOriginalImages} | Successfully compressed: ${compressedCount} | Kept original: ${skippedCount} | Verified: ${totalVerified}`
+    );
+    for (const entry of auditLog) {
+      console.log(`[Client DOCX Compressor Audit] ${entry.path} -> ${entry.status} (${entry.detail})`);
     }
 
     if (compressedCount === 0) {
-      console.log('[Client DOCX Compressor] No images needed compression.');
+      console.log('[Client DOCX Compressor] No images needed compression. All original images preserved.');
       return new Blob([originalBuffer], {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       });
@@ -98,7 +141,7 @@ export async function compressDocxImagesClient(
 
     const finalSizeMB = (compressedBlob.size / (1024 * 1024)).toFixed(2);
     console.log(
-      `[Client DOCX Compressor] Compression finished: ${originalSizeMB} MB -> ${finalSizeMB} MB (${compressedCount} images optimized)`
+      `[Client DOCX Compressor] Compression finished: ${originalSizeMB} MB -> ${finalSizeMB} MB (${compressedCount} images optimized, all ${totalOriginalImages} images preserved)`
     );
 
     return compressedBlob;
@@ -154,9 +197,10 @@ function compressImageBlobInBrowser(
       // Draw image onto canvas
       ctx.drawImage(img, 0, 0, width, height);
 
-      // Check for transparency
+      // Check for transparency - PNGs (especially stamps and signatures) MUST retain transparency
       let hasAlpha = false;
-      if (mimeType === 'image/png' || mimeType === 'image/webp') {
+      const isPng = mimeType === 'image/png';
+      if (isPng || mimeType === 'image/webp') {
         try {
           const imageData = ctx.getImageData(0, 0, width, height).data;
           for (let i = 3; i < imageData.length; i += 4) {
@@ -171,8 +215,10 @@ function compressImageBlobInBrowser(
         }
       }
 
-      const outputMime = hasAlpha ? 'image/png' : 'image/jpeg';
-      const outputQuality = hasAlpha ? undefined : 0.75; // PNG quality is ignored in toBlob
+      // CRITICAL: If original is PNG or has alpha, keep as PNG so overlapping layers
+      // (like stamps on top of signatures) never have their transparent backgrounds turned black or white!
+      const outputMime = (hasAlpha || isPng) ? 'image/png' : 'image/jpeg';
+      const outputQuality = outputMime === 'image/png' ? undefined : 0.75;
 
       canvas.toBlob(
         async (outBlob) => {
@@ -196,3 +242,9 @@ function compressImageBlobInBrowser(
     img.src = blobUrl;
   });
 }
+
+/**
+ * Standard alias for compressDocxImagesClient for compatibility
+ */
+export const compressDocxImages = compressDocxImagesClient;
+

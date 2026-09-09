@@ -340,19 +340,29 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                       <div className="w-1/2 relative">
                         <p className="font-semibold mb-1">Hormat Kami</p>
                         <div className="relative h-12 flex items-center justify-center">
-                          {profile.stampBase64 && (
+                          {profile.stampSignatureCombinedBase64 ? (
                             <img
-                              src={profile.stampBase64}
-                              alt="Cap"
-                              className="absolute inset-0 m-auto h-14 max-w-[85px] object-contain opacity-80 pointer-events-none z-1"
+                              src={profile.stampSignatureCombinedBase64}
+                              alt="Stempel & Tanda Tangan"
+                              className="h-14 max-w-[140px] object-contain mx-auto"
                             />
-                          )}
-                          {profile.signatureBase64 && (
-                            <img
-                              src={profile.signatureBase64}
-                              alt="Tanda Tangan"
-                              className="relative h-11 max-w-[100px] object-contain z-10 mx-auto"
-                            />
+                          ) : (
+                            <>
+                              {profile.stampBase64 && (
+                                <img
+                                  src={profile.stampBase64}
+                                  alt="Cap"
+                                  className="absolute inset-0 m-auto h-14 max-w-[85px] object-contain opacity-80 pointer-events-none z-1"
+                                />
+                              )}
+                              {profile.signatureBase64 && (
+                                <img
+                                  src={profile.signatureBase64}
+                                  alt="Tanda Tangan"
+                                  className="relative h-11 max-w-[100px] object-contain z-10 mx-auto"
+                                />
+                              )}
+                            </>
                           )}
                         </div>
                         <p className="font-bold mt-1 text-slate-900">{profile.signerName}</p>
@@ -360,6 +370,13 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                       </div>
                     </div>
                   </div>
+
+                  {/* Policy Footer Note */}
+                  {profile.footerNote && (
+                    <div className="mt-4 pt-2 border-t border-dashed border-slate-300 text-[10px] italic text-slate-600">
+                      * {profile.footerNote}
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (

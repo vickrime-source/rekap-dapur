@@ -178,19 +178,25 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
               Hormat Kami
             </div>
 
-            <!-- Container for Stamp & Signature overlay -->
-            <div style="position: relative; height: 75px; margin: 0 auto; width: 220px; display: flex; align-items: center; justify-content: center; text-align: center;">
-              ${
-                profile.stampBase64
-                  ? `<img src="${profile.stampBase64}" alt="Stamp" style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; margin: auto; height: 75px; max-width: 125px; object-fit: contain; opacity: 0.85; z-index: 1; pointer-events: none;" />`
-                  : ''
-              }
-              ${
-                profile.signatureBase64
-                  ? `<img src="${profile.signatureBase64}" alt="Signature" style="position: relative; height: 65px; max-width: 155px; object-fit: contain; z-index: 2; display: block; margin: 0 auto;" />`
-                  : `<div style="height: 65px;"></div>`
-              }
-            </div>
+            <!-- Container for Stamp & Signature (Single image if combined available, otherwise overlay) -->
+            ${
+              profile.stampSignatureCombinedBase64
+                ? `<div style="height: 80px; margin: 0 auto; width: 220px; display: flex; align-items: center; justify-content: center; text-align: center;">
+                    <img src="${profile.stampSignatureCombinedBase64}" alt="Stempel & Tanda Tangan" style="max-height: 80px; max-width: 190px; object-fit: contain; display: block; margin: 0 auto;" />
+                   </div>`
+                : `<div style="position: relative; height: 75px; margin: 0 auto; width: 220px; display: flex; align-items: center; justify-content: center; text-align: center;">
+                    ${
+                      profile.stampBase64
+                        ? `<img src="${profile.stampBase64}" alt="Stamp" style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; margin: auto; height: 75px; max-width: 125px; object-fit: contain; opacity: 0.85; z-index: 1; pointer-events: none;" />`
+                        : ''
+                    }
+                    ${
+                      profile.signatureBase64
+                        ? `<img src="${profile.signatureBase64}" alt="Signature" style="position: relative; height: 65px; max-width: 155px; object-fit: contain; z-index: 2; display: block; margin: 0 auto;" />`
+                        : `<div style="height: 65px;"></div>`
+                    }
+                   </div>`
+            }
 
             <div style="font-size: 10pt; font-weight: 700; margin-top: 6px; font-family: Arial, sans-serif;">
               ${profile.signerName}
@@ -199,6 +205,15 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
           </td>
         </tr>
       </table>
+
+      <!-- FOOTER NOTE (e.g. PROHE POLICY) -->
+      ${
+        profile.footerNote
+          ? `<div style="margin-top: 20px; font-size: 8.5pt; font-style: italic; color: #555555; border-top: 1px dashed #cccccc; padding-top: 6px; font-family: Arial, sans-serif;">
+               * ${profile.footerNote}
+             </div>`
+          : ''
+      }
     </div>
   `;
 }

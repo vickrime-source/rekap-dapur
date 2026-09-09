@@ -252,5 +252,45 @@ describe('Invoice Processing & Template TDD Tests', () => {
         expect(html).toContain('(SPPG CLURING)');
       }
     });
+
+    it('should render PROHE invoice with single combined stamp and signature and footer policy note', () => {
+      const html = generateInvoiceHtmlString({
+        storeName: 'UD PROHE WANGI',
+        kitchenName: 'Cluring',
+        items: [
+          {
+            id: '1',
+            namaBarang: 'Beras Super',
+            qty: 10,
+            hargaJual: 14000,
+            toko: 'PROHE',
+            tujuanDapur: 'Cluring',
+            tanggal: '2026-07-27',
+          } as any,
+        ],
+        invoiceNumber: 'INV/PROHE/001',
+        customTanggal: '2026-07-27',
+        bayar: 100000,
+      });
+
+      // 1. Static store details
+      expect(html).toContain('UD PROHE WANGI');
+      expect(html).toContain('Dusun Glowong, RT 5 RW 1 Desa Wringinagung');
+      expect(html).toContain('082229394425');
+      expect(html).toContain('Bank : <strong>BNI</strong>');
+      expect(html).toContain('2095806527');
+      expect(html).toContain('Prima Dana Nirwana');
+
+      // 2. Single combined stamp and signature image
+      expect(html).toContain('alt="Stempel & Tanda Tangan"');
+
+      // 3. Footer policy note
+      expect(html).toContain('Barang yang sudah dibeli tidak dapat ditukar/dikembalikan');
+
+      // 4. Financial calculations
+      expect(html).toContain('TOTAL');
+      expect(html).toContain('BAYAR');
+      expect(html).toContain('SISA');
+    });
   });
 });

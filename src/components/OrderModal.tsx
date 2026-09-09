@@ -37,6 +37,7 @@ interface ItemRow {
   id: string;
   namaBarang: string;
   qty: number | '';
+  satuan?: string;
   hargaBeli: number | '';
   hargaJual: number | '';
 }
@@ -80,6 +81,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           id: '1',
           namaBarang: initialData.namaBarang,
           qty: initialData.qty,
+          satuan: initialData.satuan || 'Kg',
           hargaBeli: initialData.hargaBeli,
           hargaJual: initialData.hargaJual,
         },
@@ -98,6 +100,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           id: Date.now().toString(),
           namaBarang: '',
           qty: 1,
+          satuan: 'Kg',
           hargaBeli: '',
           hargaJual: '',
         },
@@ -204,8 +207,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         (o) => o.namaBarang.toLowerCase() === parsed.namaBarang.toLowerCase() && (o.hargaBeli > 0 || o.hargaJual > 0)
       );
 
-      const autoBeli = pastMatch?.hargaBeli ?? '';
-      const autoJual = pastMatch?.hargaJual ?? '';
+      const autoBeli = parsed.hargaBeli || pastMatch?.hargaBeli || '';
+      const autoJual = parsed.hargaJual || pastMatch?.hargaJual || '';
 
       setItemRows((prev) => {
         if (prev.length === 0) {
@@ -214,6 +217,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               id: Date.now().toString(),
               namaBarang: parsed.namaBarang,
               qty: parsed.qty || 1,
+              satuan: parsed.satuan || 'Kg',
               hargaBeli: autoBeli,
               hargaJual: autoJual,
             },
@@ -225,6 +229,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           ...first,
           namaBarang: parsed.namaBarang,
           qty: parsed.qty || first.qty || 1,
+          satuan: parsed.satuan || first.satuan || 'Kg',
           hargaBeli: first.hargaBeli || autoBeli,
           hargaJual: first.hargaJual || autoJual,
         };
@@ -260,6 +265,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         id: `row-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         namaBarang: '',
         qty: 1,
+        satuan: 'Kg',
         hargaBeli: '',
         hargaJual: '',
       },
@@ -375,6 +381,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         {
           namaBarang: firstRow.namaBarang.trim(),
           qty: Number(firstRow.qty) || 1,
+          satuan: firstRow.satuan || 'Kg',
           hargaBeli: Number(firstRow.hargaBeli) || 0,
           hargaJual: Number(firstRow.hargaJual) || 0,
           toko,
@@ -392,6 +399,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       const payload = itemRows.map((row) => ({
         namaBarang: row.namaBarang.trim(),
         qty: Number(row.qty) || 1,
+        satuan: row.satuan || 'Kg',
         hargaBeli: Number(row.hargaBeli) || 0,
         hargaJual: Number(row.hargaJual) || 0,
         toko,
@@ -623,11 +631,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                       )}
                     </div>
 
-                    {/* Qty, Harga Beli, Harga Jual */}
-                    <div className="grid grid-cols-3 gap-2">
+                    {/* Qty, Satuan, Harga Beli, Harga Jual */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <div>
                         <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                          Qty (Kg/Pcs)
+                          Qty
                         </label>
                         <input
                           type="number"
@@ -645,6 +653,23 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           }
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-900 text-center focus:outline-none focus:border-indigo-500"
                         />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                          Satuan
+                        </label>
+                        <select
+                          value={row.satuan || 'Kg'}
+                          onChange={(e) => updateItemRow(row.id, 'satuan', e.target.value)}
+                          className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                        >
+                          {['Kg', 'Gram', 'Pcs', 'Ikat', 'Tray', 'Pack', 'Liter', 'Box', 'Ekor'].map((u) => (
+                            <option key={u} value={u}>
+                              {u}
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
                       <div>
@@ -678,6 +703,28 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500"
                         />
                       </div>
+                    </div>
+
+                    {/* Pilihan Satuan Cepat (seperti di notes di lampiran kedua) */}
+                    <div className="flex flex-wrap gap-1 items-center pt-1">
+                      <span className="text-[9.5px] font-bold text-slate-400">Pilih Satuan:</span>
+                      {['Kg', 'Gram', 'Pcs', 'Ikat', 'Tray', 'Pack'].map((u) => {
+                        const isSelected = (row.satuan || 'Kg').toLowerCase() === u.toLowerCase();
+                        return (
+                          <button
+                            key={u}
+                            type="button"
+                            onClick={() => updateItemRow(row.id, 'satuan', u)}
+                            className={`text-[9.5px] font-extrabold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            {u}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -814,9 +861,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 )}
                 <button
                   type="button"
+                  onMouseDown={() => { if (!isListening) toggleVoice(); }}
+                  onMouseUp={() => { if (isListening) toggleVoice(); }}
+                  onTouchStart={() => { if (!isListening) toggleVoice(); }}
+                  onTouchEnd={() => { if (isListening) toggleVoice(); }}
                   onClick={toggleVoice}
-                  title={isListening ? 'Berhenti bicara' : 'Bicara pesanan (contoh: Ayam 4 kg)'}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-md ${
+                  title={isListening ? 'Berhenti bicara / lepas tombol' : 'Tahan tombol untuk bicara pesanan (contoh: Ayam 4 kg)'}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all cursor-pointer shadow-md select-none ${
                     isListening
                       ? 'bg-rose-600 text-white ring-4 ring-rose-200 scale-105 shadow-rose-500/40'
                       : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:scale-105 active:scale-95 shadow-indigo-500/30'

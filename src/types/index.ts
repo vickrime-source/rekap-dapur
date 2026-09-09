@@ -6,6 +6,7 @@ export interface OrderItem {
   id: string;
   namaBarang: string;
   qty: number;
+  satuan?: string;
   hargaBeli: number;
   hargaJual: number;
   toko: string;         // Toko Kita (e.g. HTG, PROHE, LUWENG BOGA, ADIFRUITA)

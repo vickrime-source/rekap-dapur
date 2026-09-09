@@ -31,6 +31,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { ExportHistorySheet } from './components/ExportHistorySheet';
 import { SyncBottomSheet } from './components/SyncBottomSheet';
+import { SmartVoiceOrderOverlay } from './components/SmartVoiceOrderOverlay';
 import { Toast, ToastMessage, ToastType } from './components/Toast';
 import { generateInvoiceNumber, parseIndonesianNumber, getTodayWIB, getNowWIBISOString } from './lib/formatters';
 import { 
@@ -78,6 +79,9 @@ export default function App() {
   const [isSyncSheetOpen, setIsSyncSheetOpen] = useState(false);
   const [isNoteSheetOpen, setIsNoteSheetOpen] = useState(false);
   const [autoStartVoiceNote, setAutoStartVoiceNote] = useState(false);
+
+  // Smart Live Voice Order State (Hold to record & AI auto order)
+  const [isSmartVoiceActive, setIsSmartVoiceActive] = useState(false);
 
   // Toast Notification State
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -1553,6 +1557,9 @@ export default function App() {
         exportHistoryCount={exportHistory.length}
         pendingSyncCount={pendingQueueCount}
         isOnline={isOnline}
+        onStartVoiceHold={() => setIsSmartVoiceActive(true)}
+        onStopVoiceHold={() => {}}
+        isVoiceActive={isSmartVoiceActive}
       />
 
       {/* Main Content Body */}
@@ -1631,11 +1638,36 @@ export default function App() {
         </motion.div>
       </main>
 
-      {/* Fixed Sticky Bottom Navigation Bar */}
-      <BottomNav
-        activeTab={activeTab}
-        onChangeTab={setActiveTab}
-        onOpenAddModal={() => handleOpenAddModal()}
+      {/* Fixed Sticky Bottom Navigation Bar (Hidden temporarily while Voice Assistant is active) */}
+      <AnimatePresence>
+        {!isSmartVoiceActive && (
+          <motion.div
+            key="bottom-nav-bar"
+            initial={{ opacity: 0, y: 25 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+            transition={{ duration: 0.2 }}
+          >
+            <BottomNav
+              activeTab={activeTab}
+              onChangeTab={setActiveTab}
+              onOpenAddModal={() => handleOpenAddModal()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Smart Live Voice Order Assistant (Takes over bottom area with live animation) */}
+      <SmartVoiceOrderOverlay
+        isActive={isSmartVoiceActive}
+        onClose={() => setIsSmartVoiceActive(false)}
+        onOrderCreated={(newOrder) => {
+          handleSaveOrder(newOrder);
+        }}
+        kitchens={kitchens}
+        stores={stores}
+        pemasokList={pemasokList}
+        selectedDate={selectedDate}
       />
 
       {/* Toast Notification */}

@@ -509,9 +509,16 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
                         rowSpan={rowSpan}
                         className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100 bg-slate-50/30"
                       >
-                        <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1 py-0.5 rounded border border-slate-200/80">
-                          {formatTanggalDisatuin(group.tanggal)}
-                        </span>
+                        <div className="flex flex-col items-center justify-center gap-0.5 leading-none">
+                          <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1 py-0.5 rounded border border-slate-200/80">
+                            {formatTanggalDisatuin(group.tanggal)}
+                          </span>
+                          {(group.createdAt || group.items[0]?.createdAt) && formatJam(group.createdAt || group.items[0]?.createdAt) ? (
+                            <span className="text-[8px] font-mono text-slate-500 font-medium tracking-tight">
+                              {formatJam(group.createdAt || group.items[0]?.createdAt)}
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                     )}
 
