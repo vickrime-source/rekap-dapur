@@ -34,30 +34,23 @@ import { ExportModal } from './components/ExportModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { ExportHistorySheet } from './components/ExportHistorySheet';
-import { SyncBottomSheet } from './components/SyncBottomSheet';
 import { SmartVoiceOrderOverlay } from './components/SmartVoiceOrderOverlay';
 import { Toast, ToastMessage, ToastType } from './components/Toast';
 import { generateInvoiceNumber, parseIndonesianNumber, getTodayWIB, getNowWIBISOString } from './lib/formatters';
 import { 
-  addRow, 
-  updateRow,
-  updateGroupStatus,
-  deleteRow,
-  fetchSheetData, 
-  mapRawOrder, 
-  mapRawInvoice, 
-  mapRawNote,
-  buildPesananPayload, 
-  buildTransaksiPayload,
-  buildNotesPayload
-} from './lib/googleSheets';
-import { 
-  getSyncQueue, 
-  enqueueSync, 
-  processSyncQueue, 
-  isDeviceOnline 
-} from './lib/syncQueue';
-import { 
+  fetchOrdersFromDb,
+  saveOrderToDb,
+  updateOrderInDb,
+  batchUpdateStatusInDb,
+  deleteOrderFromDb,
+  deleteOrdersFromDb,
+  fetchTransactionsFromDb,
+  saveTransactionToDb,
+  deleteTransactionFromDb,
+  fetchNotesFromDb,
+  saveNoteToDb,
+  updateNoteInDb,
+  deleteNoteFromDb,
   fetchMasterTokoFromDb, 
   fetchMasterPemasokFromDb, 
   fetchMasterDapurFromDb 
@@ -85,16 +78,14 @@ export default function App() {
   const [notes, setNotes] = useLocalStorage<NoteItem[]>('dapur_highlight_notes_v1', []);
   const [dashboardPeriod, setDashboardPeriod] = useLocalStorage<DashboardPeriod>('dapur_dashboard_period_v2', 'mingguan');
 
-  // Google Sheets Sync State & Offline Queue
-  const [isSyncingGas, setIsSyncingGas] = useState(false);
-  const [gasError, setGasError] = useState<string | null>(null);
-  const [isOnline, setIsOnline] = useState<boolean>(() => isDeviceOnline());
-  const [pendingQueueCount, setPendingQueueCount] = useState<number>(() => getSyncQueue().length);
+  // Supabase Database Sync State
+  const [isLoadingDb, setIsLoadingDb] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState<boolean>(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
 
   // Export background tracking state
   const [isExportingActive, setIsExportingActive] = useState(false);
   const [isExportHistoryOpen, setIsExportHistoryOpen] = useState(false);
-  const [isSyncSheetOpen, setIsSyncSheetOpen] = useState(false);
   const [isNoteSheetOpen, setIsNoteSheetOpen] = useState(false);
   const [autoStartVoiceNote, setAutoStartVoiceNote] = useState(false);
 
@@ -129,7 +120,7 @@ export default function App() {
         }
       }
     } catch (e) {
-      console.warn('Error refreshing master data from PostgreSQL:', e);
+      console.warn('Error refreshing master data from Supabase:', e);
     }
   };
 
@@ -146,105 +137,64 @@ export default function App() {
   const [lastSyncedTime, setLastSyncedTime] = useState<string | undefined>();
   const isFetchingDataRef = useRef(false);
 
-  // Fetch sheet data
-  const loadSpreadsheetData = async (showToastNotice = false) => {
+  // Fetch Supabase data
+  const loadDatabaseData = async (showToastNotice = false) => {
     if (isFetchingDataRef.current) return;
     isFetchingDataRef.current = true;
-    setIsSyncingGas(true);
-    setGasError(null);
+    setIsLoadingDb(true);
+    setDbError(null);
     try {
-      const [pesananRes, transaksiRes, notesRes] = await Promise.all([
-        fetchSheetData<any>('pesanan', { forceRefresh: showToastNotice }),
-        fetchSheetData<any>('transaksi', { forceRefresh: showToastNotice }),
-        fetchSheetData<any>('notes', { forceRefresh: showToastNotice }),
+      const [ordersRes, txRes, notesRes] = await Promise.all([
+        fetchOrdersFromDb({ forceRefresh: showToastNotice }),
+        fetchTransactionsFromDb(100, 1, showToastNotice),
+        fetchNotesFromDb(showToastNotice),
       ]);
 
       let loadedOrdersCount = 0;
       let loadedInvoicesCount = 0;
       let loadedNotesCount = 0;
-      let hasAnySuccess = false;
 
-      if (!pesananRes.error && Array.isArray(pesananRes.data)) {
-        const mappedOrders = pesananRes.data.map(mapRawOrder);
-        const queue = getSyncQueue();
-        const pendingAddedOrders = queue
-          .filter((q) => q.type === 'add_row' && q.sheet === 'pesanan')
-          .map((q) => q.payload);
-
-        setOrders((prevOrders) => {
-          // Keep local orders that are still pending upload in offline queue
-          const pendingUnsynced = prevOrders.filter((po) =>
-            pendingAddedOrders.some(
-              (p) =>
-                p &&
-                p.ITEM === po.namaBarang &&
-                p.DATE === po.tanggal &&
-                p.DAPUR === po.tujuanDapur
-            )
-          );
-          // Sheet orders are the cloud source of truth
-          return [...mappedOrders, ...pendingUnsynced];
-        });
-        loadedOrdersCount = mappedOrders.length;
-        hasAnySuccess = true;
+      if (ordersRes.success && Array.isArray(ordersRes.orders)) {
+        setOrders(ordersRes.orders);
+        loadedOrdersCount = ordersRes.orders.length;
       }
 
-      if (!transaksiRes.error && Array.isArray(transaksiRes.data)) {
-        const mappedInvoices = transaksiRes.data.map(mapRawInvoice);
-        setInvoices(mappedInvoices);
-        loadedInvoicesCount = mappedInvoices.length;
-        hasAnySuccess = true;
+      if (txRes.success && Array.isArray(txRes.transactions)) {
+        setInvoices(txRes.transactions);
+        loadedInvoicesCount = txRes.transactions.length;
       }
 
-      if (!notesRes.error && Array.isArray(notesRes.data)) {
-        const mappedNotes = notesRes.data.map(mapRawNote);
-        setNotes(mappedNotes);
-        loadedNotesCount = mappedNotes.length;
-        hasAnySuccess = true;
+      if (notesRes.success && Array.isArray(notesRes.notes)) {
+        setNotes(notesRes.notes);
+        loadedNotesCount = notesRes.notes.length;
       }
 
       const nowStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
       setLastSyncedTime(`Pukul ${nowStr}`);
 
-      const isConfigured = pesananRes.configured || transaksiRes.configured || notesRes.configured;
-
-      if (!isConfigured) {
-        // App is working in local offline storage mode without errors
-        setGasError(null);
-        if (showToastNotice) {
-          showToast('Google Sheets belum terhubung. Menggunakan data penyimpanan lokal HP.', 'info');
-        }
-      } else if (pesananRes.error && transaksiRes.error && notesRes.error) {
-        const errText = pesananRes.error || transaksiRes.error || notesRes.error || 'Gagal koneksi ke Google Sheets';
-        console.warn('[GoogleSheets Sync] Gagal ketiga sheet:', errText);
-        setGasError(errText);
+      if (ordersRes.error && txRes.error && notesRes.error) {
+        const errText = ordersRes.error || txRes.error || notesRes.error || 'Gagal koneksi ke database Supabase';
+        setDbError(errText);
         if (showToastNotice) {
           showToast(`Gagal: ${errText}`, 'error');
         }
-      } else if (hasAnySuccess) {
-        setGasError(null);
-        if (showToastNotice) {
-          showToast(`Berhasil memuat ${loadedOrdersCount} pesanan, ${loadedNotesCount} catatan & ${loadedInvoicesCount} transaksi dari Spreadsheet!`, 'success');
-        }
-      } else {
-        if (showToastNotice) {
-          showToast('Spreadsheet terhubung (Sheet masih kosong).', 'success');
-        }
+      } else if (showToastNotice) {
+        showToast(`Berhasil memuat ${loadedOrdersCount} pesanan, ${loadedNotesCount} catatan & ${loadedInvoicesCount} transaksi dari Supabase!`, 'success');
       }
     } catch (err: any) {
-      console.warn('Gagal mengambil data spreadsheet (menggunakan mode data lokal HP):', err);
-      setGasError(err?.message || 'Gagal koneksi ke Google Sheets');
+      console.warn('Gagal memuat data dari Supabase (menggunakan mode data lokal HP):', err);
+      setDbError(err?.message || 'Gagal koneksi ke Supabase');
       if (showToastNotice) {
         showToast(`Gagal: ${err?.message || 'Tidak dapat terhubung'}`, 'error');
       }
     } finally {
-      setIsSyncingGas(false);
+      setIsLoadingDb(false);
       isFetchingDataRef.current = false;
     }
   };
 
   React.useEffect(() => {
-    loadSpreadsheetData();
+    loadDatabaseData();
     refreshMasterData();
   }, []);
 
@@ -332,64 +282,32 @@ export default function App() {
   const [isTextImportOpen, setIsTextImportOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<'kelola_data' | 'dapur' | 'toko' | 'pemasok' | 'template' | 'googlesheets' | 'notifikasi' | 'install' | 'danger'>('kelola_data');
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'kelola_data' | 'dapur' | 'toko' | 'pemasok' | 'template' | 'notifikasi' | 'install' | 'danger'>('kelola_data');
 
-  // Background queue processor: uploads queued offline changes to Google Sheets
-  const handleProcessQueueAndSync = async (showNotice = false) => {
-    if (!isDeviceOnline()) {
-      if (showNotice) showToast('Perangkat sedang offline. Data tetap tersimpan aman di HP.', 'info');
-      return;
-    }
-    const queue = getSyncQueue();
-    if (queue.length > 0) {
-      setIsSyncingGas(true);
-      const result = await processSyncQueue();
-      setIsSyncingGas(false);
-      setPendingQueueCount(result.remainingCount);
-      if (result.processedCount > 0) {
-        showToast(`${result.processedCount} data tersimpan di HP berhasil diunggah ke Google Sheets! Data sekarang aktif untuk semua perangkat.`, 'success');
-        await loadSpreadsheetData(false);
-      } else if (!result.success && result.lastError) {
-        setGasError(result.lastError);
-        if (showNotice) showToast(`Sebagian antrean belum terunggah: ${result.lastError}`, 'error');
-      }
-    } else {
-      await loadSpreadsheetData(showNotice);
-    }
-  };
-
-  // Automatic multi-device & offline queue sync listeners
+  // Automatic multi-device & online listeners
   React.useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      showToast('Internet terhubung! Mengunggah antrean perubahan ke Google Sheets...', 'info');
-      handleProcessQueueAndSync(true);
+      showToast('Internet terhubung! Memperbarui data dari database...', 'info');
+      loadDatabaseData(false);
     };
 
     const handleOffline = () => {
       setIsOnline(false);
-      showToast('Mode offline aktif. Perubahan tetap tersimpan di HP dan akan otomatis diunggah ke Google Sheets saat ada sinyal.', 'info');
-    };
-
-    const handleQueueChange = (e: any) => {
-      setPendingQueueCount(e?.detail?.count ?? getSyncQueue().length);
+      showToast('Mode offline aktif. Data tetap tersimpan aman di HP.', 'info');
     };
 
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && isDeviceOnline()) {
-        handleProcessQueueAndSync(false);
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        loadDatabaseData(false);
       }
     };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    window.addEventListener('rekap_dapur_sync_queue_change', handleQueueChange as EventListener);
     document.addEventListener('visibilitychange', handleVisibility);
 
-    // WAJIB HEMAT EGRESS: Polling setInterval DIHAPUS TOTAL!
-    // Digantikan dengan Supabase Realtime subscription hemat egress:
-    // HANYA subscribe ke tabel yang sedang aktif dilihat user.
-    // Unsubscribe seketika saat user pindah halaman / tab.
+    // Supabase Realtime subscription hemat egress
     let unsubscribePesanan: (() => void) | undefined;
     let unsubscribeNotes: (() => void) | undefined;
     let unsubscribeTransaksi: (() => void) | undefined;
@@ -400,18 +318,18 @@ export default function App() {
           unsubscribePesanan = await subscribeToTableChanges('pesanan', () => {
             invalidateCache('pesanan');
             invalidateCache('summary');
-            loadSpreadsheetData(false);
+            loadDatabaseData(false);
           });
           if (activeTab === 'dashboard') {
             unsubscribeNotes = await subscribeToTableChanges('notes', () => {
               invalidateCache('notes');
-              loadSpreadsheetData(false);
+              loadDatabaseData(false);
             });
           }
         } else if (activeTab === 'transaksi') {
           unsubscribeTransaksi = await subscribeToTableChanges('transaksi', () => {
             invalidateCache('transaksi');
-            loadSpreadsheetData(false);
+            loadDatabaseData(false);
           });
         }
       } catch (err) {
@@ -424,7 +342,6 @@ export default function App() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('rekap_dapur_sync_queue_change', handleQueueChange as EventListener);
       document.removeEventListener('visibilitychange', handleVisibility);
       if (unsubscribePesanan) unsubscribePesanan();
       if (unsubscribeNotes) unsubscribeNotes();
@@ -458,42 +375,16 @@ export default function App() {
       })
     );
 
-    // Sync to Google Sheets
-    const res = await updateRow(
-      'pesanan',
-      {
-        ITEM: targetOrder.namaBarang,
-        DATE: targetOrder.tanggal,
-        DAPUR: targetOrder.tujuanDapur,
-        TOKO: targetOrder.toko,
-      },
-      {
-        PAYMENT: paymentStatus,
-        STATUS: newStatus,
-      },
-      targetOrder.rowIndex
-    );
+    // Sync to Supabase
+    const res = await updateOrderInDb(id, {
+      paymentStatus,
+      status: newStatus,
+    });
     if (!res.success) {
-      setGasError(res.error || 'Gagal update status pembayaran di Google Sheets');
-      enqueueSync({
-        type: 'update_row',
-        sheet: 'pesanan',
-        match: {
-          ITEM: targetOrder.namaBarang,
-          DATE: targetOrder.tanggal,
-          DAPUR: targetOrder.tujuanDapur,
-          TOKO: targetOrder.toko,
-        },
-        data: {
-          PAYMENT: paymentStatus,
-          STATUS: newStatus,
-        },
-        rowIndex: targetOrder.rowIndex,
-        description: `Update bayar (${paymentStatus}) ${targetOrder.namaBarang}`
-      });
-      showToast(`Status lokal diubah (Tersimpan di HP & masuk antrean upload Google Sheets)`, 'info');
+      setDbError(res.error || 'Gagal update status pembayaran');
+      showToast(`Gagal update status pembayaran: ${res.error}`, 'error');
     } else {
-      showToast(`Status pembayaran berhasil diperbarui (${paymentStatus}) & tersimpan ke Cloud`, 'success');
+      showToast(`Status pembayaran berhasil diperbarui (${paymentStatus})`, 'success');
     }
   };
 
@@ -514,54 +405,27 @@ export default function App() {
       })
     );
 
-    // Sync to Google Sheets
-    const res = await updateRow(
-      'pesanan',
-      {
-        ITEM: targetOrder.namaBarang,
-        DATE: targetOrder.tanggal,
-        DAPUR: targetOrder.tujuanDapur,
-        TOKO: targetOrder.toko,
-      },
-      {
-        DILEVERY: deliveryStatus,
-        STATUS: newStatus,
-      },
-      targetOrder.rowIndex
-    );
+    // Sync to Supabase
+    const res = await updateOrderInDb(id, {
+      deliveryStatus,
+      status: newStatus,
+    });
     if (!res.success) {
-      setGasError(res.error || 'Gagal update status pengiriman di Google Sheets');
-      enqueueSync({
-        type: 'update_row',
-        sheet: 'pesanan',
-        match: {
-          ITEM: targetOrder.namaBarang,
-          DATE: targetOrder.tanggal,
-          DAPUR: targetOrder.tujuanDapur,
-          TOKO: targetOrder.toko,
-        },
-        data: {
-          DILEVERY: deliveryStatus,
-          STATUS: newStatus,
-        },
-        rowIndex: targetOrder.rowIndex,
-        description: `Update kirim (${deliveryStatus}) ${targetOrder.namaBarang}`
-      });
-      showToast(`Status lokal diubah (Tersimpan di HP & masuk antrean upload Google Sheets)`, 'info');
+      setDbError(res.error || 'Gagal update status pengiriman');
+      showToast(`Gagal update status pengiriman: ${res.error}`, 'error');
     } else {
-      showToast(`Status pengiriman berhasil diperbarui (${deliveryStatus}) & tersimpan ke Cloud`, 'success');
+      showToast(`Status pengiriman berhasil diperbarui (${deliveryStatus})`, 'success');
     }
   };
 
   const handleUpdateGroupPaymentStatus = async (groupItems: OrderItem[], paymentStatus: PaymentStatus) => {
     if (!groupItems || groupItems.length === 0) return;
-    const first = groupItems[0];
-    const targetIds = new Set(groupItems.map((it) => it.id));
-    const rowIndices = groupItems.map((it) => it.rowIndex).filter(Boolean) as number[];
+    const targetIds = groupItems.map((it) => it.id);
+    const targetIdsSet = new Set(targetIds);
 
     setOrders((prev) =>
       prev.map((o) => {
-        if (!targetIds.has(o.id)) return o;
+        if (!targetIdsSet.has(o.id)) return o;
         const delStatus = o.deliveryStatus || (o.status === 'selesai' ? 'DONE' : 'PENDING');
         const newStatus = paymentStatus === 'PAID' && delStatus === 'DONE' ? 'selesai' : 'pending';
         return {
@@ -572,52 +436,27 @@ export default function App() {
       })
     );
 
-    // Sync whole group atomically to Google Sheets
-    const res = await updateGroupStatus(
-      'pesanan',
-      {
-        DATE: first.tanggal,
-        DAPUR: first.tujuanDapur,
-        TOKO: first.toko,
-      },
-      {
-        PAYMENT: paymentStatus,
-        STATUS: paymentStatus === 'PAID' ? 'selesai' : 'pending',
-      },
-      rowIndices.length > 0 ? rowIndices : undefined
-    );
+    // Sync to Supabase
+    const res = await batchUpdateStatusInDb(targetIds, {
+      paymentStatus,
+      status: paymentStatus === 'PAID' ? 'selesai' : 'pending',
+    });
     if (!res.success) {
-      setGasError(res.error || 'Gagal update pembayaran grup di Google Sheets');
-      enqueueSync({
-        type: 'update_group',
-        sheet: 'pesanan',
-        match: {
-          DATE: first.tanggal,
-          DAPUR: first.tujuanDapur,
-          TOKO: first.toko,
-        },
-        data: {
-          PAYMENT: paymentStatus,
-          STATUS: paymentStatus === 'PAID' ? 'selesai' : 'pending',
-        },
-        rowIndices: rowIndices.length > 0 ? rowIndices : undefined,
-        description: `Update grup payment ${first.tujuanDapur}`
-      });
-      showToast(`Status grup lokal diubah (Tersimpan di HP & masuk antrean upload Google Sheets)`, 'info');
+      setDbError(res.error || 'Gagal update pembayaran grup');
+      showToast(`Gagal update grup: ${res.error}`, 'error');
     } else {
-      showToast(`Status pembayaran grup berhasil diperbarui (${paymentStatus}) & tersimpan ke Cloud`, 'success');
+      showToast(`Status pembayaran grup berhasil diperbarui (${paymentStatus})`, 'success');
     }
   };
 
   const handleUpdateGroupDeliveryStatus = async (groupItems: OrderItem[], deliveryStatus: DeliveryStatus) => {
     if (!groupItems || groupItems.length === 0) return;
-    const first = groupItems[0];
-    const targetIds = new Set(groupItems.map((it) => it.id));
-    const rowIndices = groupItems.map((it) => it.rowIndex).filter(Boolean) as number[];
+    const targetIds = groupItems.map((it) => it.id);
+    const targetIdsSet = new Set(targetIds);
 
     setOrders((prev) =>
       prev.map((o) => {
-        if (!targetIds.has(o.id)) return o;
+        if (!targetIdsSet.has(o.id)) return o;
         const payStatus = o.paymentStatus || (o.status === 'selesai' ? 'PAID' : 'UNPAID');
         const newStatus = payStatus === 'PAID' && deliveryStatus === 'DONE' ? 'selesai' : 'pending';
         return {
@@ -628,40 +467,16 @@ export default function App() {
       })
     );
 
-    // Sync whole group atomically to Google Sheets
-    const res = await updateGroupStatus(
-      'pesanan',
-      {
-        DATE: first.tanggal,
-        DAPUR: first.tujuanDapur,
-        TOKO: first.toko,
-      },
-      {
-        DILEVERY: deliveryStatus,
-        STATUS: deliveryStatus === 'DONE' ? 'selesai' : 'pending',
-      },
-      rowIndices.length > 0 ? rowIndices : undefined
-    );
+    // Sync to Supabase
+    const res = await batchUpdateStatusInDb(targetIds, {
+      deliveryStatus,
+      status: deliveryStatus === 'DONE' ? 'selesai' : 'pending',
+    });
     if (!res.success) {
-      setGasError(res.error || 'Gagal update pengiriman grup di Google Sheets');
-      enqueueSync({
-        type: 'update_group',
-        sheet: 'pesanan',
-        match: {
-          DATE: first.tanggal,
-          DAPUR: first.tujuanDapur,
-          TOKO: first.toko,
-        },
-        data: {
-          DILEVERY: deliveryStatus,
-          STATUS: deliveryStatus === 'DONE' ? 'selesai' : 'pending',
-        },
-        rowIndices: rowIndices.length > 0 ? rowIndices : undefined,
-        description: `Update grup delivery ${first.tujuanDapur}`
-      });
-      showToast(`Status pengiriman grup lokal diubah (Tersimpan di HP & masuk antrean upload Google Sheets)`, 'info');
+      setDbError(res.error || 'Gagal update pengiriman grup');
+      showToast(`Gagal update pengiriman grup: ${res.error}`, 'error');
     } else {
-      showToast(`Status pengiriman grup berhasil diperbarui (${deliveryStatus}) & tersimpan ke Cloud`, 'success');
+      showToast(`Status pengiriman grup berhasil diperbarui (${deliveryStatus})`, 'success');
     }
   };
 
@@ -672,24 +487,17 @@ export default function App() {
       createdAt: getNowWIBISOString(),
     };
 
-    // Always preserve data locally
     setOrders((prev) => [duplicated, ...prev]);
 
-    setIsSyncingGas(true);
-    const res = await addRow('pesanan', buildPesananPayload(duplicated));
-    setIsSyncingGas(false);
+    setIsLoadingDb(true);
+    const res = await saveOrderToDb(duplicated);
+    setIsLoadingDb(false);
 
     if (res.success) {
-      showToast('Pesanan berhasil diduplikasi & tersimpan ke Google Sheets', 'success');
+      showToast('Pesanan berhasil diduplikasi & tersimpan', 'success');
     } else {
-      setGasError(res.error || 'Gagal tersambung ke Google Sheets');
-      enqueueSync({
-        type: 'add_row',
-        sheet: 'pesanan',
-        payload: buildPesananPayload(duplicated),
-        description: `Duplikasi pesanan ${duplicated.namaBarang}`
-      });
-      showToast('Pesanan diduplikasi di HP (Offline). Masuk antrean upload ke Google Sheets.', 'info');
+      setDbError(res.error || 'Gagal menyimpan pesanan');
+      showToast(`Pesanan tersimpan di HP. Gagal simpan ke database: ${res.error}`, 'info');
     }
   };
 
@@ -721,40 +529,15 @@ export default function App() {
       );
       showToast('Pesanan berhasil diperbarui', 'edit');
 
-      // 2-Way Sync update to Google Sheets
-      if (oldOrder) {
-        setIsSyncingGas(true);
-        const res = await updateRow(
-          'pesanan',
-          {
-            ITEM: oldOrder.namaBarang,
-            DATE: oldOrder.tanggal,
-            DAPUR: oldOrder.tujuanDapur,
-            TOKO: oldOrder.toko,
-          },
-          buildPesananPayload(updatedOrder),
-          oldOrder.rowIndex
-        );
-        setIsSyncingGas(false);
-        if (!res.success) {
-          setGasError(res.error || 'Gagal update di Google Sheets');
-          enqueueSync({
-            type: 'update_row',
-            sheet: 'pesanan',
-            match: {
-              ITEM: oldOrder.namaBarang,
-              DATE: oldOrder.tanggal,
-              DAPUR: oldOrder.tujuanDapur,
-              TOKO: oldOrder.toko,
-            },
-            data: buildPesananPayload(updatedOrder),
-            rowIndex: oldOrder.rowIndex,
-            description: `Update pesanan ${updatedOrder.namaBarang}`
-          });
-          showToast(`Pesanan diperbarui di HP (Offline). Masuk antrean upload Google Sheets.`, 'info');
-        } else {
-          showToast('Pesanan berhasil diperbarui & tersimpan ke Cloud', 'edit');
-        }
+      // Sync update to Supabase
+      setIsLoadingDb(true);
+      const res = await updateOrderInDb(editId, updatedOrder);
+      setIsLoadingDb(false);
+      if (!res.success) {
+        setDbError(res.error || 'Gagal update pesanan di Supabase');
+        showToast(`Pesanan diperbarui di HP. Gagal simpan ke database: ${res.error}`, 'info');
+      } else {
+        showToast('Pesanan berhasil diperbarui & tersimpan', 'edit');
       }
       return;
     }
@@ -768,47 +551,28 @@ export default function App() {
       createdAt: createdDate,
     }));
 
-    // Local-First: ALWAYS save new orders to local state & localStorage immediately
     setOrders((prev) => [...newOrdersAdded, ...prev]);
     setSelectedDate(getTodayWIB());
 
-    setIsSyncingGas(true);
+    setIsLoadingDb(true);
     let successCount = 0;
     let lastError = '';
 
     for (let idx = 0; idx < newOrdersAdded.length; idx++) {
       const newOrderItem = newOrdersAdded[idx];
-      const res = await addRow('pesanan', buildPesananPayload(newOrderItem));
-
+      const res = await saveOrderToDb(newOrderItem);
       if (res.success) {
         successCount++;
       } else {
-        lastError = res.error || 'Gagal menyimpan ke Google Sheets';
-        enqueueSync({
-          type: 'add_row',
-          sheet: 'pesanan',
-          payload: buildPesananPayload(newOrderItem),
-          description: `Tambah ${newOrderItem.namaBarang}`
-        });
+        lastError = res.error || 'Gagal menyimpan pesanan';
       }
     }
 
-    // Also append batch to sheet "transaksi" via sheets.spreadsheets.values.append
+    // Save transaction if orders were added
     if (newOrdersAdded.length > 0) {
       const firstItem = newOrdersAdded[0];
       const totalBeli = newOrdersAdded.reduce((sum, it) => sum + Number(it.qty || 0) * Number(it.hargaBeli || 0), 0);
       const totalJual = newOrdersAdded.reduce((sum, it) => sum + Number(it.qty || 0) * Number(it.hargaJual || it.hargaBeli || 0), 0);
-      const txPayload = buildTransaksiPayload({
-        tanggal: firstItem.tanggal,
-        tanggalPrint: firstItem.tanggal,
-        toko: firstItem.toko,
-        pemasok: firstItem.pemasok,
-        totalBeli,
-        totalJual,
-        items: newOrdersAdded,
-        status: firstItem.paymentStatus || 'UNPAID',
-      });
-      const txRes = await addRow('transaksi', txPayload);
       const newInvoiceRec: InvoiceRecord = {
         id: `tx-${Date.now()}`,
         invoiceNumber: `TRX-${Date.now().toString().slice(-6)}`,
@@ -824,24 +588,16 @@ export default function App() {
         status: firstItem.paymentStatus || 'UNPAID',
       };
       setInvoices((prev) => [newInvoiceRec, ...prev]);
-
-      if (!txRes.success) {
-        enqueueSync({
-          type: 'add_row',
-          sheet: 'transaksi',
-          payload: txPayload,
-          description: `Transaksi ${firstItem.toko || firstItem.tujuanDapur}`
-        });
-      }
+      await saveTransactionToDb(newInvoiceRec);
     }
 
-    setIsSyncingGas(false);
+    setIsLoadingDb(false);
 
     if (successCount === newOrdersAdded.length) {
-      showToast(`${successCount} pesanan tersimpan ke Google Sheets & dapat dilihat di semua perangkat`, 'success');
+      showToast(`${successCount} pesanan berhasil tersimpan`, 'success');
     } else {
-      setGasError(lastError);
-      showToast(`${newOrdersAdded.length} pesanan tersimpan di HP. Otomatis diunggah ke Google Sheets saat ada internet agar terlihat di perangkat lain!`, 'info');
+      setDbError(lastError);
+      showToast(`${newOrdersAdded.length} pesanan tersimpan di HP. Error sync: ${lastError}`, 'info');
     }
   };
 
@@ -858,58 +614,31 @@ export default function App() {
     setConfirmState({
       isOpen: true,
       title: 'Konfirmasi Hapus Pesanan',
-      message: `Yakin hapus data ${desc}? Data akan dihapus secara permanen dari Google Sheets.`,
+      message: `Yakin hapus data ${desc}? Data akan dihapus secara permanen.`,
       onConfirm: async () => {
-        setIsSyncingGas(true);
+        setIsLoadingDb(true);
         setConfirmState((prev) => (prev ? { ...prev, isLoading: true } : null));
 
         try {
           if (targetOrder) {
-            // Panggil /api/sheets-delete via deleteRow dengan sheet + rowIndex
-            const res = await deleteRow('pesanan', {
-              rowIndex: targetOrder.rowIndex,
-              match: {
-                ITEM: targetOrder.namaBarang,
-                DATE: targetOrder.tanggal,
-                DAPUR: targetOrder.tujuanDapur,
-                TOKO: targetOrder.toko,
-              },
-            });
-
+            const res = await deleteOrderFromDb(targetOrder.id);
             if (!res.success) {
-              showToast(`Gagal menghapus dari Google Sheets: ${res.error || 'Terjadi kesalahan'}`, 'error');
-              setGasError(res.error || 'Gagal menghapus data dari Google Sheets');
+              showToast(`Gagal menghapus dari database: ${res.error || 'Terjadi kesalahan'}`, 'error');
+              setDbError(res.error || 'Gagal menghapus data');
               return;
             }
-
-            // Backend sukses: BARU update local state
             setOrders((prev) => prev.filter((o) => o.id !== id));
-            showToast(`Pesanan "${targetOrder.namaBarang}" berhasil dihapus permanen`, 'delete');
-
-            // REFETCH ulang seluruh data dari sheet agar semua rowIndex tersinkronisasi kembali
-            await loadSpreadsheetData(false);
+            showToast(`Pesanan "${targetOrder.namaBarang}" berhasil dihapus`, 'delete');
           } else if (targetInvoice) {
-            const resInv = await deleteRow('transaksi', {
-              rowIndex: targetInvoice.rowIndex,
-              match: {
-                TANGGAL: targetInvoice.tanggalPrint || targetInvoice.tanggal,
-                TOKO: targetInvoice.toko,
-                PEMASOK: targetInvoice.pemasok,
-              },
-            });
-
+            const resInv = await deleteTransactionFromDb(targetInvoice.id);
             if (!resInv.success) {
-              showToast(`Gagal menghapus transaksi dari Google Sheets: ${resInv.error || 'Terjadi kesalahan'}`, 'error');
-              setGasError(resInv.error || 'Gagal menghapus transaksi dari Google Sheets');
+              showToast(`Gagal menghapus transaksi: ${resInv.error || 'Terjadi kesalahan'}`, 'error');
+              setDbError(resInv.error || 'Gagal menghapus transaksi');
               return;
             }
-
             setInvoices((prev) => prev.filter((inv) => inv.id !== targetInvoice.id));
-            showToast('Transaksi berhasil dihapus permanen', 'delete');
-
-            await loadSpreadsheetData(false);
+            showToast('Transaksi berhasil dihapus', 'delete');
           } else {
-            // Data lokal non-Google Sheets
             setOrders((prev) => prev.filter((o) => o.id !== id));
             showToast('Item berhasil dihapus', 'delete');
           }
@@ -917,7 +646,7 @@ export default function App() {
           console.error('Error in handleDeleteOrder:', err);
           showToast(`Gagal menghapus: ${err?.message || 'Error tidak diketahui'}`, 'error');
         } finally {
-          setIsSyncingGas(false);
+          setIsLoadingDb(false);
           setConfirmState(null);
         }
       },
@@ -932,47 +661,27 @@ export default function App() {
     setConfirmState({
       isOpen: true,
       title: 'Hapus Seluruh Pesanan Transaksi',
-      message: `Yakin hapus seluruh pesanan (${items.length} item) untuk ${desc}? Data akan dihapus permanen dari Google Sheets.`,
+      message: `Yakin hapus seluruh pesanan (${items.length} item) untuk ${desc}? Data akan dihapus permanen.`,
       onConfirm: async () => {
-        setIsSyncingGas(true);
+        setIsLoadingDb(true);
         setConfirmState((prev) => (prev ? { ...prev, isLoading: true } : null));
 
         try {
-          const rowIndices = items
-            .map((it) => it.rowIndex)
-            .filter((idx): idx is number => typeof idx === 'number' && idx >= 2);
-
-          let res: any;
-          if (rowIndices.length > 0) {
-            res = await deleteRow('pesanan', { rowIndices });
-          } else {
-            const firstItem = items[0];
-            res = await deleteRow('pesanan', {
-              match: {
-                DATE: firstItem?.tanggal,
-                DAPUR: firstItem?.tujuanDapur,
-                TOKO: firstItem?.toko,
-              },
-              deleteAllMatches: true,
-            });
-          }
-
-          if (res && !res.success) {
-            showToast(`Gagal menghapus dari Google Sheets: ${res.error || 'Terjadi kesalahan'}`, 'error');
+          const ids = items.map((it) => it.id);
+          const res = await deleteOrdersFromDb(ids);
+          if (!res.success) {
+            showToast(`Gagal menghapus dari database: ${res.error || 'Terjadi kesalahan'}`, 'error');
             return;
           }
 
-          const itemIds = new Set(items.map((i) => i.id));
+          const itemIds = new Set(ids);
           setOrders((prev) => prev.filter((o) => !itemIds.has(o.id)));
-          showToast(`${items.length} pesanan berhasil dihapus permanen`, 'delete');
-
-          // REFETCH seluruh data
-          await loadSpreadsheetData(false);
+          showToast(`${items.length} pesanan berhasil dihapus`, 'delete');
         } catch (err: any) {
           console.error('Error handleDeleteBatchOrders:', err);
           showToast(`Gagal menghapus pesanan: ${err?.message || err}`, 'error');
         } finally {
-          setIsSyncingGas(false);
+          setIsLoadingDb(false);
           setConfirmState(null);
         }
       },
@@ -987,30 +696,19 @@ export default function App() {
     setConfirmState({
       isOpen: true,
       title: 'Hapus Semua Pesanan',
-      message: `Hapus semua pesanan (${matchingOrders.length} item) untuk ${targetName} pada tanggal ${date}? Data akan dihapus permanen dari Google Sheets.`,
+      message: `Hapus semua pesanan (${matchingOrders.length} item) untuk ${targetName} pada tanggal ${date}? Data akan dihapus permanen.`,
       onConfirm: async () => {
-        setIsSyncingGas(true);
+        setIsLoadingDb(true);
         setConfirmState((prev) => (prev ? { ...prev, isLoading: true } : null));
 
         try {
-          const rowIndices = matchingOrders
-            .map((it) => it.rowIndex)
-            .filter((idx): idx is number => typeof idx === 'number' && idx >= 2);
-
-          if (rowIndices.length > 0) {
-            const res = await deleteRow('pesanan', { rowIndices });
+          const ids = matchingOrders.map((o) => o.id);
+          if (ids.length > 0) {
+            const res = await deleteOrdersFromDb(ids);
             if (!res.success) {
               showToast(`Gagal: ${res.error}`, 'error');
               return;
             }
-          } else {
-            await deleteRow('pesanan', {
-              match: {
-                DATE: date,
-                DAPUR: targetName,
-              },
-              deleteAllMatches: true,
-            });
           }
 
           setOrders((prev) =>
@@ -1018,15 +716,12 @@ export default function App() {
               (o) => !((o.toko === targetName || o.tujuanDapur === targetName) && o.tanggal === date)
             )
           );
-          showToast('Semua pesanan berhasil dihapus permanen', 'delete');
-
-          // REFETCH
-          await loadSpreadsheetData(false);
+          showToast('Semua pesanan berhasil dihapus', 'delete');
         } catch (err: any) {
           console.error('Error deleting kitchen orders:', err);
           showToast(`Gagal: ${err?.message || err}`, 'error');
         } finally {
-          setIsSyncingGas(false);
+          setIsLoadingDb(false);
           setConfirmState(null);
         }
       },
@@ -1095,58 +790,14 @@ export default function App() {
 
       showToast(`Catatan dicentang: Langsung MASUK JADI PESANAN (${itemName} - ${itemQty} ${itemSatuan})!`, 'success');
 
-      // 3. Sinkronisasi ke Google Sheets sheet "pesanan"
-      setIsSyncingGas(true);
-      addRow('pesanan', buildPesananPayload(newOrderFromNote))
-        .then((orderRes) => {
-          if (!orderRes.success) {
-            enqueueSync({
-              type: 'add_row',
-              sheet: 'pesanan',
-              payload: buildPesananPayload(newOrderFromNote),
-              description: `Tambah pesanan dari note: ${itemName}`
-            });
-          }
-        })
-        .catch((err) => {
-          enqueueSync({
-            type: 'add_row',
-            sheet: 'pesanan',
-            payload: buildPesananPayload(newOrderFromNote),
-            description: `Tambah pesanan dari note: ${itemName}`
-          });
-        })
-        .finally(() => setIsSyncingGas(false));
+      // 3. Simpan order ke database Supabase
+      saveOrderToDb(newOrderFromNote);
 
-      // 4. Sinkronisasi perubahan status ke sheet "notes"
-      updateRow(
-        'notes',
-        {
-          ID: target.id,
-          CATATAN: target.catatan,
-          DAPUR: target.tujuanDapur,
-        },
-        {
-          STATUS: 'DONE',
-        }
-      ).then((res) => {
-        if (!res.success) {
-          enqueueSync({
-            type: 'update_row',
-            sheet: 'notes',
-            match: { ID: target.id, CATATAN: target.catatan, DAPUR: target.tujuanDapur },
-            data: { STATUS: 'DONE' },
-            description: `Status note DONE: ${target.catatan}`
-          });
-        }
-      }).catch((err) => {
-        enqueueSync({
-          type: 'update_row',
-          sheet: 'notes',
-          match: { ID: target.id, CATATAN: target.catatan, DAPUR: target.tujuanDapur },
-          data: { STATUS: 'DONE' },
-          description: `Status note DONE: ${target.catatan}`
-        });
+      // 4. Update status note di database Supabase
+      updateNoteInDb(target.id, {
+        isDone: true,
+        status: 'DONE',
+        orderId: newOrderFromNote.id,
       });
 
     } else {
@@ -1156,35 +807,9 @@ export default function App() {
       );
       showToast('Status catatan dikembalikan ke Follow Up', 'info');
 
-      // Sync perubahan status ke sheet "notes"
-      updateRow(
-        'notes',
-        {
-          ID: target.id,
-          CATATAN: target.catatan,
-          DAPUR: target.tujuanDapur,
-        },
-        {
-          STATUS: 'FOLLOW UP',
-        }
-      ).then((res) => {
-        if (!res.success) {
-          enqueueSync({
-            type: 'update_row',
-            sheet: 'notes',
-            match: { ID: target.id, CATATAN: target.catatan, DAPUR: target.tujuanDapur },
-            data: { STATUS: 'FOLLOW UP' },
-            description: `Status note FOLLOW UP: ${target.catatan}`
-          });
-        }
-      }).catch((err) => {
-        enqueueSync({
-          type: 'update_row',
-          sheet: 'notes',
-          match: { ID: target.id, CATATAN: target.catatan, DAPUR: target.tujuanDapur },
-          data: { STATUS: 'FOLLOW UP' },
-          description: `Status note FOLLOW UP: ${target.catatan}`
-        });
+      updateNoteInDb(target.id, {
+        isDone: false,
+        status: 'FOLLOW UP',
       });
     }
   };
@@ -1195,23 +820,7 @@ export default function App() {
     showToast('Catatan follow up dihapus', 'delete');
 
     if (target) {
-      const res = await deleteRow('notes', {
-        ID: target.id,
-        CATATAN: target.catatan,
-        DAPUR: target.tujuanDapur,
-      });
-      if (!res.success) {
-        enqueueSync({
-          type: 'delete_row',
-          sheet: 'notes',
-          options: {
-            ID: target.id,
-            CATATAN: target.catatan,
-            DAPUR: target.tujuanDapur,
-          },
-          description: `Hapus note: ${target.catatan}`
-        });
-      }
+      await deleteNoteFromDb(target.id);
     }
   };
 
@@ -1226,16 +835,8 @@ export default function App() {
     setNotes((prev) => [newNote, ...prev]);
     showToast('Catatan follow up berhasil disimpan', 'success');
 
-    // 2-Way Sync to Google Sheets sheet "notes"
-    const res = await addRow('notes', buildNotesPayload(newNote));
-    if (!res.success) {
-      enqueueSync({
-        type: 'add_row',
-        sheet: 'notes',
-        payload: buildNotesPayload(newNote),
-        description: `Tambah note: ${newNote.catatan}`
-      });
-    }
+    // Sync to Supabase
+    await saveNoteToDb(newNote);
   };
 
   // Voice Assistant: Edit existing order by spoken commodity name
@@ -1390,8 +991,8 @@ export default function App() {
         };
         setInvoices((prev) => [newRecord, ...prev]);
 
-        // Async sync to Google Sheets
-        addRow('transaksi', buildTransaksiPayload(newRecord)).catch(() => {});
+        // Async sync to Supabase
+        saveTransactionToDb(newRecord).catch(() => {});
 
         showToast(`Invoice Dapur ${targetKitchen} berhasil diunduh (${res.fileName})!`, 'success');
       }
@@ -1487,19 +1088,18 @@ export default function App() {
       totalProfit: totalJual - totalBeli,
     };
 
-    setIsSyncingGas(true);
-    const txData = buildTransaksiPayload(newRecord);
-    const res = await addRow('transaksi', txData);
-    setIsSyncingGas(false);
+    setIsLoadingDb(true);
+    const res = await saveTransactionToDb(newRecord);
+    setIsLoadingDb(false);
 
     // ALWAYS save invoice record locally so data is never lost
     setInvoices((prev) => [newRecord, ...prev]);
 
     if (res.success) {
-      showToast('Invoice & Transaksi tersimpan ke Google Sheets', 'success');
+      showToast('Invoice & Transaksi berhasil tersimpan', 'success');
     } else {
-      setGasError(res.error || 'Gagal koneksi ke Google Sheets');
-      showToast(`Invoice TERSIMPAN DI HP/LOKAL! (Gagal sync Google Sheets: ${res.error || 'Error'})`, 'error');
+      setDbError(res.error || 'Gagal koneksi ke database');
+      showToast(`Invoice tersimpan di HP. (Gagal sync: ${res.error || 'Error'})`, 'info');
     }
   };
 
@@ -1599,64 +1199,25 @@ export default function App() {
     setConfirmState({
       isOpen: true,
       title: 'Konfirmasi Hapus Transaksi',
-      message: `Yakin hapus transaksi untuk ${batchDesc}? Data di sheet transaksi dan sheet pesanan di Google Sheets akan dihapus permanen.`,
+      message: `Yakin hapus transaksi untuk ${batchDesc}? Data pesanan terkait juga akan dihapus.`,
       onConfirm: async () => {
-        setIsSyncingGas(true);
+        setIsLoadingDb(true);
         setConfirmState((prev) => (prev ? { ...prev, isLoading: true } : null));
 
         try {
-          // 1. Google Sheets sync: Delete matching items from sheet "pesanan"
-          if (batch.items && batch.items.length > 0) {
-            const rowIndicesToDelete = batch.items
-              .map((it: any) => it.rowIndex)
-              .filter((idx: any) => typeof idx === 'number' && idx >= 2);
-
-            if (rowIndicesToDelete.length > 0) {
-              await deleteRow('pesanan', {
-                rowIndices: rowIndicesToDelete,
-              });
-            } else {
-              await deleteRow('pesanan', {
-                match: {
-                  DATE: batch.tanggal,
-                  DAPUR: batch.tujuanDapur,
-                  TOKO: batch.toko,
-                },
-                deleteAllMatches: true,
-              });
-            }
-          } else {
-            await deleteRow('pesanan', {
-              match: {
-                DATE: batch.tanggal,
-                DAPUR: batch.tujuanDapur,
-                TOKO: batch.toko,
-              },
-              deleteAllMatches: true,
-            });
+          // 1. Delete associated orders from db if any
+          const batchItemIds = (batch.items || []).map((it: any) => it.id).filter(Boolean);
+          if (batchItemIds.length > 0) {
+            await deleteOrdersFromDb(batchItemIds);
           }
 
-          // 2. Delete from sheet "transaksi"
-          const txMatch: Record<string, any> = {
-            TANGGAL: batch.tanggal,
-          };
-          if (batch.pemasok) txMatch.PEMASOK = batch.pemasok;
-          if (batch.toko) txMatch.TOKO = batch.toko;
-          if (batch.items && batch.items.length > 0 && batch.items[0].namaBarang) {
-            txMatch.BARANG = batch.items[0].namaBarang;
+          // 2. Delete transaction from db
+          if (batch.id) {
+            await deleteTransactionFromDb(batch.id);
           }
 
-          const resTx = await deleteRow('transaksi', {
-            rowIndex: batch.rowIndex,
-            match: txMatch,
-          });
-
-          if (!resTx.success) {
-            console.warn('Gagal hapus di sheet transaksi:', resTx.error);
-          }
-
-          // 3. BARU update local state setelah backend konfirmasi selesai
-          const batchItemIds = new Set((batch.items || []).map((it: any) => it.id));
+          // 3. Update local state
+          const batchItemIdsSet = new Set(batchItemIds);
           setInvoices((prev) =>
             prev.filter((inv) => {
               if (inv.id === batch.id) return false;
@@ -1674,7 +1235,7 @@ export default function App() {
 
           setOrders((prev) =>
             prev.filter((o) => {
-              if (batchItemIds.has(o.id)) return false;
+              if (batchItemIdsSet.has(o.id)) return false;
               if (
                 o.tanggal === batch.tanggal &&
                 (o.toko === batch.toko || o.tujuanDapur === batch.tujuanDapur) &&
@@ -1686,15 +1247,12 @@ export default function App() {
             })
           );
 
-          showToast(`Transaksi ${batchDesc} berhasil dihapus permanen`, 'delete');
-
-          // 4. REFETCH ulang seluruh data dari spreadsheet agar baris yang bergeser terupdate
-          await loadSpreadsheetData(false);
+          showToast(`Transaksi ${batchDesc} berhasil dihapus`, 'delete');
         } catch (err: any) {
-          console.error('Error syncing delete transaction:', err);
+          console.error('Error deleting transaction:', err);
           showToast(`Gagal menghapus transaksi: ${err?.message || err}`, 'error');
         } finally {
-          setIsSyncingGas(false);
+          setIsLoadingDb(false);
           setConfirmState(null);
         }
       },
@@ -1708,39 +1266,27 @@ export default function App() {
     setConfirmState({
       isOpen: true,
       title: 'Konfirmasi Hapus Transaksi',
-      message: `Yakin hapus transaksi "${desc}"? Baris akan dihapus permanen dari sheet transaksi di Google Sheets.`,
+      message: `Yakin hapus transaksi "${desc}"? Data akan dihapus secara permanen.`,
       onConfirm: async () => {
-        setIsSyncingGas(true);
+        setIsLoadingDb(true);
         setConfirmState((prev) => (prev ? { ...prev, isLoading: true } : null));
 
         try {
           if (targetInvoice) {
-            const res = await deleteRow('transaksi', {
-              rowIndex: targetInvoice.rowIndex,
-              match: {
-                TANGGAL: targetInvoice.tanggalPrint || targetInvoice.tanggal,
-                TOKO: targetInvoice.toko,
-                PEMASOK: targetInvoice.pemasok,
-              },
-            });
-
+            const res = await deleteTransactionFromDb(targetInvoice.id);
             if (!res.success) {
-              showToast(`Gagal menghapus transaksi dari Google Sheets: ${res.error || 'Terjadi kesalahan'}`, 'error');
+              showToast(`Gagal menghapus transaksi: ${res.error || 'Terjadi kesalahan'}`, 'error');
               return;
             }
           }
 
-          // BARU update local state setelah backend sukses
           setInvoices((prev) => prev.filter((inv) => inv.id !== id));
-          showToast('Transaksi berhasil dihapus permanen', 'delete');
-
-          // REFETCH
-          await loadSpreadsheetData(false);
+          showToast('Transaksi berhasil dihapus', 'delete');
         } catch (e: any) {
-          console.warn('Error deleting invoice from sheet:', e);
+          console.warn('Error deleting invoice:', e);
           showToast(`Gagal menghapus: ${e?.message || 'Error'}`, 'error');
         } finally {
-          setIsSyncingGas(false);
+          setIsLoadingDb(false);
           setConfirmState(null);
         }
       },
@@ -1774,34 +1320,28 @@ export default function App() {
     // Local-First: ALWAYS save imported items locally first
     setOrders((prev) => [...newOrdersAdded, ...prev]);
 
-    setIsSyncingGas(true);
+    setIsLoadingDb(true);
     let successCount = 0;
     let lastError = '';
 
     for (let index = 0; index < newOrdersAdded.length; index++) {
       const newOrderItem = newOrdersAdded[index];
-      const saveRes = await addRow('pesanan', buildPesananPayload(newOrderItem));
+      const saveRes = await saveOrderToDb(newOrderItem);
 
       if (saveRes.success) {
         successCount++;
       } else {
-        lastError = saveRes.error || 'Gagal menyimpan ke Google Sheets';
-        enqueueSync({
-          type: 'add_row',
-          sheet: 'pesanan',
-          payload: buildPesananPayload(newOrderItem),
-          description: `Import ${newOrderItem.namaBarang}`
-        });
+        lastError = saveRes.error || 'Gagal menyimpan pesanan';
       }
     }
 
-    setIsSyncingGas(false);
+    setIsLoadingDb(false);
 
     if (successCount === newOrdersAdded.length) {
-      showToast(`${successCount} item import tersimpan ke Google Sheets & aktif di semua perangkat`, 'success');
+      showToast(`${successCount} item import berhasil tersimpan`, 'success');
     } else {
-      setGasError(lastError);
-      showToast(`${newOrdersAdded.length} item import tersimpan di HP. Otomatis diunggah ke Google Sheets saat ada internet agar terlihat di perangkat lain!`, 'info');
+      setDbError(lastError);
+      showToast(`${newOrdersAdded.length} item import tersimpan di HP. Error sync: ${lastError}`, 'info');
     }
   };
 
@@ -1836,11 +1376,10 @@ export default function App() {
           }}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenExportHistory={() => setIsExportHistoryOpen(true)}
-          onOpenSyncSheet={() => setIsSyncSheetOpen(true)}
-          isSyncingGas={isSyncingGas}
+          isSyncingGas={isLoadingDb}
           isExportingActive={isExportingActive}
           exportHistoryCount={exportHistory.length}
-          pendingSyncCount={pendingQueueCount}
+          pendingSyncCount={0}
           isOnline={isOnline}
           onStartVoiceHold={() => setIsSmartVoiceActive(true)}
           onStopVoiceHold={() => {}}
@@ -1869,7 +1408,7 @@ export default function App() {
                 <DashboardView
                   orders={orders}
                   invoices={invoices}
-                  isLoading={isSyncingGas}
+                  isLoading={isLoadingDb}
                   kitchens={kitchens}
                   stores={stores}
                   pemasokList={pemasokList}
@@ -1904,7 +1443,7 @@ export default function App() {
                 <TransactionsView
                   invoices={invoices}
                   orders={orders}
-                  isLoading={isSyncingGas}
+                  isLoading={isLoadingDb}
                   kitchens={kitchens}
                   stores={stores}
                   selectedDate={selectedDate}
@@ -1933,8 +1472,6 @@ export default function App() {
                   onOpenExportHistory={() => setIsExportHistoryOpen(true)}
                   isExportingActive={isExportingActive}
                   exportHistoryCount={exportHistory.length}
-                  onOpenSyncSheet={() => setIsSyncSheetOpen(true)}
-                  pendingSyncCount={pendingQueueCount}
                   isOnline={isOnline}
                 />
               </motion.div>
@@ -2104,27 +1641,7 @@ export default function App() {
         isExportingActive={isExportingActive}
       />
 
-      {/* 7. Google Sheets Sync Bottom Sheet */}
-      <SyncBottomSheet
-        isOpen={isSyncSheetOpen}
-        onClose={() => setIsSyncSheetOpen(false)}
-        ordersCount={orders.length}
-        invoicesCount={invoices.length}
-        notesCount={notes.length}
-        onTriggerSync={() => loadSpreadsheetData(true)}
-        isSyncing={isSyncingGas}
-        syncError={gasError}
-        lastSyncedTime={lastSyncedTime}
-        pendingQueueCount={pendingQueueCount}
-        isDeviceOnline={isOnline}
-        onProcessQueue={() => handleProcessQueueAndSync(true)}
-        onOpenSettings={() => {
-          setIsSyncSheetOpen(false);
-          setIsSettingsOpen(true);
-        }}
-      />
-
-      {/* 8. Settings Bottom Sheet */}
+      {/* 7. Settings Bottom Sheet */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}

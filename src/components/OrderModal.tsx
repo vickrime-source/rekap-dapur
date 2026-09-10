@@ -546,26 +546,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
               {/* Toko (REQUIREMENT 1: DEFAULT KOSONG, DENGAN OPSI CEPAT TAMBAH BARU) */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10.5px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                    <Store className="w-3 h-3 text-indigo-600" />
-                    <span>Toko</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQuickAddType('toko');
-                      setQuickAddNama('');
-                      setQuickAddAlamat('');
-                      setQuickAddError(null);
-                    }}
-                    className="text-[10px] text-indigo-600 font-bold hover:text-indigo-800 flex items-center gap-0.5 cursor-pointer"
-                    title="Tambah Toko Baru"
-                  >
-                    <Plus className="w-2.5 h-2.5" />
-                    <span>+ Baru</span>
-                  </button>
-                </div>
+                <label className="text-[10.5px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1 mb-1">
+                  <Store className="w-3 h-3 text-indigo-600" />
+                  <span>Toko</span>
+                </label>
                 <select
                   required
                   value={toko}
@@ -595,26 +579,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
               {/* Dapur (REQUIREMENT 1: DEFAULT KOSONG, DENGAN OPSI CEPAT TAMBAH BARU) */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10.5px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                    <Utensils className="w-3 h-3 text-indigo-600" />
-                    <span>Dapur</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQuickAddType('dapur');
-                      setQuickAddNama('');
-                      setQuickAddAlamat('');
-                      setQuickAddError(null);
-                    }}
-                    className="text-[10px] text-indigo-600 font-bold hover:text-indigo-800 flex items-center gap-0.5 cursor-pointer"
-                    title="Tambah Dapur Baru"
-                  >
-                    <Plus className="w-2.5 h-2.5" />
-                    <span>+ Baru</span>
-                  </button>
-                </div>
+                <label className="text-[10.5px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1 mb-1">
+                  <Utensils className="w-3 h-3 text-indigo-600" />
+                  <span>Dapur</span>
+                </label>
                 <select
                   required
                   value={tujuanDapur}
@@ -644,26 +612,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
               {/* Pemasok (REQUIREMENT 1: DEFAULT KOSONG, DENGAN OPSI CEPAT TAMBAH BARU) */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10.5px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                    <Truck className="w-3 h-3 text-indigo-600" />
-                    <span>Pemasok</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQuickAddType('pemasok');
-                      setQuickAddNama('');
-                      setQuickAddAlamat('');
-                      setQuickAddError(null);
-                    }}
-                    className="text-[10px] text-indigo-600 font-bold hover:text-indigo-800 flex items-center gap-0.5 cursor-pointer"
-                    title="Tambah Pemasok Baru"
-                  >
-                    <Plus className="w-2.5 h-2.5" />
-                    <span>+ Baru</span>
-                  </button>
-                </div>
+                <label className="text-[10.5px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1 mb-1">
+                  <Truck className="w-3 h-3 text-indigo-600" />
+                  <span>Pemasok</span>
+                </label>
                 <select
                   required
                   value={pemasok}

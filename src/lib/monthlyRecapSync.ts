@@ -104,67 +104,6 @@ export function buildMonthlyRecapPayload(
 }
 
 /**
- * Mengirim rekapan bulanan langsung ke endpoint Google Sheets / Google Apps Script
- */
-export async function syncMonthlyRecapToEndpoint(
-  endpointUrl: string,
-  payload: MonthlyRecapPayload
-): Promise<{ success: boolean; message: string }> {
-  const url = endpointUrl.trim();
-  if (!url) {
-    return {
-      success: false,
-      message: 'Endpoint Google Sheet belum diisi di Pengaturan.',
-    };
-  }
-
-  try {
-    // 1. Kirim ke Endpoint Eksternal (Google Apps Script Webhook / Custom Sheet endpoint)
-    await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-      mode: 'no-cors', // Penting untuk Google Apps Script Web App CORS
-    });
-
-    // 2. Jika ada backend server terkonfigurasi, cadangkan juga ke server
-    try {
-      await fetch('/api/sheets-add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sheet: 'rekap_bulanan',
-          data: {
-            BULAN: payload.bulan,
-            UPDATE_PADA: new Date().toLocaleString('id-ID'),
-            TOTAL_TRANSAKSI: payload.totalTransaksi,
-            TOTAL_QTY: payload.totalQty,
-            PENDAPATAN_JUAL: payload.totalPendapatan,
-            PENGELUARAN_BELI: payload.totalPengeluaran,
-            PROFIT_BERSIH: payload.profitBersih,
-            MARGIN: `${payload.marginPercent}%`,
-          },
-        }),
-      });
-    } catch {
-      // Abaikan jika sheet 'rekap_bulanan' belum ada di backend service account
-    }
-
-    return {
-      success: true,
-      message: `Rekapan bulan ${payload.bulan} berhasil dikirim dan diupdate ke Google Sheet!`,
-    };
-  } catch (err: any) {
-    return {
-      success: false,
-      message: err?.message || 'Gagal mengirim data ke endpoint Google Sheet.',
-    };
-  }
-}
-
-/**
  * Generate dan trigger unduh file CSV Rekapan Bulanan
  */
 export function downloadMonthlyRecapCsv(payload: MonthlyRecapPayload): void {
