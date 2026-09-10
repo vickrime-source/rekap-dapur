@@ -29,15 +29,16 @@ let supabaseClient: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient {
   if (!supabaseClient) {
-    const supabaseUrl = (process.env.SUPABASE_URL || '').trim();
+    const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
     const serviceRoleKey = (
       process.env.SUPABASE_SERVICE_ROLE_KEY || 
+      process.env.VITE_SUPABASE_ANON_KEY || 
       process.env.SUPABASE_ANON_KEY || 
       ''
     ).trim();
 
     if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error('SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY harus dikonfigurasi di environment variables.');
+      throw new Error('VITE_SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY / VITE_SUPABASE_ANON_KEY harus dikonfigurasi di environment variables.');
     }
 
     supabaseClient = createClient(supabaseUrl, serviceRoleKey, {
@@ -51,8 +52,8 @@ export function getSupabase(): SupabaseClient {
 }
 
 export function isSupabaseConfigured(): boolean {
-  const url = (process.env.SUPABASE_URL || '').trim();
-  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+  const url = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
   return Boolean(url && key);
 }
 
@@ -81,7 +82,7 @@ export async function checkSupabaseStatus() {
     return {
       success: false,
       configured: false,
-      error: 'Environment variable SUPABASE_URL atau SUPABASE_SERVICE_ROLE_KEY belum diisi.',
+      error: 'Environment variable VITE_SUPABASE_URL atau SUPABASE_SERVICE_ROLE_KEY belum diisi.',
     };
   }
 
@@ -106,7 +107,7 @@ export async function checkSupabaseStatus() {
       success: hasTables,
       configured: true,
       tablesReady: hasTables,
-      url: process.env.SUPABASE_URL?.replace(/^(https?:\/\/[^\/]+).*$/, '$1'),
+      url: (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL)?.replace(/^(https?:\/\/[^\/]+).*$/, '$1'),
       counts: {
         pesanan: pesananRes.count || 0,
         transaksi: transaksiRes.count || 0,

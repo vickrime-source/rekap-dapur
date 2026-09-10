@@ -162,10 +162,13 @@ async function startServer() {
 
   // Client Supabase Config (Anon Key & URL untuk Supabase Realtime Subscription)
   app.get('/api/supabase/config', (req, res) => {
+    const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+    const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
     res.json({
-      url: process.env.SUPABASE_URL || '',
-      anonKey: process.env.SUPABASE_ANON_KEY || '',
-      configured: Boolean(process.env.SUPABASE_URL && (process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)),
+      url,
+      anonKey,
+      configured: Boolean(url && (anonKey || serviceRoleKey)),
     });
   });
 
