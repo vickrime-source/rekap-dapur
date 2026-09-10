@@ -9,7 +9,11 @@ import {
   PaymentStatus,
   DeliveryStatus,
   ExportHistoryItem,
-  NoteItem
+  NoteItem,
+  DashboardPeriod,
+  MasterToko,
+  MasterPemasok,
+  MasterDapur
 } from './types';
 import { 
   INITIAL_KITCHENS, 
@@ -53,6 +57,13 @@ import {
   processSyncQueue, 
   isDeviceOnline 
 } from './lib/syncQueue';
+import { 
+  fetchMasterTokoFromDb, 
+  fetchMasterPemasokFromDb, 
+  fetchMasterDapurFromDb 
+} from './lib/supabaseDb';
+import { subscribeToTableChanges } from './lib/supabaseClient';
+import { invalidateCache } from './lib/cacheManager';
 import { downloadDocxInvoice } from './lib/docxTemplate';
 import { exportHtmlInvoicePdf } from './lib/htmlInvoicePdf';
 import { 
@@ -72,6 +83,7 @@ export default function App() {
   const [invoices, setInvoices] = useLocalStorage<InvoiceRecord[]>('dapur_tracker_invoices_v4', []);
   const [exportHistory, setExportHistory] = useLocalStorage<ExportHistoryItem[]>('dapur_export_history_v1', []);
   const [notes, setNotes] = useLocalStorage<NoteItem[]>('dapur_highlight_notes_v1', []);
+  const [dashboardPeriod, setDashboardPeriod] = useLocalStorage<DashboardPeriod>('dapur_dashboard_period_v2', 'mingguan');
 
   // Google Sheets Sync State & Offline Queue
   const [isSyncingGas, setIsSyncingGas] = useState(false);
@@ -85,6 +97,41 @@ export default function App() {
   const [isSyncSheetOpen, setIsSyncSheetOpen] = useState(false);
   const [isNoteSheetOpen, setIsNoteSheetOpen] = useState(false);
   const [autoStartVoiceNote, setAutoStartVoiceNote] = useState(false);
+
+  // Master Data State (PostgreSQL Master Tables: Toko, Pemasok, Dapur)
+  const [masterToko, setMasterToko] = useState<MasterToko[]>([]);
+  const [masterPemasok, setMasterPemasok] = useState<MasterPemasok[]>([]);
+  const [masterDapur, setMasterDapur] = useState<MasterDapur[]>([]);
+
+  const refreshMasterData = async () => {
+    try {
+      const [tokoRes, pemasokRes, dapurRes] = await Promise.all([
+        fetchMasterTokoFromDb(),
+        fetchMasterPemasokFromDb(),
+        fetchMasterDapurFromDb(),
+      ]);
+      if (tokoRes.success && tokoRes.data) {
+        setMasterToko(tokoRes.data);
+        if (tokoRes.data.length > 0) {
+          setStores(tokoRes.data.map((t) => ({ id: t.id, nama: t.nama })));
+        }
+      }
+      if (pemasokRes.success && pemasokRes.data) {
+        setMasterPemasok(pemasokRes.data);
+        if (pemasokRes.data.length > 0) {
+          setPemasokList(pemasokRes.data.map((p) => p.nama));
+        }
+      }
+      if (dapurRes.success && dapurRes.data) {
+        setMasterDapur(dapurRes.data);
+        if (dapurRes.data.length > 0) {
+          setKitchens(dapurRes.data.map((d) => ({ id: d.id, nama: d.nama, lokasi: d.alamat })));
+        }
+      }
+    } catch (e) {
+      console.warn('Error refreshing master data from PostgreSQL:', e);
+    }
+  };
 
   // Smart Live Voice Order State (Hold to record & AI auto order)
   const [isSmartVoiceActive, setIsSmartVoiceActive] = useState(false);
@@ -107,9 +154,9 @@ export default function App() {
     setGasError(null);
     try {
       const [pesananRes, transaksiRes, notesRes] = await Promise.all([
-        fetchSheetData<any>('pesanan'),
-        fetchSheetData<any>('transaksi'),
-        fetchSheetData<any>('notes'),
+        fetchSheetData<any>('pesanan', { forceRefresh: showToastNotice }),
+        fetchSheetData<any>('transaksi', { forceRefresh: showToastNotice }),
+        fetchSheetData<any>('notes', { forceRefresh: showToastNotice }),
       ]);
 
       let loadedOrdersCount = 0;
@@ -198,6 +245,7 @@ export default function App() {
 
   React.useEffect(() => {
     loadSpreadsheetData();
+    refreshMasterData();
   }, []);
 
   // Confirm Modal State
@@ -284,6 +332,7 @@ export default function App() {
   const [isTextImportOpen, setIsTextImportOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'kelola_data' | 'dapur' | 'toko' | 'pemasok' | 'template' | 'googlesheets' | 'notifikasi' | 'install' | 'danger'>('kelola_data');
 
   // Background queue processor: uploads queued offline changes to Google Sheets
   const handleProcessQueueAndSync = async (showNotice = false) => {
@@ -337,27 +386,51 @@ export default function App() {
     window.addEventListener('rekap_dapur_sync_queue_change', handleQueueChange as EventListener);
     document.addEventListener('visibilitychange', handleVisibility);
 
-    // Periodic sync polling (every 25s): auto uploads any pending offline queue
-    // and pulls latest updates from Google Sheets so input from other phones automatically appears!
-    const interval = setInterval(() => {
-      if (isDeviceOnline()) {
-        const q = getSyncQueue();
-        if (q.length > 0) {
-          handleProcessQueueAndSync(false);
-        } else if (document.visibilityState === 'visible' && !isOrderModalOpen && !isInvoiceFormOpen && !isInvoiceModalOpen) {
-          loadSpreadsheetData(false);
+    // WAJIB HEMAT EGRESS: Polling setInterval DIHAPUS TOTAL!
+    // Digantikan dengan Supabase Realtime subscription hemat egress:
+    // HANYA subscribe ke tabel yang sedang aktif dilihat user.
+    // Unsubscribe seketika saat user pindah halaman / tab.
+    let unsubscribePesanan: (() => void) | undefined;
+    let unsubscribeNotes: (() => void) | undefined;
+    let unsubscribeTransaksi: (() => void) | undefined;
+
+    const setupRealtime = async () => {
+      try {
+        if (activeTab === 'dashboard' || activeTab === 'dapur' || activeTab === 'toko') {
+          unsubscribePesanan = await subscribeToTableChanges('pesanan', () => {
+            invalidateCache('pesanan');
+            invalidateCache('summary');
+            loadSpreadsheetData(false);
+          });
+          if (activeTab === 'dashboard') {
+            unsubscribeNotes = await subscribeToTableChanges('notes', () => {
+              invalidateCache('notes');
+              loadSpreadsheetData(false);
+            });
+          }
+        } else if (activeTab === 'transaksi') {
+          unsubscribeTransaksi = await subscribeToTableChanges('transaksi', () => {
+            invalidateCache('transaksi');
+            loadSpreadsheetData(false);
+          });
         }
+      } catch (err) {
+        console.warn('Realtime subscription tidak aktif, menggunakan mode fetch-on-demand:', err);
       }
-    }, 25000);
+    };
+
+    setupRealtime();
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('rekap_dapur_sync_queue_change', handleQueueChange as EventListener);
       document.removeEventListener('visibilitychange', handleVisibility);
-      clearInterval(interval);
+      if (unsubscribePesanan) unsubscribePesanan();
+      if (unsubscribeNotes) unsubscribeNotes();
+      if (unsubscribeTransaksi) unsubscribeTransaksi();
     };
-  }, [isOrderModalOpen, isInvoiceFormOpen, isInvoiceModalOpen]);
+  }, [activeTab]);
 
   // Handlers for Order CRUD
   const handleToggleStatus = (id: string) => {
@@ -1747,29 +1820,33 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white pb-36 sm:pb-24">
       {/* Top Header Banner with Live Stats, Duo-card, Highlight Notes, Download Icon & Sync Bottom Sheet Trigger */}
-      <HeaderBanner
-        orders={orders}
-        selectedDate={selectedDate}
-        notes={notes}
-        kitchens={kitchens}
-        onToggleNoteStatus={handleToggleNoteStatus}
-        onDeleteNote={handleDeleteNote}
-        onOpenNewNoteSheet={(startVoice) => {
-          setAutoStartVoiceNote(!!startVoice);
-          setIsNoteSheetOpen(true);
-        }}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenExportHistory={() => setIsExportHistoryOpen(true)}
-        onOpenSyncSheet={() => setIsSyncSheetOpen(true)}
-        isSyncingGas={isSyncingGas}
-        isExportingActive={isExportingActive}
-        exportHistoryCount={exportHistory.length}
-        pendingSyncCount={pendingQueueCount}
-        isOnline={isOnline}
-        onStartVoiceHold={() => setIsSmartVoiceActive(true)}
-        onStopVoiceHold={() => {}}
-        isVoiceActive={isSmartVoiceActive}
-      />
+      {activeTab === 'dashboard' && (
+        <HeaderBanner
+          orders={orders}
+          selectedDate={selectedDate}
+          notes={notes}
+          kitchens={kitchens}
+          period={dashboardPeriod}
+          onPeriodChange={setDashboardPeriod}
+          onToggleNoteStatus={handleToggleNoteStatus}
+          onDeleteNote={handleDeleteNote}
+          onOpenNewNoteSheet={(startVoice) => {
+            setAutoStartVoiceNote(!!startVoice);
+            setIsNoteSheetOpen(true);
+          }}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenExportHistory={() => setIsExportHistoryOpen(true)}
+          onOpenSyncSheet={() => setIsSyncSheetOpen(true)}
+          isSyncingGas={isSyncingGas}
+          isExportingActive={isExportingActive}
+          exportHistoryCount={exportHistory.length}
+          pendingSyncCount={pendingQueueCount}
+          isOnline={isOnline}
+          onStartVoiceHold={() => setIsSmartVoiceActive(true)}
+          onStopVoiceHold={() => {}}
+          isVoiceActive={isSmartVoiceActive}
+        />
+      )}
 
       {/* Main Content Body */}
       <main className="flex-1 w-full max-w-5xl mx-auto px-3 sm:px-4 pt-2 pb-24 sm:pb-8">
@@ -1791,12 +1868,15 @@ export default function App() {
               >
                 <DashboardView
                   orders={orders}
+                  invoices={invoices}
                   isLoading={isSyncingGas}
                   kitchens={kitchens}
                   stores={stores}
                   pemasokList={pemasokList}
                   selectedDate={selectedDate}
                   onDateChange={setSelectedDate}
+                  period={dashboardPeriod}
+                  onPeriodChange={setDashboardPeriod}
                   onToggleStatus={handleToggleStatus}
                   onUpdatePaymentStatus={handleUpdatePaymentStatus}
                   onUpdateDeliveryStatus={handleUpdateDeliveryStatus}
@@ -1826,6 +1906,11 @@ export default function App() {
                   orders={orders}
                   isLoading={isSyncingGas}
                   kitchens={kitchens}
+                  stores={stores}
+                  selectedDate={selectedDate}
+                  onDateChange={setSelectedDate}
+                  period={dashboardPeriod}
+                  onPeriodChange={setDashboardPeriod}
                   onToggleStatus={handleToggleStatus}
                   onUpdatePaymentStatus={handleUpdatePaymentStatus}
                   onUpdateDeliveryStatus={handleUpdateDeliveryStatus}
@@ -1841,6 +1926,16 @@ export default function App() {
                   onDeleteInvoice={handleDeleteInvoice}
                   onDeleteTransaction={handleDeleteTransaction}
                   onOpenAddModal={handleOpenAddModal}
+                  onOpenSettings={(tab) => {
+                    if (tab) setSettingsInitialTab(tab);
+                    setIsSettingsOpen(true);
+                  }}
+                  onOpenExportHistory={() => setIsExportHistoryOpen(true)}
+                  isExportingActive={isExportingActive}
+                  exportHistoryCount={exportHistory.length}
+                  onOpenSyncSheet={() => setIsSyncSheetOpen(true)}
+                  pendingSyncCount={pendingQueueCount}
+                  isOnline={isOnline}
                 />
               </motion.div>
             )}
@@ -1936,6 +2031,10 @@ export default function App() {
         kitchens={kitchens}
         stores={stores}
         pemasokList={pemasokList}
+        masterToko={masterToko}
+        masterPemasok={masterPemasok}
+        masterDapur={masterDapur}
+        onRefreshMaster={refreshMasterData}
         selectedDate={selectedDate}
         existingOrders={orders}
       />
@@ -2029,6 +2128,7 @@ export default function App() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        initialTab={settingsInitialTab}
         kitchens={kitchens}
         onUpdateKitchens={setKitchens}
         stores={stores}
@@ -2038,6 +2138,7 @@ export default function App() {
         orders={orders}
         onUpdateOrders={setOrders}
         onDeleteAllData={handleDeleteAllData}
+        onRefreshData={refreshMasterData}
       />
     </div>
   );

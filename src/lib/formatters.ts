@@ -382,74 +382,59 @@ export function formatJamBackend(dateVal?: any): string {
 
 /**
  * Helper untuk mengecek apakah sebuah order termasuk pesanan hari ini secara akurat.
- * Mendukung pencocokan WIB (Asia/Jakarta), waktu lokal HP, dan tanggal seleksi.
+ * Mendukung pencocokan WIB (Asia/Jakarta) dan tanggal seleksi secara akurat (hanya hari ini saja).
  */
 export function isOrderToday(o: any, targetDateStr?: string): boolean {
   if (!o) return false;
   
-  const todayWIB = getTodayWIB(); // e.g. "2026-09-07"
-  const now = new Date();
-  const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  
-  const validTargets = new Set<string>();
-  validTargets.add(todayWIB);
-  validTargets.add(localToday);
+  // Tanggal target: jika diberikan targetDateStr pakai itu, jika tidak pakai hari ini WIB
+  const target = targetDateStr ? normalizeDateSimple(targetDateStr) : getTodayWIB();
+  if (!target) return false;
 
-  if (targetDateStr) {
-    const normTarget = normalizeDateSimple(targetDateStr);
-    if (normTarget) validTargets.add(normTarget);
-  }
-
-  // 1. Cek o.tanggal
+  // 1. Cek o.tanggal utama
   if (o.tanggal) {
     const norm = normalizeDateSimple(o.tanggal);
-    if (norm && validTargets.has(norm)) return true;
-
-    const parsed = parseDateSafe(o.tanggal);
-    if (parsed) {
-      const parsedISO = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
-      if (validTargets.has(parsedISO)) return true;
-
-      // Antisipasi jika D/M terbalik (misal 7/9 vs 9/7 dari sheet US locale)
-      const swapped = new Date(parsed.getFullYear(), parsed.getDate() - 1, parsed.getMonth() + 1);
-      if (!isNaN(swapped.getTime())) {
-        const swappedISO = `${swapped.getFullYear()}-${String(swapped.getMonth() + 1).padStart(2, '0')}-${String(swapped.getDate()).padStart(2, '0')}`;
-        if (validTargets.has(swappedISO)) return true;
-      }
+    if (norm) {
+      return norm === target;
     }
   }
 
-  // 2. Cek o.createdAt
-  if (o.createdAt) {
+  // 2. Fallback ke o.createdAt hanya jika tanggal kosong
+  if (!o.tanggal && o.createdAt) {
     const normCreated = normalizeDateSimple(o.createdAt);
-    if (normCreated && validTargets.has(normCreated)) return true;
-
-    const createdDate = parseDateSafe(o.createdAt);
-    if (createdDate) {
-      const createdISO = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}-${String(createdDate.getDate()).padStart(2, '0')}`;
-      if (validTargets.has(createdISO)) return true;
-      // Jika dibuat dalam rentang 24 jam terakhir
-      const diffHours = Math.abs(Date.now() - createdDate.getTime()) / 3600000;
-      if (diffHours <= 24) return true;
+    if (normCreated) {
+      return normCreated === target;
     }
   }
 
-  // 3. Cek timestamp pada ID (ord-1725...) jika baru saja dibuat
-  if (typeof o.id === 'string' && o.id.startsWith('ord-')) {
+  // 3. Fallback timestamp pada ID hanya jika o.tanggal dan o.createdAt kosong
+  if (!o.tanggal && !o.createdAt && typeof o.id === 'string' && o.id.startsWith('ord-')) {
     const tsMatch = o.id.match(/^ord-(\d{10,13})/);
     if (tsMatch) {
       const ts = parseInt(tsMatch[1], 10);
       const tsDate = new Date(ts > 1e11 ? ts : ts * 1000);
       if (!isNaN(tsDate.getTime())) {
-        const tsISO = `${tsDate.getFullYear()}-${String(tsDate.getMonth() + 1).padStart(2, '0')}-${String(tsDate.getDate()).padStart(2, '0')}`;
-        if (validTargets.has(tsISO)) return true;
-        const diffHours = Math.abs(Date.now() - tsDate.getTime()) / 3600000;
-        if (diffHours <= 24) return true;
+        const normId = normalizeDateSimple(tsDate);
+        return normId === target;
       }
     }
   }
 
   return false;
+}
+
+/**
+ * Format tanggal simpel untuk badge (contoh: "10 Sep 2026")
+ */
+export function formatTanggalSimple(dateVal: any): string {
+  if (!dateVal) return '';
+  const date = parseDateSafe(dateVal);
+  if (!date) return String(dateVal);
+
+  const d = date.getDate();
+  const m = INDONESIAN_MONTHS_SHORT[date.getMonth()];
+  const y = date.getFullYear();
+  return `${d} ${m} ${y}`;
 }
 
 /**
@@ -553,4 +538,105 @@ export function getTokoBadgeStyle(tokoName: string): string {
   if (!tokoName) return 'bg-slate-100 text-slate-800 border-slate-300 font-bold';
   return 'bg-slate-100 text-slate-900 border-slate-300 font-extrabold shadow-2xs';
 }
+
+export interface WeekRange {
+  start: Date;
+  end: Date;
+  startStr: string; // YYYY-MM-DD
+  endStr: string;   // YYYY-MM-DD
+  label: string;    // e.g. "Senin, 7 Sep – Minggu, 13 Sep 2026"
+  shortLabel: string; // e.g. "7 – 13 Sep 2026"
+}
+
+/**
+ * Menghitung rentang hari Senin hingga Minggu untuk tanggal acuan (default hari ini WIB).
+ */
+export function getWeekRange(referenceDate?: Date | string): WeekRange {
+  let ref: Date;
+  if (referenceDate) {
+    ref = parseDateSafe(referenceDate) || new Date();
+  } else {
+    const todayWIB = getTodayWIB();
+    ref = parseDateSafe(todayWIB) || new Date();
+  }
+
+  const d = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
+  const day = d.getDay(); // 0 is Sunday, 1 is Monday, ...
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+
+  const formatISO = (date: Date) => {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  const startStr = formatISO(monday);
+  const endStr = formatISO(sunday);
+
+  const startDay = monday.getDate();
+  const endDay = sunday.getDate();
+  const startMonth = INDONESIAN_MONTHS_SHORT[monday.getMonth()];
+  const endMonth = INDONESIAN_MONTHS_SHORT[sunday.getMonth()];
+  const year = sunday.getFullYear();
+
+  const shortLabel = startMonth === endMonth
+    ? `${startDay} - ${endDay} ${endMonth} ${year}`
+    : `${startDay} ${startMonth} - ${endDay} ${endMonth} ${year}`;
+
+  const label = `Senin, ${startDay} ${startMonth} – Minggu, ${endDay} ${endMonth} ${year}`;
+
+  return {
+    start: monday,
+    end: sunday,
+    startStr,
+    endStr,
+    label,
+    shortLabel,
+  };
+}
+
+/**
+ * Mengecek apakah tanggal berada dalam rentang minggu (Senin - Minggu).
+ */
+export function isDateInWeek(dateVal: any, weekRange?: WeekRange): boolean {
+  if (!dateVal) return false;
+  const targetWeek = weekRange || getWeekRange();
+
+  const iso = normalizeDateSimple(dateVal);
+  if (iso && iso >= targetWeek.startStr && iso <= targetWeek.endStr) {
+    return true;
+  }
+
+  const parsed = parseDateSafe(dateVal);
+  if (parsed) {
+    const d = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+    const start = new Date(targetWeek.start.getFullYear(), targetWeek.start.getMonth(), targetWeek.start.getDate());
+    const end = new Date(targetWeek.end.getFullYear(), targetWeek.end.getMonth(), targetWeek.end.getDate());
+    return d >= start && d <= end;
+  }
+
+  return false;
+}
+
+/**
+ * Mengecek apakah sebuah order atau record transaksi termasuk dalam minggu ini (Senin - Minggu).
+ */
+export function isOrderThisWeek(o: any, weekRange?: WeekRange): boolean {
+  if (!o) return false;
+  const targetWeek = weekRange || getWeekRange();
+
+  if (o.tanggal && isDateInWeek(o.tanggal, targetWeek)) return true;
+  if (o.DATE && isDateInWeek(o.DATE, targetWeek)) return true;
+  if (o.createdAt && isDateInWeek(o.createdAt, targetWeek)) return true;
+  if (o.tanggalPrint && isDateInWeek(o.tanggalPrint, targetWeek)) return true;
+
+  return false;
+}
+
 

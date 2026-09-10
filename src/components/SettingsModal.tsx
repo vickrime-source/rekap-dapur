@@ -23,7 +23,9 @@ import {
   Sparkles,
   FileSpreadsheet,
   Bell,
-  Clock
+  Clock,
+  Search,
+  Database
 } from 'lucide-react';
 import { Kitchen, Store as StoreType, OrderItem } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -45,6 +47,15 @@ import {
   sendTestNotification,
   NotificationSettings,
 } from '../lib/notificationManager';
+import { 
+  saveMasterTokoToDb, 
+  deleteMasterTokoFromDb, 
+  saveMasterPemasokToDb, 
+  deleteMasterPemasokFromDb, 
+  saveMasterDapurToDb, 
+  deleteMasterDapurFromDb, 
+  checkMasterUsageFromDb 
+} from '../lib/supabaseDb';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -58,6 +69,8 @@ interface SettingsModalProps {
   orders?: OrderItem[];
   onUpdateOrders?: (orders: OrderItem[]) => void;
   onDeleteAllData?: () => void;
+  onRefreshData?: () => void | Promise<void>;
+  initialTab?: 'kelola_data' | 'dapur' | 'toko' | 'pemasok' | 'template' | 'googlesheets' | 'notifikasi' | 'install' | 'danger';
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -72,8 +85,56 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   orders = [],
   onUpdateOrders,
   onDeleteAllData,
+  onRefreshData,
+  initialTab,
 }) => {
-  const [activeTab, setActiveTab] = useState<'dapur' | 'toko' | 'pemasok' | 'template' | 'googlesheets' | 'notifikasi' | 'install' | 'danger'>('dapur');
+  const [activeTab, setActiveTab] = useState<'kelola_data' | 'template' | 'googlesheets' | 'notifikasi' | 'install' | 'danger'>(() => {
+    if (initialTab === 'dapur' || initialTab === 'toko' || initialTab === 'pemasok' || initialTab === 'kelola_data') {
+      return 'kelola_data';
+    }
+    return (initialTab as any) || 'kelola_data';
+  });
+
+  const [kelolaSubTab, setKelolaSubTab] = useState<'toko' | 'pemasok' | 'dapur'>(() => {
+    if (initialTab === 'dapur') return 'dapur';
+    if (initialTab === 'pemasok') return 'pemasok';
+    return 'toko';
+  });
+
+  // Search states for Kelola Data
+  const [searchToko, setSearchToko] = useState('');
+  const [searchPemasok, setSearchPemasok] = useState('');
+  const [searchDapur, setSearchDapur] = useState('');
+
+  // Safety dialog state for delete checking
+  const [safetyDialog, setSafetyDialog] = useState<{
+    type: 'blocked' | 'confirm';
+    category: 'Toko' | 'Pemasok' | 'Dapur';
+    id: string;
+    nama: string;
+    orderCount?: number;
+    transaksiCount?: number;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Endpoint Link Google Sheet Rekap Bulanan
+  const [monthlySheetEndpoint, setMonthlySheetEndpoint] = useState<string>(() => {
+    return localStorage.getItem('gas_rekap_bulanan_sheet_url') || '';
+  });
+  const [monthlyEndpointSaved, setMonthlyEndpointSaved] = useState(false);
+
+  React.useEffect(() => {
+    if (initialTab && isOpen) {
+      if (initialTab === 'dapur' || initialTab === 'toko' || initialTab === 'pemasok' || initialTab === 'kelola_data') {
+        setActiveTab('kelola_data');
+        if (initialTab === 'dapur') setKelolaSubTab('dapur');
+        if (initialTab === 'pemasok') setKelolaSubTab('pemasok');
+        if (initialTab === 'toko') setKelolaSubTab('toko');
+      } else {
+        setActiveTab(initialTab as any);
+      }
+    }
+  }, [initialTab, isOpen]);
 
   // Notification States
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(getNotificationSettings());
@@ -150,15 +211,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   if (!isOpen) return null;
 
   // --- KITCHEN HANDLERS ---
-  const handleAddOrUpdateKitchen = (e: React.FormEvent) => {
+  const handleAddOrUpdateKitchen = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newKitchenName.trim()) return;
+
+    const trimmedName = newKitchenName.trim();
+    const trimmedLoc = newKitchenLocation.trim() || undefined;
+
+    // Simpan ke PostgreSQL Dapur
+    saveMasterDapurToDb(trimmedName, trimmedLoc).then(() => {
+      onRefreshData?.();
+    }).catch(console.error);
 
     if (editingKitchenId) {
       onUpdateKitchens(
         kitchens.map((k) =>
           k.id === editingKitchenId
-            ? { ...k, nama: newKitchenName.trim(), lokasi: newKitchenLocation.trim() || undefined }
+            ? { ...k, nama: trimmedName, lokasi: trimmedLoc }
             : k
         )
       );
@@ -166,8 +235,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     } else {
       const newK: Kitchen = {
         id: `k-${Date.now()}`,
-        nama: newKitchenName.trim(),
-        lokasi: newKitchenLocation.trim() || undefined,
+        nama: trimmedName,
+        lokasi: trimmedLoc,
       };
       onUpdateKitchens([...kitchens, newK]);
     }
@@ -181,26 +250,56 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setNewKitchenLocation(k.lokasi || '');
   };
 
-  const handleDeleteKitchen = (id: string) => {
-    if (confirm('Yakin ingin menghapus dapur ini?')) {
-      onUpdateKitchens(kitchens.filter((k) => k.id !== id));
+  const handleDeleteKitchen = async (id: string) => {
+    const targetKitchen = kitchens.find((k) => k.id === id);
+    const targetName = targetKitchen?.nama || '';
+
+    // Cek apakah masih dipakai di pesanan atau transaksi
+    try {
+      const check = await checkMasterUsageFromDb('dapur', id, targetName);
+      if (check.isUsed) {
+        setSafetyDialog({
+          type: 'blocked',
+          category: 'Dapur',
+          id,
+          nama: targetName,
+          orderCount: check.orderCount,
+          transaksiCount: check.transaksiCount,
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn('Error checking usage:', e);
     }
+
+    setSafetyDialog({
+      type: 'confirm',
+      category: 'Dapur',
+      id,
+      nama: targetName,
+    });
   };
 
   // --- STORE HANDLERS ---
-  const handleAddOrUpdateStore = (e: React.FormEvent) => {
+  const handleAddOrUpdateStore = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStoreName.trim()) return;
 
+    const trimmedStore = newStoreName.trim();
+    // Simpan ke PostgreSQL Toko
+    saveMasterTokoToDb(trimmedStore).then(() => {
+      onRefreshData?.();
+    }).catch(console.error);
+
     if (editingStoreId) {
       onUpdateStores(
-        stores.map((s) => (s.id === editingStoreId ? { ...s, nama: newStoreName.trim() } : s))
+        stores.map((s) => (s.id === editingStoreId ? { ...s, nama: trimmedStore } : s))
       );
       setEditingStoreId(null);
     } else {
       const newS: StoreType = {
         id: `s-${Date.now()}`,
-        nama: newStoreName.trim(),
+        nama: trimmedStore,
       };
       onUpdateStores([...stores, newS]);
     }
@@ -212,27 +311,103 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setNewStoreName(s.nama);
   };
 
-  const handleDeleteStore = (id: string) => {
-    if (confirm('Yakin ingin menghapus toko ini?')) {
-      onUpdateStores(stores.filter((s) => s.id !== id));
+  const handleDeleteStore = async (id: string) => {
+    const targetStore = stores.find((s) => s.id === id);
+    const targetName = targetStore?.nama || '';
+
+    // Cek apakah masih dipakai di pesanan atau transaksi
+    try {
+      const check = await checkMasterUsageFromDb('toko', id, targetName);
+      if (check.isUsed) {
+        setSafetyDialog({
+          type: 'blocked',
+          category: 'Toko',
+          id,
+          nama: targetName,
+          orderCount: check.orderCount,
+          transaksiCount: check.transaksiCount,
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn('Error checking usage:', e);
     }
+
+    setSafetyDialog({
+      type: 'confirm',
+      category: 'Toko',
+      id,
+      nama: targetName,
+    });
   };
 
   // --- PEMASOK HANDLERS ---
-  const handleAddPemasok = (e: React.FormEvent) => {
+  const handleAddPemasok = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPemasokName.trim()) return;
-    if (pemasokList.includes(newPemasokName.trim())) {
-      alert('Pemasok sudah terdaftar');
+    const trimmedPemasok = newPemasokName.trim();
+    if (pemasokList.includes(trimmedPemasok)) {
+      alert('Pemasok sudah terdaftar di daftar');
       return;
     }
-    onUpdatePemasok([...pemasokList, newPemasokName.trim()]);
+
+    // Simpan ke PostgreSQL Pemasok
+    saveMasterPemasokToDb(trimmedPemasok).then(() => {
+      onRefreshData?.();
+    }).catch(console.error);
+
+    onUpdatePemasok([...pemasokList, trimmedPemasok]);
     setNewPemasokName('');
   };
 
-  const handleDeletePemasok = (name: string) => {
-    if (confirm(`Yakin ingin menghapus pemasok "${name}"?`)) {
-      onUpdatePemasok(pemasokList.filter((p) => p !== name));
+  const handleDeletePemasok = async (name: string) => {
+    // Cek apakah masih dipakai di pesanan atau transaksi
+    try {
+      const check = await checkMasterUsageFromDb('pemasok', name, name);
+      if (check.isUsed) {
+        setSafetyDialog({
+          type: 'blocked',
+          category: 'Pemasok',
+          id: name,
+          nama: name,
+          orderCount: check.orderCount,
+          transaksiCount: check.transaksiCount,
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn('Error checking usage:', e);
+    }
+
+    setSafetyDialog({
+      type: 'confirm',
+      category: 'Pemasok',
+      id: name,
+      nama: name,
+    });
+  };
+
+  // Execute safe deletion
+  const handleExecuteSafetyDelete = async () => {
+    if (!safetyDialog || safetyDialog.type !== 'confirm') return;
+    setIsDeleting(true);
+    try {
+      if (safetyDialog.category === 'Dapur') {
+        await deleteMasterDapurFromDb(safetyDialog.id);
+        onUpdateKitchens(kitchens.filter((k) => k.id !== safetyDialog.id));
+      } else if (safetyDialog.category === 'Toko') {
+        await deleteMasterTokoFromDb(safetyDialog.id);
+        onUpdateStores(stores.filter((s) => s.id !== safetyDialog.id));
+      } else if (safetyDialog.category === 'Pemasok') {
+        await deleteMasterPemasokFromDb(safetyDialog.nama);
+        onUpdatePemasok(pemasokList.filter((p) => p !== safetyDialog.nama));
+      }
+      await onRefreshData?.();
+    } catch (err) {
+      console.error('Gagal menghapus:', err);
+    } finally {
+      setIsDeleting(false);
+      setSafetyDialog(null);
     }
   };
 
@@ -357,13 +532,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Header */}
           <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-black text-slate-900 leading-none">
-                Pengaturan Sistem &amp; Master Data
-              </h2>
-              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                Kelola master data toko, dapur, template invoice, dan spreadsheet
-              </p>
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold shrink-0">
+                <Database className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-base font-black text-slate-900 leading-none">
+                  Pengaturan &amp; Kelola Data
+                </h2>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  Kelola data toko, pemasok, dapur, template faktur, dan spreadsheet
+                </p>
+              </div>
             </div>
             <button
               type="button"
@@ -379,41 +559,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth">
               <button
                 type="button"
-                onClick={() => setActiveTab('dapur')}
+                onClick={() => setActiveTab('kelola_data')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
-                  activeTab === 'dapur'
+                  activeTab === 'kelola_data'
                     ? 'bg-indigo-600 text-white shadow-xs'
                     : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
                 }`}
               >
-                <Utensils className="w-3.5 h-3.5" />
-                <span>Dapur ({kitchens.length})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('toko')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
-                  activeTab === 'toko'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
-                }`}
-              >
-                <StoreIcon className="w-3.5 h-3.5" />
-                <span>Toko ({stores.length})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('pemasok')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
-                  activeTab === 'pemasok'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
-                }`}
-              >
-                <Truck className="w-3.5 h-3.5" />
-                <span>Pemasok ({pemasokList.length})</span>
+                <Database className="w-3.5 h-3.5" />
+                <span>Kelola Data ({stores.length + pemasokList.length + kitchens.length})</span>
               </button>
 
               <button
@@ -485,201 +639,370 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Scrollable Content Body */}
           <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
-            {/* SUB-TAB 1: KELOLA DAPUR */}
-            {activeTab === 'dapur' && (
+            {/* UNIFIED TAB: KELOLA DATA (TOKO, PEMASOK, DAPUR) */}
+            {activeTab === 'kelola_data' && (
               <div className="space-y-4">
-                <form onSubmit={handleAddOrUpdateKitchen} className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
-                    {editingKitchenId ? 'Edit Data Dapur' : 'Tambah Dapur Baru'}
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                    <input
-                      type="text"
-                      placeholder="Nama Dapur (misal: Dapur Utama)"
-                      required
-                      value={newKitchenName}
-                      onChange={(e) => setNewKitchenName(e.target.value)}
-                      className="p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Lokasi / Keterangan (Opsional)"
-                      value={newKitchenLocation}
-                      onChange={(e) => setNewKitchenLocation(e.target.value)}
-                      className="p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
-                    />
-                  </div>
-                  <div className="flex gap-2 justify-end pt-1">
-                    {editingKitchenId && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingKitchenId(null);
-                          setNewKitchenName('');
-                          setNewKitchenLocation('');
-                        }}
-                        className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-600 hover:bg-slate-100"
-                      >
-                        Batal
-                      </button>
-                    )}
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>{editingKitchenId ? 'Simpan Perubahan' : 'Tambah Dapur'}</span>
-                    </button>
-                  </div>
-                </form>
+                {/* Sub-Tabs Switcher: Toko | Pemasok | Dapur */}
+                <div className="flex items-center p-1 bg-slate-100 rounded-2xl gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setKelolaSubTab('toko')}
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      kelolaSubTab === 'toko'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <StoreIcon className="w-3.5 h-3.5" />
+                    <span>Toko</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      kelolaSubTab === 'toko' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {stores.length}
+                    </span>
+                  </button>
 
-                <div className="space-y-2">
-                  <span className="text-xs font-black text-slate-700 uppercase tracking-wider block">
-                    Daftar Dapur Aktif ({kitchens.length})
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {kitchens.map((k) => (
-                      <div
-                        key={k.id}
-                        className="p-3 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-between shadow-2xs hover:border-indigo-300 transition-all"
-                      >
-                        <div>
-                          <div className="font-bold text-xs text-slate-900">{k.nama}</div>
-                          {k.lokasi && <div className="text-[11px] text-slate-500 font-medium">{k.lokasi}</div>}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleEditKitchen(k)}
-                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                            title="Edit"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteKitchen(k.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Hapus"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setKelolaSubTab('pemasok')}
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      kelolaSubTab === 'pemasok'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <Truck className="w-3.5 h-3.5" />
+                    <span>Pemasok</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      kelolaSubTab === 'pemasok' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {pemasokList.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setKelolaSubTab('dapur')}
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                      kelolaSubTab === 'dapur'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <Utensils className="w-3.5 h-3.5" />
+                    <span>Dapur</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      kelolaSubTab === 'dapur' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {kitchens.length}
+                    </span>
+                  </button>
                 </div>
-              </div>
-            )}
 
-            {/* SUB-TAB 2: KELOLA TOKO */}
-            {activeTab === 'toko' && (
-              <div className="space-y-4">
-                <form onSubmit={handleAddOrUpdateStore} className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
-                    {editingStoreId ? 'Edit Toko' : 'Tambah Toko Baru'}
-                  </h3>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Nama Toko (Contoh: HTG, PROHE, LUWENG BOGA)"
-                      required
-                      value={newStoreName}
-                      onChange={(e) => setNewStoreName(e.target.value)}
-                      className="flex-1 p-2.5 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
-                    />
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>{editingStoreId ? 'Simpan' : 'Tambah'}</span>
-                    </button>
-                  </div>
-                </form>
-
-                <div className="space-y-2">
-                  <span className="text-xs font-black text-slate-700 uppercase tracking-wider block">
-                    Daftar Toko ({stores.length})
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {stores.map((s) => (
-                      <div
-                        key={s.id}
-                        className="p-3 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-between shadow-2xs hover:border-indigo-300 transition-all"
-                      >
-                        <span className="font-extrabold text-xs text-slate-900">{s.nama}</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleEditStore(s)}
-                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteStore(s.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                {/* --- SUB-VIEW 1: TOKO --- */}
+                {kelolaSubTab === 'toko' && (
+                  <div className="space-y-4">
+                    <form onSubmit={handleAddOrUpdateStore} className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <StoreIcon className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>{editingStoreId ? 'Edit Data Toko' : 'Tambah Toko Baru'}</span>
+                        </h3>
+                        {editingStoreId && (
+                          <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
+                            Mode Edit
+                          </span>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* SUB-TAB 3: KELOLA PEMASOK */}
-            {activeTab === 'pemasok' && (
-              <div className="space-y-4">
-                <form onSubmit={handleAddPemasok} className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
-                    Tambah Pemasok Baru
-                  </h3>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Nama Pemasok (Contoh: Juragan Ayam, Pasar Rogojampi)"
-                      required
-                      value={newPemasokName}
-                      onChange={(e) => setNewPemasokName(e.target.value)}
-                      className="flex-1 p-2.5 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
-                    />
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Tambah</span>
-                    </button>
-                  </div>
-                </form>
-
-                <div className="space-y-2">
-                  <span className="text-xs font-black text-slate-700 uppercase tracking-wider block">
-                    Daftar Pemasok ({pemasokList.length})
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {pemasokList.map((p) => (
-                      <div
-                        key={p}
-                        className="p-3 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-between shadow-2xs hover:border-indigo-300 transition-all"
-                      >
-                        <span className="font-bold text-xs text-slate-900">{p}</span>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Nama Toko (Contoh: HTG, PROHE, LUWENG BOGA)"
+                          required
+                          value={newStoreName}
+                          onChange={(e) => setNewStoreName(e.target.value)}
+                          className="flex-1 p-2.5 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
+                        />
+                        {editingStoreId && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingStoreId(null);
+                              setNewStoreName('');
+                            }}
+                            className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                          >
+                            Batal
+                          </button>
+                        )}
                         <button
-                          type="button"
-                          onClick={() => handleDeletePemasok(p)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          type="submit"
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>{editingStoreId ? 'Simpan' : 'Tambah'}</span>
                         </button>
                       </div>
-                    ))}
+                    </form>
+
+                    {/* Search & List */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-black text-slate-700 uppercase tracking-wider block">
+                          Daftar Toko ({stores.length})
+                        </span>
+                        {stores.length > 4 && (
+                          <div className="relative w-44">
+                            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                              type="text"
+                              placeholder="Cari toko..."
+                              value={searchToko}
+                              onChange={(e) => setSearchToko(e.target.value)}
+                              className="w-full pl-8 pr-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-indigo-600 font-medium"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {stores.length === 0 ? (
+                        <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          Belum ada data toko. Silakan tambahkan toko di atas.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {stores
+                            .filter((s) => s.nama.toLowerCase().includes(searchToko.toLowerCase()))
+                            .map((s) => (
+                              <div
+                                key={s.id}
+                                className="p-3 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-between shadow-2xs hover:border-indigo-300 transition-all"
+                              >
+                                <span className="font-black text-xs text-slate-900">{s.nama}</span>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditStore(s)}
+                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Edit Toko"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteStore(s.id)}
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Hapus Toko"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* --- SUB-VIEW 2: PEMASOK --- */}
+                {kelolaSubTab === 'pemasok' && (
+                  <div className="space-y-4">
+                    <form onSubmit={handleAddPemasok} className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Truck className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Tambah Pemasok Baru</span>
+                      </h3>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Nama Pemasok (Contoh: Juragan Ayam, Pasar Rogojampi)"
+                          required
+                          value={newPemasokName}
+                          onChange={(e) => setNewPemasokName(e.target.value)}
+                          className="flex-1 p-2.5 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
+                        />
+                        <button
+                          type="submit"
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Tambah</span>
+                        </button>
+                      </div>
+                    </form>
+
+                    {/* Search & List */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-black text-slate-700 uppercase tracking-wider block">
+                          Daftar Pemasok ({pemasokList.length})
+                        </span>
+                        {pemasokList.length > 4 && (
+                          <div className="relative w-44">
+                            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                              type="text"
+                              placeholder="Cari pemasok..."
+                              value={searchPemasok}
+                              onChange={(e) => setSearchPemasok(e.target.value)}
+                              className="w-full pl-8 pr-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-indigo-600 font-medium"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {pemasokList.length === 0 ? (
+                        <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          Belum ada data pemasok. Silakan tambahkan pemasok di atas.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {pemasokList
+                            .filter((p) => p.toLowerCase().includes(searchPemasok.toLowerCase()))
+                            .map((p) => (
+                              <div
+                                key={p}
+                                className="p-3 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-between shadow-2xs hover:border-indigo-300 transition-all"
+                              >
+                                <span className="font-bold text-xs text-slate-900">{p}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePemasok(p)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Hapus Pemasok"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* --- SUB-VIEW 3: DAPUR --- */}
+                {kelolaSubTab === 'dapur' && (
+                  <div className="space-y-4">
+                    <form onSubmit={handleAddOrUpdateKitchen} className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <Utensils className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>{editingKitchenId ? 'Edit Data Dapur' : 'Tambah Dapur Baru'}</span>
+                        </h3>
+                        {editingKitchenId && (
+                          <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
+                            Mode Edit
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        <input
+                          type="text"
+                          placeholder="Nama Dapur (misal: Dapur Utama)"
+                          required
+                          value={newKitchenName}
+                          onChange={(e) => setNewKitchenName(e.target.value)}
+                          className="p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Lokasi / Keterangan (Opsional)"
+                          value={newKitchenLocation}
+                          onChange={(e) => setNewKitchenLocation(e.target.value)}
+                          className="p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
+                        />
+                      </div>
+                      <div className="flex gap-2 justify-end pt-1">
+                        {editingKitchenId && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingKitchenId(null);
+                              setNewKitchenName('');
+                              setNewKitchenLocation('');
+                            }}
+                            className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                          >
+                            Batal
+                          </button>
+                        )}
+                        <button
+                          type="submit"
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>{editingKitchenId ? 'Simpan Perubahan' : 'Tambah Dapur'}</span>
+                        </button>
+                      </div>
+                    </form>
+
+                    {/* Search & List */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-black text-slate-700 uppercase tracking-wider block">
+                          Daftar Dapur ({kitchens.length})
+                        </span>
+                        {kitchens.length > 4 && (
+                          <div className="relative w-44">
+                            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                              type="text"
+                              placeholder="Cari dapur..."
+                              value={searchDapur}
+                              onChange={(e) => setSearchDapur(e.target.value)}
+                              className="w-full pl-8 pr-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-indigo-600 font-medium"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {kitchens.length === 0 ? (
+                        <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          Belum ada data dapur. Silakan tambahkan dapur di atas.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {kitchens
+                            .filter((k) => 
+                              k.nama.toLowerCase().includes(searchDapur.toLowerCase()) ||
+                              (k.lokasi && k.lokasi.toLowerCase().includes(searchDapur.toLowerCase()))
+                            )
+                            .map((k) => (
+                              <div
+                                key={k.id}
+                                className="p-3 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-between shadow-2xs hover:border-indigo-300 transition-all"
+                              >
+                                <div>
+                                  <div className="font-bold text-xs text-slate-900">{k.nama}</div>
+                                  {k.lokasi && <div className="text-[11px] text-slate-500 font-medium">{k.lokasi}</div>}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditKitchen(k)}
+                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Edit Dapur"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteKitchen(k.id)}
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Hapus Dapur"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -846,9 +1169,60 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             )}
 
-            {/* SUB-TAB 5: GOOGLE SHEETS API */}
+            {/* SUB-TAB 5: GOOGLE SHEETS API & ENDPOINT REKAP BULANAN */}
             {activeTab === 'googlesheets' && (
               <div className="space-y-4 text-xs text-slate-700">
+                {/* 1. Dedicated Endpoint Setting for Rekapan Bulanan (Digunakan tombol simpan di page Transaksi) */}
+                <div className="bg-gradient-to-br from-indigo-50/90 to-purple-50/60 p-4 rounded-2xl border border-indigo-200/90 space-y-3 shadow-2xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <FileSpreadsheet className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-indigo-950 text-xs uppercase tracking-wider">
+                        Endpoint Link Google Sheet (Rekap Bulanan)
+                      </h3>
+                      <p className="text-[10px] text-indigo-800/80 font-medium">
+                        URL tujuan saat ikon simpan / unduh di Halaman Transaksi diklik
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <label className="text-[11px] font-bold text-slate-800 block">
+                      Endpoint / Webhook URL Google Sheets (Google Apps Script / Sheet Link):
+                    </label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="url"
+                        placeholder="https://script.google.com/macros/s/.../exec atau URL Google Sheet"
+                        value={monthlySheetEndpoint}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setMonthlySheetEndpoint(val);
+                          localStorage.setItem('gas_rekap_bulanan_sheet_url', val.trim());
+                        }}
+                        className="flex-1 p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          localStorage.setItem('gas_rekap_bulanan_sheet_url', monthlySheetEndpoint.trim());
+                          setMonthlyEndpointSaved(true);
+                          setTimeout(() => setMonthlyEndpointSaved(false), 2500);
+                        }}
+                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs shrink-0 min-h-[40px]"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{monthlyEndpointSaved ? 'Tersimpan!' : 'Simpan Link'}</span>
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                      Sistem mengintegrasikan 1 Google Sheet ini. Setiap kali ikon simpan di halaman Transaksi diklik, data rekapan bulanan (total pesanan, total Qty, H.Jual, H.Beli, profit bersih, serta rincian toko) langsung diperbarui otomatis ke link sheet tersebut.
+                    </p>
+                  </div>
+                </div>
+
                 {/* Connection Status & Test Card */}
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3.5">
                   <div className="flex items-center justify-between">
@@ -1000,7 +1374,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </p>
                 </div>
 
-                {/* 2. Master & Feature Toggles */}
+                {/* 2. Pengaturan Sakelar Notifikasi */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200/80 space-y-3.5 shadow-xs">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                     <div>
@@ -1008,7 +1382,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         Aktifkan Seluruh Notifikasi HP
                       </span>
                       <span className="text-[10px] text-slate-500 font-medium">
-                        Master switch untuk mengaktifkan atau menonaktifkan semua notifikasi
+                        Sakelar utama untuk mengaktifkan atau menonaktifkan semua notifikasi
                       </span>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -1182,6 +1556,93 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             )}
           </div>
         </motion.div>
+
+        {/* Safety Dialog Modal (Prevent orphan data or confirm delete) */}
+        {safetyDialog && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs font-sans">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4"
+            >
+              {safetyDialog.type === 'blocked' ? (
+                <>
+                  <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div className="text-center space-y-2">
+                    <h3 className="text-base font-black text-slate-900">
+                      Tidak Dapat Menghapus {safetyDialog.category}
+                    </h3>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      <span className="font-bold text-slate-900">"{safetyDialog.nama}"</span> masih tercatat digunakan pada{' '}
+                      <span className="font-extrabold text-amber-700">{safetyDialog.orderCount || 0} pesanan</span> dan{' '}
+                      <span className="font-extrabold text-amber-700">{safetyDialog.transaksiCount || 0} riwayat transaksi</span>.
+                    </p>
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200/80 text-[11px] text-amber-800 text-left font-medium">
+                      Data ini dilarang dihapus agar riwayat transaksi dan faktur yang sudah berjalan tidak menjadi data rusak (orphan).
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSafetyDialog(null)}
+                    className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-black transition-all cursor-pointer"
+                  >
+                    Mengerti &amp; Tutup
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+                    <Trash2 className="w-6 h-6" />
+                  </div>
+                  <div className="text-center space-y-2">
+                    <h3 className="text-base font-black text-slate-900">
+                      Hapus {safetyDialog.category}?
+                    </h3>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Yakin ingin menghapus {safetyDialog.category.toLowerCase()}{' '}
+                      <span className="font-bold text-slate-900">"{safetyDialog.nama}"</span>?
+                    </p>
+                    <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200/70 text-[11px] text-emerald-800 text-left font-medium flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Data aman dihapus karena belum pernah dipakai di pesanan mana pun.</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setSafetyDialog(null)}
+                      disabled={isDeleting}
+                      className="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExecuteSafetyDelete}
+                      disabled={isDeleting}
+                      className="py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {isDeleting ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Menghapus...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Ya, Hapus</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </div>
+        )}
       </div>
     </AnimatePresence>
   );

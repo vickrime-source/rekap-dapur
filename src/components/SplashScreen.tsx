@@ -13,7 +13,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
   useEffect(() => {
     const timer1 = setTimeout(() => {
       setProgress(55);
-      setStatusText('Memuat Master Data Dapur & Toko...');
+      setStatusText('Memuat Data Dapur & Toko...');
     }, 400);
 
     const timer2 = setTimeout(() => {

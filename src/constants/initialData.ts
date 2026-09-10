@@ -1,5 +1,19 @@
-import { Kitchen, Store, OrderItem } from '../types';
+import { Kitchen, Store, OrderItem, MasterToko, MasterPemasok, MasterDapur } from '../types';
 import { getTodayWIB } from '../lib/formatters';
+
+export const INITIAL_MASTER_TOKO: MasterToko[] = [
+  { id: 'toko-lb', nama: 'LB / Luweng Boga' },
+  { id: 'toko-htg', nama: 'HTG' },
+  { id: 'toko-la', nama: 'LA / Lumbung Adifruta' },
+  { id: 'toko-pw', nama: 'PW / Prohe' }
+];
+
+export const INITIAL_MASTER_PEMASOK: MasterPemasok[] = [
+  { id: 'pemasok-1', nama: 'Pemasok 1' },
+  { id: 'pemasok-2', nama: 'Pemasok 2' },
+  { id: 'pemasok-3', nama: 'Pemasok 3' },
+  { id: 'pemasok-4', nama: 'Pemasok 4' }
+];
 
 export const INITIAL_PEMASOK: string[] = [
   "Pemasok 1",
@@ -10,113 +24,52 @@ export const INITIAL_PEMASOK: string[] = [
 
 export const INITIAL_STORES: Store[] = [
   {
-    "id": "st-1",
+    "id": "st-lb",
+    "nama": "LB / Luweng Boga",
+    "lokasi": "Depo Makanan"
+  },
+  {
+    "id": "st-htg",
     "nama": "HTG",
     "lokasi": "CV. HANDAI TOLAN GROUP"
   },
   {
-    "id": "st-2",
-    "nama": "PROHE",
-    "lokasi": "Gudang Protein"
-  },
-  {
-    "id": "st-3",
-    "nama": "LUWENG BOGA",
-    "lokasi": "Depo Makanan"
-  },
-  {
-    "id": "st-4",
-    "nama": "ADIFRUITA",
+    "id": "st-la",
+    "nama": "LA / Lumbung Adifruta",
     "lokasi": "Distributor Buah"
+  },
+  {
+    "id": "st-pw",
+    "nama": "PW / Prohe",
+    "lokasi": "Gudang Protein"
   }
 ];
 
-export const INITIAL_KITCHENS: Kitchen[] = [
-  {
-    "id": "kt-1",
-    "nama": "Siliragung"
-  },
-  {
-    "id": "kt-2",
-    "nama": "Singojuruh"
-  },
-  {
-    "id": "kt-3",
-    "nama": "Banjarsari 2"
-  },
-  {
-    "id": "kt-4",
-    "nama": "Cluring"
-  },
-  {
-    "id": "kt-5",
-    "nama": "Tamansari"
-  },
-  {
-    "id": "kt-6",
-    "nama": "Wongsorejo"
-  },
-  {
-    "id": "kt-7",
-    "nama": "Wringinputih 2"
-  },
-  {
-    "id": "kt-8",
-    "nama": "Wringinputih 4"
-  },
-  {
-    "id": "kt-9",
-    "nama": "Sumberagung"
-  },
-  {
-    "id": "kt-10",
-    "nama": "Mojoroto"
-  },
-  {
-    "id": "kt-11",
-    "nama": "Tapanrejo"
-  },
-  {
-    "id": "kt-12",
-    "nama": "Kendalrejo"
-  },
-  {
-    "id": "kt-13",
-    "nama": "Gambiran"
-  },
-  {
-    "id": "kt-14",
-    "nama": "Pidis"
-  },
-  {
-    "id": "kt-15",
-    "nama": "Kesilir 2"
-  },
-  {
-    "id": "kt-16",
-    "nama": "Mufid"
-  },
-  {
-    "id": "kt-17",
-    "nama": "Rejoagung"
-  },
-  {
-    "id": "kt-18",
-    "nama": "Ajeng"
-  },
-  {
-    "id": "kt-19",
-    "nama": "Kedayunan"
-  },
-  {
-    "id": "kt-20",
-    "nama": "Pesanggaran"
-  },
-  {
-    "id": "kt-21",
-    "nama": "Bangorejo"
-  }
+export const INITIAL_MASTER_DAPUR: MasterDapur[] = [
+  { id: "kt-kedayunan", nama: "Kedayunan", alamat: "Kec. Kabat, Banyuwangi" },
+  { id: "kt-siliragung", nama: "Siliragung", alamat: "Kec. Siliragung, Banyuwangi" },
+  { id: "kt-banjarsari", nama: "Banjarsari 2", alamat: "Kec. Glagah, Banyuwangi" },
+  { id: "kt-wringinputih-2", nama: "Wringinputih 2", alamat: "Kec. Muncar, Banyuwangi" },
+  { id: "kt-wringinputih-4", nama: "Wringinputih 4", alamat: "Kec. Muncar, Banyuwangi" },
+  { id: "kt-singojuruh", nama: "Singojuruh", alamat: "Kec. Singojuruh, Banyuwangi" },
+  { id: "kt-cluring", nama: "Cluring", alamat: "Kec. Cluring, Banyuwangi" },
+  { id: "kt-tamansari", nama: "Tamansari", alamat: "Kec. Licin, Banyuwangi" },
+  { id: "kt-wongsorejo", nama: "Wongsorejo", alamat: "Kec. Wongsorejo, Banyuwangi" },
+  { id: "kt-sumberagung", nama: "Sumberagung", alamat: "Kec. Pesanggaran, Banyuwangi" },
+  { id: "kt-mojoroto", nama: "Mojoroto", alamat: "Banyuwangi" },
+  { id: "kt-tapanrejo", nama: "Tapanrejo", alamat: "Kec. Muncar, Banyuwangi" },
+  { id: "kt-kendalrejo", nama: "Kendalrejo", alamat: "Kec. Tegaldlimo, Banyuwangi" },
+  { id: "kt-gambiran", nama: "Gambiran", alamat: "Kec. Gambiran, Banyuwangi" },
+  { id: "kt-pidis", nama: "Pidis", alamat: "Banyuwangi" },
+  { id: "kt-kesilir-2", nama: "Kesilir 2", alamat: "Kec. Siliragung, Banyuwangi" },
+  { id: "kt-mufid", nama: "Mufid", alamat: "Banyuwangi" },
+  { id: "kt-rejoagung", nama: "Rejoagung", alamat: "Kec. Srono, Banyuwangi" },
+  { id: "kt-ajeng", nama: "Ajeng", alamat: "Banyuwangi" },
+  { id: "kt-pesanggaran", nama: "Pesanggaran", alamat: "Kec. Pesanggaran, Banyuwangi" },
+  { id: "kt-bangorejo", nama: "Bangorejo", alamat: "Kec. Bangorejo, Banyuwangi" }
 ];
+
+export const INITIAL_KITCHENS: Kitchen[] = INITIAL_MASTER_DAPUR;
 
 export const DEFAULT_DATE = getTodayWIB();
 

@@ -11,10 +11,15 @@ import {
   Mic,
   AlertCircle
 } from 'lucide-react';
-import { OrderItem, Kitchen, Store as StoreType } from '../types';
+import { OrderItem, Kitchen, Store as StoreType, MasterToko, MasterPemasok, MasterDapur } from '../types';
 import { formatRupiah, formatRupiahInput, parseRupiahInput, getTodayWIB } from '../lib/formatters';
 import { getItemSuggestions } from '../lib/suggestions';
 import { parseVoiceInput } from '../lib/voiceParser';
+import { 
+  saveMasterTokoToDb, 
+  saveMasterPemasokToDb, 
+  saveMasterDapurToDb 
+} from '../lib/supabaseDb';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface OrderModalProps {
@@ -29,6 +34,10 @@ interface OrderModalProps {
   kitchens: Kitchen[];
   stores: StoreType[];
   pemasokList: string[];
+  masterToko?: MasterToko[];
+  masterPemasok?: MasterPemasok[];
+  masterDapur?: MasterDapur[];
+  onRefreshMaster?: () => Promise<void>;
   selectedDate: string;
   existingOrders?: OrderItem[];
 }
@@ -51,6 +60,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   kitchens,
   stores,
   pemasokList,
+  masterToko = [],
+  masterPemasok = [],
+  masterDapur = [],
+  onRefreshMaster,
   selectedDate,
   existingOrders = [],
 }) => {
@@ -62,6 +75,54 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [deliveryStatus, setDeliveryStatus] = useState<'DONE' | 'PENDING'>('PENDING');
   const [tanggal, setTanggal] = useState(selectedDate);
   const [catatan, setCatatan] = useState('');
+
+  // Quick Add Master State
+  const [quickAddType, setQuickAddType] = useState<'toko' | 'pemasok' | 'dapur' | null>(null);
+  const [quickAddNama, setQuickAddNama] = useState('');
+  const [quickAddAlamat, setQuickAddAlamat] = useState('');
+  const [quickAddLoading, setQuickAddLoading] = useState(false);
+  const [quickAddError, setQuickAddError] = useState<string | null>(null);
+
+  // Computed master lists (prefer master tables, fallback to props)
+  const availableStores = masterToko.length > 0 ? masterToko.map((t) => t.nama) : stores.map((s) => s.nama);
+  const availableKitchens = masterDapur.length > 0 ? masterDapur.map((d) => d.nama) : kitchens.map((k) => k.nama);
+  const availablePemasok = masterPemasok.length > 0 ? masterPemasok.map((p) => p.nama) : pemasokList;
+
+  const handleQuickAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanNama = quickAddNama.trim();
+    if (!cleanNama) {
+      setQuickAddError('Nama tidak boleh kosong');
+      return;
+    }
+
+    setQuickAddLoading(true);
+    setQuickAddError(null);
+    try {
+      if (quickAddType === 'toko') {
+        const res = await saveMasterTokoToDb(cleanNama);
+        if (!res.success) throw new Error(res.error || 'Gagal menyimpan toko');
+        setToko(cleanNama);
+      } else if (quickAddType === 'pemasok') {
+        const res = await saveMasterPemasokToDb(cleanNama);
+        if (!res.success) throw new Error(res.error || 'Gagal menyimpan pemasok');
+        setPemasok(cleanNama);
+      } else if (quickAddType === 'dapur') {
+        const res = await saveMasterDapurToDb(cleanNama, quickAddAlamat.trim());
+        if (!res.success) throw new Error(res.error || 'Gagal menyimpan dapur');
+        setTujuanDapur(cleanNama);
+      }
+
+      await onRefreshMaster?.();
+      setQuickAddType(null);
+      setQuickAddNama('');
+      setQuickAddAlamat('');
+    } catch (err: any) {
+      setQuickAddError(err?.message || 'Gagal menambahkan');
+    } finally {
+      setQuickAddLoading(false);
+    }
+  };
 
   // Suggestion engine states
   const [activeSuggestionRowId, setActiveSuggestionRowId] = useState<string | null>(null);
@@ -483,62 +544,146 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 />
               </div>
 
-              {/* Toko (REQUIREMENT 1: DEFAULT KOSONG) */}
+              {/* Toko (REQUIREMENT 1: DEFAULT KOSONG, DENGAN OPSI CEPAT TAMBAH BARU) */}
               <div>
-                <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <Store className="w-3 h-3 text-indigo-600" />
-                  <span>Toko</span>
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10.5px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                    <Store className="w-3 h-3 text-indigo-600" />
+                    <span>Toko</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickAddType('toko');
+                      setQuickAddNama('');
+                      setQuickAddAlamat('');
+                      setQuickAddError(null);
+                    }}
+                    className="text-[10px] text-indigo-600 font-bold hover:text-indigo-800 flex items-center gap-0.5 cursor-pointer"
+                    title="Tambah Toko Baru"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    <span>+ Baru</span>
+                  </button>
+                </div>
                 <select
                   required
                   value={toko}
-                  onChange={(e) => setToko(e.target.value)}
+                  onChange={(e) => {
+                    if (e.target.value === '__ADD_NEW__') {
+                      setQuickAddType('toko');
+                      setQuickAddNama('');
+                      setQuickAddAlamat('');
+                      setQuickAddError(null);
+                    } else {
+                      setToko(e.target.value);
+                    }
+                  }}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 cursor-pointer"
                 >
                   <option value="">-- Pilih Toko --</option>
-                  {stores.map((s) => (
-                    <option key={s.id} value={s.nama}>
-                      {s.nama}
+                  <option value="__ADD_NEW__" className="text-indigo-600 font-bold bg-indigo-50">
+                    + Tambah Toko Baru...
+                  </option>
+                  {availableStores.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* Dapur (REQUIREMENT 1: DEFAULT KOSONG) */}
+              {/* Dapur (REQUIREMENT 1: DEFAULT KOSONG, DENGAN OPSI CEPAT TAMBAH BARU) */}
               <div>
-                <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <Utensils className="w-3 h-3 text-indigo-600" />
-                  <span>Dapur</span>
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10.5px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                    <Utensils className="w-3 h-3 text-indigo-600" />
+                    <span>Dapur</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickAddType('dapur');
+                      setQuickAddNama('');
+                      setQuickAddAlamat('');
+                      setQuickAddError(null);
+                    }}
+                    className="text-[10px] text-indigo-600 font-bold hover:text-indigo-800 flex items-center gap-0.5 cursor-pointer"
+                    title="Tambah Dapur Baru"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    <span>+ Baru</span>
+                  </button>
+                </div>
                 <select
                   required
                   value={tujuanDapur}
-                  onChange={(e) => setTujuanDapur(e.target.value)}
+                  onChange={(e) => {
+                    if (e.target.value === '__ADD_NEW__') {
+                      setQuickAddType('dapur');
+                      setQuickAddNama('');
+                      setQuickAddAlamat('');
+                      setQuickAddError(null);
+                    } else {
+                      setTujuanDapur(e.target.value);
+                    }
+                  }}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 cursor-pointer"
                 >
                   <option value="">-- Pilih Dapur --</option>
-                  {kitchens.map((k) => (
-                    <option key={k.id} value={k.nama}>
-                      Dapur {k.nama}
+                  <option value="__ADD_NEW__" className="text-indigo-600 font-bold bg-indigo-50">
+                    + Tambah Dapur Baru...
+                  </option>
+                  {availableKitchens.map((k) => (
+                    <option key={k} value={k}>
+                      Dapur {k}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* Pemasok (REQUIREMENT 1: DEFAULT KOSONG) */}
+              {/* Pemasok (REQUIREMENT 1: DEFAULT KOSONG, DENGAN OPSI CEPAT TAMBAH BARU) */}
               <div>
-                <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <Truck className="w-3 h-3 text-indigo-600" />
-                  <span>Pemasok</span>
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10.5px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                    <Truck className="w-3 h-3 text-indigo-600" />
+                    <span>Pemasok</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickAddType('pemasok');
+                      setQuickAddNama('');
+                      setQuickAddAlamat('');
+                      setQuickAddError(null);
+                    }}
+                    className="text-[10px] text-indigo-600 font-bold hover:text-indigo-800 flex items-center gap-0.5 cursor-pointer"
+                    title="Tambah Pemasok Baru"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    <span>+ Baru</span>
+                  </button>
+                </div>
                 <select
                   required
                   value={pemasok}
-                  onChange={(e) => setPemasok(e.target.value)}
+                  onChange={(e) => {
+                    if (e.target.value === '__ADD_NEW__') {
+                      setQuickAddType('pemasok');
+                      setQuickAddNama('');
+                      setQuickAddAlamat('');
+                      setQuickAddError(null);
+                    } else {
+                      setPemasok(e.target.value);
+                    }
+                  }}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500 cursor-pointer"
                 >
                   <option value="">-- Pilih Pemasok --</option>
-                  {pemasokList.map((p) => (
+                  <option value="__ADD_NEW__" className="text-indigo-600 font-bold bg-indigo-50">
+                    + Tambah Pemasok Baru...
+                  </option>
+                  {availablePemasok.map((p) => (
                     <option key={p} value={p}>
                       {p}
                     </option>
@@ -872,6 +1017,97 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           </form>
         </motion.div>
       </div>
+
+      {/* Quick Add Master Modal (Langsung dari Dropdown tanpa keluar form) */}
+      {quickAddType && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-slate-200 space-y-4 text-slate-800"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    + Tambah {quickAddType === 'toko' ? 'Toko Baru' : quickAddType === 'pemasok' ? 'Pemasok Baru' : 'Dapur Baru'}
+                  </h3>
+                  <span className="text-[10.5px] text-slate-400 font-medium block">
+                    Tersimpan ke PostgreSQL &amp; langsung terpilih
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuickAddType(null)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickAddSubmit} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Nama {quickAddType === 'toko' ? 'Toko' : quickAddType === 'pemasok' ? 'Pemasok' : 'Dapur'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  placeholder={`Contoh: ${quickAddType === 'toko' ? 'HTG / Luweng Boga' : quickAddType === 'pemasok' ? 'UD Barokah' : 'Siliragung'}`}
+                  value={quickAddNama}
+                  onChange={(e) => setQuickAddNama(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                />
+              </div>
+
+              {quickAddType === 'dapur' && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Alamat / Lokasi (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Jl. Raya Rogojampi No. 12"
+                    value={quickAddAlamat}
+                    onChange={(e) => setQuickAddAlamat(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                  />
+                </div>
+              )}
+
+              {quickAddError && (
+                <div className="flex items-center gap-1.5 text-xs text-rose-600 font-bold">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{quickAddError}</span>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setQuickAddType(null)}
+                  className="flex-1 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={quickAddLoading || !quickAddNama.trim()}
+                  className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer"
+                >
+                  <span>{quickAddLoading ? 'Menyimpan...' : 'Simpan & Pilih'}</span>
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </AnimatePresence>
   );
 };

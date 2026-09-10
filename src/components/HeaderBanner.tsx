@@ -16,15 +16,18 @@ import {
   Tag,
   Scale,
   Check,
-  TrendingUp
+  TrendingUp,
+  Database
 } from 'lucide-react';
-import { OrderItem, NoteItem, Kitchen } from '../types';
+import { OrderItem, NoteItem, Kitchen, DashboardPeriod } from '../types';
 import { 
   parseIndonesianNumber, 
   formatRupiah, 
   parseDateSafe, 
   isOrderToday, 
-  isOrderThisMonth 
+  isOrderThisMonth,
+  isOrderThisWeek,
+  getWeekRange
 } from '../lib/formatters';
 import { AnimatedCounter } from './AnimatedCounter';
 
@@ -33,6 +36,8 @@ interface HeaderBannerProps {
   selectedDate: string;
   notes: NoteItem[];
   kitchens: Kitchen[];
+  period?: DashboardPeriod;
+  onPeriodChange?: (period: DashboardPeriod) => void;
   onToggleNoteStatus: (noteId: string) => void;
   onDeleteNote: (noteId: string) => void;
   onOpenNewNoteSheet: (startVoice?: boolean) => void;
@@ -53,6 +58,8 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
   orders = [],
   selectedDate,
   notes = [],
+  period: periodProp,
+  onPeriodChange,
   onToggleNoteStatus,
   onDeleteNote,
   onOpenNewNoteSheet,
@@ -68,25 +75,37 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
   onStopVoiceHold,
   isVoiceActive = false,
 }) => {
-  // Default to 'hari_ini' so user immediately sees today's orders and pending
-  const [period, setPeriod] = useState<'hari_ini' | 'bulan_ini' | 'all_time'>('hari_ini');
+  // Default to 'hari_ini' if uncontrolled
+  const [internalPeriod, setInternalPeriod] = useState<DashboardPeriod>('hari_ini');
+  const activePeriod = periodProp ?? internalPeriod;
+  const handleSetPeriod = (newP: DashboardPeriod) => {
+    if (onPeriodChange) {
+      onPeriodChange(newP);
+    } else {
+      setInternalPeriod(newP);
+    }
+  };
+
+  const weekRange = useMemo(() => getWeekRange(selectedDate), [selectedDate]);
 
   // Filter orders according to active period selection with robust date & WIB parsing
   const filteredOrders = useMemo(() => {
     if (!orders || orders.length === 0) return [];
     
-    if (period === 'all_time') {
+    if (activePeriod === 'all_time') {
       return orders;
     }
 
-    if (period === 'hari_ini') {
+    if (activePeriod === 'hari_ini') {
       return orders.filter((o) => isOrderToday(o, selectedDate));
-    } else if (period === 'bulan_ini') {
+    } else if (activePeriod === 'mingguan') {
+      return orders.filter((o) => isOrderThisWeek(o, weekRange));
+    } else if (activePeriod === 'bulan_ini') {
       return orders.filter((o) => isOrderThisMonth(o, selectedDate));
     }
 
     return orders;
-  }, [orders, period, selectedDate]);
+  }, [orders, activePeriod, selectedDate, weekRange]);
 
   // Status helper for accurate pending count synchronized with table grouping
   const isItemPending = (item: OrderItem) => {
@@ -156,7 +175,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
               <button
                 type="button"
                 onClick={onOpenSettings}
-                title="Pengaturan Master Data"
+                title="Pengaturan & Kelola Data"
                 className="p-2 rounded-2xl bg-slate-100/90 text-slate-700 hover:text-indigo-600 active:scale-95 border border-slate-200 transition-all cursor-pointer"
               >
                 <Settings className="w-4 h-4" />
@@ -170,16 +189,17 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
             <div className="relative flex items-center bg-slate-200/80 p-1 rounded-full border border-slate-300/70 shadow-inner w-full sm:w-auto justify-between sm:justify-start">
               {[
                 { id: 'hari_ini' as const, label: 'Hari Ini' },
-                { id: 'bulan_ini' as const, label: 'Bulan Ini' },
+                { id: 'mingguan' as const, label: 'Mingguan' },
+                { id: 'bulan_ini' as const, label: 'Bulanan' },
                 { id: 'all_time' as const, label: 'All Time' },
               ].map((opt) => {
-                const isActive = period === opt.id;
+                const isActive = activePeriod === opt.id;
                 return (
                   <button
                     key={opt.id}
                     type="button"
-                    onClick={() => setPeriod(opt.id)}
-                    className={`relative flex-1 sm:flex-none px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors duration-200 whitespace-nowrap text-center cursor-pointer select-none ${
+                    onClick={() => handleSetPeriod(opt.id)}
+                    className={`relative flex-1 sm:flex-none px-2.5 sm:px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors duration-200 whitespace-nowrap text-center cursor-pointer select-none ${
                       isActive ? 'text-white' : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -222,7 +242,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
               <button
                 type="button"
                 onClick={onOpenSettings}
-                title="Pengaturan Master Data"
+                title="Pengaturan & Kelola Data"
                 className="p-2 rounded-2xl bg-slate-100/90 text-slate-700 hover:text-indigo-600 active:scale-95 border border-slate-200/80 transition-all cursor-pointer"
               >
                 <Settings className="w-4 h-4" />

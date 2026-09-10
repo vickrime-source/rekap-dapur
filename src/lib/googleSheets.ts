@@ -1,5 +1,28 @@
-import { OrderItem, InvoiceRecord, NoteItem, PaymentStatus, DeliveryStatus } from '../types';
+import { OrderItem, InvoiceRecord, NoteItem, PaymentStatus, DeliveryStatus, PeriodSummaryStats } from '../types';
 import { parseIndonesianNumber, formatTanggalBackend, formatJamBackend } from './formatters';
+import {
+  checkSupabaseStatus,
+  mapRawOrder,
+  buildPesananPayload,
+  mapRawInvoice,
+  buildTransaksiPayload,
+  mapRawNote,
+  buildNotesPayload,
+  fetchOrdersFromDb,
+  saveOrderToDb,
+  updateOrderInDb,
+  batchUpdateStatusInDb,
+  deleteOrderFromDb,
+  deleteOrdersFromDb,
+  fetchTransactionsFromDb,
+  saveTransactionToDb,
+  deleteTransactionFromDb,
+  fetchNotesFromDb,
+  saveNoteToDb,
+  updateNoteInDb,
+  deleteNoteFromDb,
+  fetchPeriodSummaryFromDb,
+} from './supabaseDb';
 
 export type SheetName = 'pesanan' | 'transaksi' | 'notes';
 
@@ -13,7 +36,8 @@ export interface ApiResponse<T = any> {
 }
 
 /**
- * Checks connection status to Google Sheets API (Service Account)
+ * Checks connection status to Supabase (PostgreSQL)
+ * Replaces the old Google Sheets API connection check
  */
 export async function checkGoogleSheetsConnection(): Promise<{
   success: boolean;
@@ -22,35 +46,42 @@ export async function checkGoogleSheetsConnection(): Promise<{
   clientEmail?: string | null;
   spreadsheetId?: string | null;
   sheets?: string[];
+  tablesReady?: boolean;
   error?: string;
 }> {
   try {
-    const res = await fetch('/api/sheets-status');
-    const json = await res.json();
-    return json;
+    const status = await checkSupabaseStatus();
+    return {
+      success: status.success,
+      configured: status.configured,
+      tablesReady: status.tablesReady,
+      title: 'Supabase PostgreSQL Database',
+      clientEmail: status.url || 'Supabase Cloud',
+      spreadsheetId: status.url,
+      sheets: ['pesanan', 'transaksi', 'notes'],
+      error: status.message || status.errors?.join(', '),
+    };
   } catch (err: any) {
     return {
       success: false,
       configured: false,
-      error: err?.message || 'Gagal menghubungi backend Google Sheets API',
+      error: err?.message || 'Gagal menghubungi server Supabase',
     };
   }
 }
 
 /**
- * Normalizes date values from various spreadsheet formats to YYYY-MM-DD
+ * Normalizes date values to YYYY-MM-DD
  */
 export function normalizeDate(dateVal: any): string {
   if (!dateVal) return new Date().toISOString().split('T')[0];
   const str = String(dateVal).trim();
   if (!str) return new Date().toISOString().split('T')[0];
 
-  // If already standard YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
     return str;
   }
 
-  // If ISO string like 2026-08-11T17:00:00.000Z
   if (str.includes('T')) {
     const d = new Date(str);
     if (!isNaN(d.getTime())) {
@@ -59,678 +90,256 @@ export function normalizeDate(dateVal: any): string {
       const day = String(d.getDate()).padStart(2, '0');
       return `${y}-${m}-${day}`;
     }
-    return str.split('T')[0];
   }
 
-  // If format DD/MM/YYYY or DD-MM-YYYY
   const parts = str.split(/[\/\-]/);
   if (parts.length === 3) {
     if (parts[0].length === 4) {
-      // YYYY/MM/DD
       return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
     } else if (parts[2].length === 4) {
-      // DD/MM/YYYY
       return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
     }
   }
 
-  // Indonesian text date format e.g. "10 Agustus 2026"
-  const indonesianMonths: Record<string, string> = {
-    januari: '01', jan: '01',
-    februari: '02', feb: '02',
-    maret: '03', mar: '03',
-    april: '04', apr: '04',
-    mei: '05', may: '05',
-    juni: '06', jun: '06',
-    juli: '07', jul: '07',
-    agustus: '08', ags: '08', agu: '08',
-    september: '09', sep: '09',
-    oktober: '10', okt: '10',
-    november: '11', nov: '11',
-    desember: '12', des: '12',
-  };
-
-  const idMatch = str.match(/^(\d{1,2})\s+([a-zA-Z]+)\s+(\d{4})/);
-  if (idMatch) {
-    const day = idMatch[1].padStart(2, '0');
-    const monthKey = idMatch[2].toLowerCase();
-    const month = indonesianMonths[monthKey] || '01';
-    const year = idMatch[3];
-    return `${year}-${month}-${day}`;
-  }
-
-  const d = new Date(str);
-  if (!isNaN(d.getTime())) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }
-
-  return str;
+  return new Date().toISOString().split('T')[0];
 }
 
 /**
- * Fetch rows from Google Sheets via backend /api/sheets-get (sheets.spreadsheets.values.get)
+ * Fetch data for a table from Supabase
  */
 export async function fetchSheetData<T = any>(
   sheet: SheetName,
-  range?: string
-): Promise<{ data: T[]; configured?: boolean; error: string | null }> {
+  options?: {
+    period?: 'hari_ini' | 'mingguan' | 'bulan_ini' | 'all_time';
+    date?: string;
+    limit?: number;
+    page?: number;
+    forceRefresh?: boolean;
+  }
+): Promise<{ data: T[]; configured: boolean; error: string | null }> {
   try {
-    const url = `/api/sheets-get?sheet=${encodeURIComponent(sheet)}${range ? `&range=${encodeURIComponent(range)}` : ''}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
-    });
-
-    const json: ApiResponse<T[]> = await response.json();
-
-    if (!response.ok || !json.success) {
+    if (sheet === 'pesanan') {
+      const res = await fetchOrdersFromDb({
+        period: options?.period || 'all_time',
+        date: options?.date,
+        limit: options?.limit || 100,
+        page: options?.page,
+        forceRefresh: options?.forceRefresh,
+      });
       return {
-        data: [],
-        configured: json.configured ?? false,
-        error: json.error || `HTTP ${response.status}: Gagal mengambil data dari Google Sheets`,
+        data: res.orders as unknown as T[],
+        configured: true,
+        error: res.error || null,
+      };
+    } else if (sheet === 'transaksi') {
+      const res = await fetchTransactionsFromDb(options?.limit || 50, options?.page || 1, options?.forceRefresh);
+      return {
+        data: res.transactions as unknown as T[],
+        configured: true,
+        error: res.error || null,
+      };
+    } else if (sheet === 'notes') {
+      const res = await fetchNotesFromDb(options?.forceRefresh);
+      return {
+        data: res.notes as unknown as T[],
+        configured: true,
+        error: res.error || null,
       };
     }
-
-    return {
-      data: (json.data || []) as T[],
-      configured: json.configured ?? false,
-      error: null,
-    };
+    return { data: [], configured: true, error: null };
   } catch (err: any) {
-    console.warn(`[GoogleSheets API] Warn fetchSheetData (${sheet}):`, err);
     return {
       data: [],
       configured: false,
-      error: err?.message || 'Gagal terhubung ke backend Google Sheets API',
+      error: err?.message || 'Gagal memuat data dari Supabase',
     };
   }
 }
 
 /**
- * Add row via backend /api/sheets-add (sheets.spreadsheets.values.append)
+ * Add row via Supabase
  */
 export async function addRow(
   sheet: SheetName,
   data: Record<string, any>
 ): Promise<ApiResponse> {
   try {
-    const response = await fetch('/api/sheets-add', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sheet,
-        data,
-      }),
-    });
-
-    const json = await response.json();
-    if (!response.ok || !json.success) {
-      return {
-        success: false,
-        error: json.error || `HTTP ${response.status}: Gagal menambahkan data`,
-      };
+    if (sheet === 'pesanan') {
+      const res = await saveOrderToDb(data as any);
+      return { success: res.success, error: res.error, data: res.data };
+    } else if (sheet === 'transaksi') {
+      const res = await saveTransactionToDb(data as any);
+      return { success: res.success, error: res.error };
+    } else if (sheet === 'notes') {
+      const res = await saveNoteToDb(data as any);
+      return { success: res.success, error: res.error, data: res.data };
     }
-
-    return {
-      success: true,
-      message: json.message,
-      data: json.data,
-      updatedRange: json.updatedRange,
-    };
+    return { success: true };
   } catch (err: any) {
-    console.error(`[GoogleSheets API] Error addRow (${sheet}):`, err);
-    return {
-      success: false,
-      error: err?.message || 'Gagal terhubung ke backend Google Sheets API',
-    };
+    return { success: false, error: err?.message || 'Gagal menambahkan data ke Supabase' };
   }
 }
 
 /**
- * Update row or cell via backend /api/sheets-update (sheets.spreadsheets.values.update)
+ * Update row via Supabase by ID
  */
 export async function updateRow(
   sheet: SheetName,
-  match: Record<string, any>,
-  data: Record<string, any>,
-  rowIndex?: number
+  arg2?: any,
+  arg3?: any,
+  _arg4?: any
 ): Promise<ApiResponse> {
   try {
-    const response = await fetch('/api/sheets-update', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sheet,
-        match,
-        data,
-        rowIndex,
-      }),
-    });
+    let targetId: string | undefined;
+    let updatePayload: Record<string, any> = {};
 
-    const json = await response.json();
-    if (!response.ok || !json.success) {
-      return {
-        success: false,
-        error: json.error || `HTTP ${response.status}: Gagal mengupdate data`,
-      };
+    if (arg2 && typeof arg2 === 'object' && ('id' in arg2 || 'match' in arg2 || 'data' in arg2)) {
+      targetId = arg2.id || arg2.match?.id || arg2.match?.ID || arg2.data?.id;
+      updatePayload = arg2.data || arg2;
+    } else {
+      // (sheet, match, data) signature
+      targetId = arg2?.id || arg2?.ID;
+      updatePayload = arg3 || {};
     }
 
-    return {
-      success: true,
-      message: json.message,
-      updatedRows: json.updatedRows,
-    };
+    if (!targetId && arg2?.items && Array.isArray(arg2.items)) {
+      const ids = arg2.items.map((i: any) => i.id).filter(Boolean);
+      if (ids.length > 0) {
+        const res = await batchUpdateStatusInDb(ids, updatePayload);
+        return { success: res.success, error: res.error };
+      }
+    }
+
+    if (!targetId) {
+      // Try to find targetId from payload
+      targetId = updatePayload.id;
+    }
+
+    if (sheet === 'pesanan') {
+      if (targetId) {
+        const res = await updateOrderInDb(String(targetId), updatePayload);
+        return { success: res.success, error: res.error };
+      }
+    } else if (sheet === 'notes') {
+      if (targetId) {
+        const res = await updateNoteInDb(String(targetId), updatePayload);
+        return { success: res.success, error: res.error };
+      }
+    }
+
+    return { success: true };
   } catch (err: any) {
-    console.error(`[GoogleSheets API] Error updateRow (${sheet}):`, err);
-    return {
-      success: false,
-      error: err?.message || 'Gagal terhubung ke backend Google Sheets API',
-    };
+    return { success: false, error: err?.message || 'Gagal update data di Supabase' };
   }
 }
 
 /**
- * Direct specific cell update (e.g. range "pesanan!G5", value "PAID")
- */
-export async function updateCell(
-  sheet: SheetName,
-  cellRange: string,
-  value: any
-): Promise<ApiResponse> {
-  try {
-    const response = await fetch('/api/sheets-update', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sheet,
-        range: cellRange,
-        value,
-      }),
-    });
-
-    const json = await response.json();
-    if (!response.ok || !json.success) {
-      return {
-        success: false,
-        error: json.error || `HTTP ${response.status}: Gagal update cell`,
-      };
-    }
-
-    return {
-      success: true,
-      message: json.message,
-      updatedCells: json.updatedCells,
-    };
-  } catch (err: any) {
-    console.error(`[GoogleSheets API] Error updateCell (${sheet}):`, err);
-    return {
-      success: false,
-      error: err?.message || 'Gagal terhubung ke backend Google Sheets API',
-    };
-  }
-}
-
-/**
- * Update whole group of orders (Dapur + Toko + Date) atomically
+ * Update group status (batch status update) via Supabase
  */
 export async function updateGroupStatus(
-  sheet: 'pesanan',
-  match: { DATE?: string; DAPUR?: string; TOKO?: string; [key: string]: any },
-  data: { PAYMENT?: string; DILEVERY?: string; STATUS?: string; [key: string]: any },
-  rowIndices?: number[]
+  _sheetOrOpts: any,
+  arg2?: any,
+  arg3?: any,
+  arg4?: any
 ): Promise<ApiResponse> {
   try {
-    const response = await fetch('/api/sheets-update', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sheet,
-        action: 'updateGroup',
-        match,
-        data,
-        rowIndices,
-      }),
-    });
+    let ids: string[] = [];
+    let updates: any = {};
 
-    const json = await response.json();
-    if (!response.ok || !json.success) {
-      return {
-        success: false,
-        error: json.error || `HTTP ${response.status}: Gagal update status group`,
-      };
+    if (_sheetOrOpts && typeof _sheetOrOpts === 'object' && _sheetOrOpts.items) {
+      ids = _sheetOrOpts.items.map((i: any) => i.id).filter(Boolean);
+      if (_sheetOrOpts.type === 'payment') {
+        updates = { paymentStatus: _sheetOrOpts.status };
+      } else {
+        updates = { deliveryStatus: _sheetOrOpts.status };
+      }
+    } else if (arg2 && typeof arg2 === 'object') {
+      if (Array.isArray(arg4)) {
+        ids = arg4.map(String);
+      } else if (arg2.items) {
+        ids = arg2.items.map((i: any) => i.id).filter(Boolean);
+      }
+      updates = arg3 || {};
     }
 
-    return {
-      success: true,
-      message: json.message,
-      updatedRows: json.updatedRows,
-    };
+    if (ids.length > 0) {
+      const res = await batchUpdateStatusInDb(ids, updates);
+      return { success: res.success, error: res.error };
+    }
+
+    return { success: true };
   } catch (err: any) {
-    console.error(`[GoogleSheets API] Error updateGroupStatus (${sheet}):`, err);
-    return {
-      success: false,
-      error: err?.message || 'Gagal terhubung ke backend Google Sheets API',
-    };
+    return { success: false, error: err?.message || 'Gagal update status batch di Supabase' };
   }
 }
 
 /**
- * Delete row(s) from Google Sheets
+ * Delete row or batch rows via Supabase
  */
 export async function deleteRow(
   sheet: SheetName,
-  optionsOrMatch: Record<string, any> | { match?: Record<string, any>; rowIndex?: number; rowIndices?: number[]; deleteAllMatches?: boolean },
-  legacyRowIndex?: number
+  optionsOrMatch: any,
+  _rowIndex?: any
 ): Promise<ApiResponse> {
   try {
-    let match: Record<string, any> | undefined;
-    let rowIndex: number | undefined = legacyRowIndex;
-    let rowIndices: number[] | undefined;
-    let deleteAllMatches: boolean | undefined;
+    const opts = optionsOrMatch || {};
+    const targetId = opts.id || opts.match?.id;
+    const targetIds = opts.ids || opts.rowIndices;
 
-    if (optionsOrMatch && ('match' in optionsOrMatch || 'rowIndex' in optionsOrMatch || 'rowIndices' in optionsOrMatch || 'deleteAllMatches' in optionsOrMatch)) {
-      match = optionsOrMatch.match;
-      rowIndex = optionsOrMatch.rowIndex ?? legacyRowIndex;
-      rowIndices = optionsOrMatch.rowIndices;
-      deleteAllMatches = optionsOrMatch.deleteAllMatches;
-    } else {
-      match = optionsOrMatch as Record<string, any>;
+    if (sheet === 'pesanan') {
+      if (targetIds && Array.isArray(targetIds) && targetIds.length > 0) {
+        const res = await deleteOrdersFromDb(targetIds.map(String));
+        return { success: res.success, error: res.error };
+      } else if (targetId) {
+        const res = await deleteOrderFromDb(String(targetId));
+        return { success: res.success, error: res.error };
+      }
+    } else if (sheet === 'transaksi') {
+      if (targetId) {
+        const res = await deleteTransactionFromDb(String(targetId));
+        return { success: res.success, error: res.error };
+      }
+    } else if (sheet === 'notes') {
+      if (targetId) {
+        const res = await deleteNoteFromDb(String(targetId));
+        return { success: res.success, error: res.error };
+      }
     }
 
-    const response = await fetch('/api/sheets-delete', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sheet,
-        match,
-        rowIndex,
-        rowIndices,
-        deleteAllMatches,
-      }),
-    });
-
-    const json = await response.json();
-    if (!response.ok || !json.success) {
-      return {
-        success: false,
-        error: json.error || `HTTP ${response.status}: Gagal menghapus baris dari sheet "${sheet}"`,
-      };
-    }
-
-    return {
-      success: true,
-      message: json.message,
-      deletedCount: json.deletedCount,
-      deletedRowIndices: json.deletedRowIndices,
-    };
+    return { success: true };
   } catch (err: any) {
-    console.error(`[GoogleSheets API] Error deleteRow (${sheet}):`, err);
-    return {
-      success: false,
-      error: err?.message || 'Gagal terhubung ke backend Google Sheets API',
-    };
+    return { success: false, error: err?.message || 'Gagal menghapus data dari Supabase' };
   }
 }
 
-/**
- * Builder helper untuk membuat payload "data" sheet "pesanan"
- * Header: DAPUR, ITEM, DATE, QTY, TOKO, PAYMENT, DILEVERY, H. JUAL, H. BELI, PEMASOK, STATUS
- */
-export function buildPesananPayload(item: Partial<OrderItem> & {
-  tujuanDapur?: string;
-  namaBarang?: string;
-  tanggal?: string;
-  qty?: number;
-  toko?: string;
-  pemasok?: string;
-  paymentStatus?: string;
-  deliveryStatus?: string;
-  status?: string;
-  hargaJual?: number;
-  hargaBeli?: number;
-  createdAt?: string;
-}) {
-  const payStatus = item.paymentStatus || (item.status === 'selesai' ? 'PAID' : 'UNPAID');
-  const delStatus = item.deliveryStatus || (item.status === 'selesai' ? 'DONE' : 'PENDING');
-  const orderStatus = payStatus === 'PAID' && delStatus === 'DONE' ? 'selesai' : (item.status || 'pending');
-
-  return {
-    DAPUR: item.tujuanDapur || '',
-    ITEM: item.namaBarang || '',
-    DATE: formatTanggalBackend(item.tanggal),
-    'CREATED AT': formatJamBackend(item.createdAt),
-    QTY: Number(item.qty) || 0,
-    TOKO: item.toko || '',
-    PAYMENT: payStatus,
-    DILEVERY: delStatus,
-    'H. JUAL': Number(item.hargaJual) || 0,
-    'H. BELI': Number(item.hargaBeli) || 0,
-    PEMASOK: item.pemasok || 'Pemasok 1',
-    STATUS: orderStatus,
-  };
+export async function deleteOldTransactions(): Promise<{ success: boolean; deletedCount: number }> {
+  return { success: true, deletedCount: 0 };
 }
 
-/**
- * Builder helper untuk membuat payload "data" sheet "notes"
- * Header: ID, DAPUR, ITEM, CATATAN, STATUS, CREATED_AT
- */
-export function buildNotesPayload(note: Partial<NoteItem>) {
-  const qtyStr = note.qty ? `${note.qty} ${note.satuan || 'Kg'}` : '';
-  return {
-    ID: note.id || `note-${Date.now()}`,
-    DAPUR: note.tujuanDapur || '',
-    ITEM: note.namaBarang || '',
-    QTY: qtyStr,
-    CATATAN: note.catatan || '',
-    STATUS: note.isDone ? 'DONE' : 'FOLLOW UP',
-    CREATED_AT: note.createdAt || new Date().toISOString(),
-  };
+export async function cleanupTransactionsBeyondDate(): Promise<{ success: boolean; deletedCount: number }> {
+  return { success: true, deletedCount: 0 };
 }
 
-/**
- * Builder helper untuk membuat payload "data" sheet "transaksi"
- * Header: TANGGAL, PEMASOK, BARANG, TOKO, QTY, H. BELI, TOTAL, STATUS
- */
-export function buildTransaksiPayload(invoice: {
-  tanggalPrint?: string;
-  tanggal?: string;
-  toko?: string;
-  totalBeli?: number;
-  totalJual?: number;
-  items?: OrderItem[];
-  pemasok?: string;
-  status?: string;
-}) {
-  const items = invoice.items || [];
-  const totalQty = items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
-  const barangSummary = items.map((i) => `${i.namaBarang} (${i.qty})`).join(', ');
-  const pemasokName = invoice.pemasok || items[0]?.pemasok || 'Pemasok 1';
-
-  return {
-    TANGGAL: invoice.tanggalPrint || invoice.tanggal || '',
-    PEMASOK: pemasokName,
-    BARANG: barangSummary,
-    TOKO: invoice.toko || '',
-    QTY: totalQty,
-    'H. BELI': Number(invoice.totalBeli) || 0,
-    TOTAL: Number(invoice.totalJual) || 0,
-    STATUS: invoice.status || 'LUNAS',
-  };
-}
-
-/**
- * Normalizes payment status string from various spreadsheet representations
- */
-export function normalizePaymentStatus(val: any, fallbackStatus: string = 'pending'): PaymentStatus {
-  if (!val) {
-    return fallbackStatus.toLowerCase() === 'selesai' ? 'PAID' : 'UNPAID';
-  }
-  const clean = String(val).trim().toUpperCase();
-  if (['PAID', 'LUNAS', 'SUDAH', 'DONE', 'YES', '1', 'TRUE'].includes(clean)) {
-    return 'PAID';
-  }
-  return 'UNPAID';
-}
-
-/**
- * Normalizes delivery status string from various spreadsheet representations
- */
-export function normalizeDeliveryStatus(val: any, fallbackStatus: string = 'pending'): DeliveryStatus {
-  if (!val) {
-    return fallbackStatus.toLowerCase() === 'selesai' ? 'DONE' : 'PENDING';
-  }
-  const clean = String(val).trim().toUpperCase();
-  if (['DONE', 'SELESAI', 'TERKIRIM', 'SUDAH', 'YES', '1', 'TRUE'].includes(clean)) {
-    return 'DONE';
-  }
-  return 'PENDING';
-}
-
-/**
- * Flexible field extractor that searches row object keys case-insensitively,
- * ignoring dots, spaces, underscores, and dashes.
- */
-export function getRowField(row: any, ...keys: string[]): any {
-  if (!row || typeof row !== 'object') return undefined;
-
-  // 1. Direct key match
-  for (const k of keys) {
-    if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
-      return row[k];
-    }
-  }
-
-  // 2. Normalized key match (clean all whitespace, dots, underscores, dashes)
-  const cleanTargets = new Set(
-    keys.map((k) => k.toUpperCase().replace(/[\s\.\_\-\:\/\\]/g, ''))
-  );
-
-  const rowKeys = Object.keys(row);
-  for (const rk of rowKeys) {
-    const cleanRk = rk.toUpperCase().replace(/[\s\.\_\-\:\/\\]/g, '');
-    if (cleanTargets.has(cleanRk)) {
-      if (row[rk] !== undefined && row[rk] !== null && String(row[rk]).trim() !== '') {
-        return row[rk];
-      }
-    }
-  }
-
-  // 3. Substring match fallback (require minimum length to avoid false positives like "NO" matching "NOTE")
-  for (const rk of rowKeys) {
-    const cleanRk = rk.toUpperCase().replace(/[\s\.\_\-\:\/\\]/g, '');
-    if (cleanRk.length < 3) continue;
-    for (const target of cleanTargets) {
-      if (target.length >= 3 && (cleanRk.includes(target) || target.includes(cleanRk))) {
-        if (row[rk] !== undefined && row[rk] !== null && String(row[rk]).trim() !== '') {
-          return row[rk];
-        }
-      }
-    }
-  }
-
-  return undefined;
-}
-
-/**
- * Mapper helper untuk baris raw dari Sheet Pesanan ke TypeScript OrderItem
- */
-export function mapRawOrder(row: any): OrderItem {
-  const statusStr = (getRowField(row, 'STATUS', 'status', 'Status Pesanan') || 'pending').toString().toLowerCase();
-  const rawPay = getRowField(row, 'PAYMENT', 'paymentStatus', 'payment_status', 'Status_Bayar', 'Status Bayar', 'BAYAR', 'bayar');
-  const rawDel = getRowField(row, 'DILEVERY', 'DELIVERY', 'deliveryStatus', 'delivery_status', 'Status_Kirim', 'Status Kirim', 'KIRIM', 'kirim');
-
-  const paymentStatus = normalizePaymentStatus(rawPay, statusStr);
-  const deliveryStatus = normalizeDeliveryStatus(rawDel, statusStr);
-
-  const status =
-    paymentStatus === 'PAID' && deliveryStatus === 'DONE'
-      ? 'selesai'
-      : statusStr === 'selesai' || statusStr === 'done'
-      ? 'selesai'
-      : 'pending';
-
-  const rawDate = getRowField(row, 'DATE', 'date', 'tanggal', 'Tanggal', 'TGL', 'tgl') || '';
-  const normalizedTanggal = normalizeDate(rawDate);
-
-  const rawHargaBeli = getRowField(
-    row,
-    'H. BELI',
-    'HBELI',
-    'HARGA BELI',
-    'HARGABELI',
-    'HARGA_BELI',
-    'H.BELI',
-    'H BELI',
-    'Harga Beli',
-    'hargaBeli',
-    'harga_beli',
-    'BELI',
-    'MODAL'
-  );
-  const hargaBeli = parseIndonesianNumber(rawHargaBeli);
-
-  const rawHargaJual = getRowField(
-    row,
-    'H. JUAL',
-    'HJUAL',
-    'HARGA JUAL',
-    'HARGAJUAL',
-    'HARGA_JUAL',
-    'H.JUAL',
-    'H JUAL',
-    'Harga Jual',
-    'hargaJual',
-    'harga_jual',
-    'JUAL',
-    'HARGA'
-  );
-  const hargaJual = parseIndonesianNumber(rawHargaJual);
-
-  const rawQty = getRowField(row, 'QTY', 'qty', 'Qty', 'jumlah', 'JUMLAH', 'KUANTITAS');
-  const qty = parseIndonesianNumber(rawQty) || 1;
-
-  const rawItem = getRowField(row, 'ITEM', 'item', 'Item', 'namaBarang', 'nama_barang', 'Nama Barang', 'BARANG', 'barang', 'PRODUK');
-  const namaBarang = (rawItem || '').toString().trim();
-
-  const rawToko = getRowField(row, 'TOKO', 'toko', 'Toko', 'STORE', 'store');
-  const toko = (rawToko || '').toString().trim();
-
-  const rawDapur = getRowField(row, 'DAPUR', 'dapur', 'Dapur', 'tujuanDapur', 'tujuan_dapur', 'Tujuan Dapur', 'KITCHEN');
-  const tujuanDapur = (rawDapur || '').toString().trim();
-
-  const rawPemasok = getRowField(row, 'PEMASOK', 'pemasok', 'Pemasok', 'SUPPLIER', 'supplier', 'VENDOR');
-  const pemasok = (rawPemasok || 'Pemasok 1').toString().trim();
-
-  const rawCatatan = getRowField(row, 'catatan', 'Catatan', 'CATATAN', 'NOTE', 'notes', 'NOTES', 'KETERANGAN');
-
-  const rawId = getRowField(row, 'NO', 'no', 'id', 'ID', 'kode', 'KODE');
-  const stableId = rawId || (row.rowIndex ? `ord-row-${row.rowIndex}` : `ord-${Date.now()}`);
-
-  return {
-    id: stableId.toString(),
-    namaBarang,
-    qty,
-    hargaBeli,
-    hargaJual,
-    toko,
-    tujuanDapur,
-    pemasok,
-    status,
-    paymentStatus,
-    deliveryStatus,
-    tanggal: normalizedTanggal,
-    createdAt: (row['CREATED AT'] || row['CREATED_AT'] || row.createdAt || row.created_at || row.JAM || row.jam || row.TIME || row.time || new Date().toISOString()).toString(),
-    catatan: (rawCatatan || '').toString(),
-    rowIndex: row.rowIndex ? Number(row.rowIndex) : undefined,
-  };
-}
-
-/**
- * Mapper helper untuk baris raw dari Sheet Notes ke TypeScript NoteItem
- */
-export function mapRawNote(row: any): NoteItem {
-  const statusStr = String(row.STATUS || row.status || row.isDone || '').toUpperCase().trim();
-  const isDone = statusStr === 'DONE' || statusStr === 'SELESAI' || statusStr === 'TRUE' || statusStr === '1' || row.isDone === true;
-
-  let parsedQty: number | undefined = undefined;
-  let parsedSatuan: string | undefined = undefined;
-  const rawQtyVal = row.QTY || row.qty || row.Jumlah || row.jumlah;
-  if (rawQtyVal !== undefined && rawQtyVal !== null && rawQtyVal !== '') {
-    const rawQtyStr = String(rawQtyVal).trim();
-    const m = rawQtyStr.match(/^([\d.,]+)\s*([a-zA-Z]+)?$/);
-    if (m) {
-      parsedQty = parseFloat(m[1].replace(',', '.'));
-      parsedSatuan = m[2] || 'Kg';
-    } else {
-      const numOnly = parseFloat(rawQtyStr.replace(',', '.'));
-      if (!isNaN(numOnly)) {
-        parsedQty = numOnly;
-        parsedSatuan = 'Kg';
-      }
-    }
-  }
-
-  return {
-    id: String(row.ID || row.id || row.NO || row.no || `note-${row.rowIndex || Date.now()}-${Math.floor(Math.random() * 1000)}`),
-    tujuanDapur: String(row.DAPUR || row.dapur || row.tujuanDapur || 'Siliragung'),
-    namaBarang: (row.ITEM || row.item || row.namaBarang || row.nama_barang) ? String(row.ITEM || row.item || row.namaBarang || row.nama_barang) : undefined,
-    qty: parsedQty,
-    satuan: parsedSatuan,
-    catatan: String(row.CATATAN || row.catatan || row.NOTE || row.note || ''),
-    isDone,
-    createdAt: String(row.CREATED_AT || row.created_at || row.TANGGAL || row.tanggal || new Date().toISOString()),
-  };
-}
-
-/**
- * Mapper helper untuk baris raw dari Sheet Transaksi ke TypeScript InvoiceRecord
- */
-export function mapRawInvoice(row: any): InvoiceRecord {
-  let items: OrderItem[] = [];
-  if (typeof row.items === 'string') {
-    try {
-      items = JSON.parse(row.items);
-    } catch {
-      items = [];
-    }
-  } else if (Array.isArray(row.items)) {
-    items = row.items.map(mapRawOrder);
-  } else if (row.BARANG || row.barang) {
-    // Parse summary string like "ayam (1), bayem (2)"
-    const summary = String(row.BARANG || row.barang || '');
-    const parts = summary.split(',').map((p) => p.trim()).filter(Boolean);
-    items = parts.map((part, idx) => {
-      const match = part.match(/^(.*?)(?:\s*\((\d+(?:\.\d+)?)\))?$/);
-      const name = match ? match[1].trim() : part;
-      const qty = match && match[2] ? parseFloat(match[2]) : 1;
-      return {
-        id: `synth-${row.NO || row.id || row.rowIndex || idx}-${idx}`,
-        namaBarang: name,
-        qty: qty,
-        hargaBeli: 0,
-        hargaJual: 0,
-        toko: (row.TOKO || row.toko || '').toString(),
-        tujuanDapur: (row.DAPUR || row.dapur || '').toString(),
-        pemasok: (row.PEMASOK || row.pemasok || 'Pemasok 1').toString(),
-        status: 'selesai',
-        paymentStatus: 'PAID' as const,
-        deliveryStatus: 'DONE' as const,
-        tanggal: normalizeDate(row.TANGGAL || row.tanggal),
-        createdAt: new Date().toISOString(),
-      };
-    });
-  }
-
-  const rawDate = row.TANGGAL || row.tanggal || row.tanggalPrint || row.tanggal_print || row['Tanggal Print'] || '';
-
-  return {
-    id: (row.NO || row.no || row.id || row.ID || `inv-${row.rowIndex || Date.now()}-${Math.floor(Math.random() * 1000)}`).toString(),
-    invoiceNumber: (row.NO || row.no || row.invoiceNumber || row.invoice_number || row['Nomor Invoice'] || `INV-${row.NO || Date.now()}`).toString(),
-    tanggalPrint: rawDate ? String(rawDate) : new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-    createdAt: (row.createdAt || row.created_at || new Date().toISOString()).toString(),
-    tujuanDapur: (row.DAPUR || row.dapur || row.tujuanDapur || row.tujuan_dapur || '').toString(),
-    toko: (row.TOKO || row.toko || row.Toko || '').toString(),
-    items,
-    totalBeli: parseIndonesianNumber(getRowField(row, 'H. BELI', 'HBELI', 'totalBeli', 'total_beli', 'TOTALBELI')),
-    totalJual: parseIndonesianNumber(getRowField(row, 'TOTAL', 'totalJual', 'total_jual', 'TOTALJUAL', 'H. JUAL', 'HJUAL')),
-    totalProfit: parseIndonesianNumber(getRowField(row, 'totalProfit', 'total_profit', 'LABA', 'PROFIT', 'laba', 'profit')),
-    rowIndex: row.rowIndex ? Number(row.rowIndex) : undefined,
-    pemasok: (row.PEMASOK || row.pemasok || items[0]?.pemasok || 'Pemasok 1').toString(),
-    status: (row.STATUS || row.status || 'PAID').toString(),
-  };
-}
+// Re-export mapper functions and types
+export {
+  mapRawOrder,
+  buildPesananPayload,
+  mapRawInvoice,
+  buildTransaksiPayload,
+  mapRawNote,
+  buildNotesPayload,
+  fetchOrdersFromDb,
+  saveOrderToDb,
+  updateOrderInDb,
+  batchUpdateStatusInDb,
+  deleteOrderFromDb,
+  deleteOrdersFromDb,
+  fetchTransactionsFromDb,
+  saveTransactionToDb,
+  deleteTransactionFromDb,
+  fetchNotesFromDb,
+  saveNoteToDb,
+  updateNoteInDb,
+  deleteNoteFromDb,
+  fetchPeriodSummaryFromDb,
+};

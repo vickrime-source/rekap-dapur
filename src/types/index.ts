@@ -1,6 +1,30 @@
 export type OrderStatus = "pending" | "selesai";
 export type PaymentStatus = "PAID" | "UNPAID";
 export type DeliveryStatus = "DONE" | "PENDING";
+export type DashboardPeriod = "hari_ini" | "mingguan" | "bulan_ini" | "all_time";
+
+export interface StoreExpenseBreakdown {
+  toko: string;
+  totalQty: number;
+  totalBeli: number;
+  totalJual: number;
+  profit: number;
+  orderCount: number;
+  percentageOfTotalBeli: number;
+  transactionCount?: number;
+  pemasokList?: string[];
+  percentageOfTotalJual?: number;
+  marginPercent?: number;
+}
+
+export interface PeriodSummaryStats {
+  totalQty: number;
+  totalTransactions: number;
+  totalPendapatan: number;
+  totalPengeluaran: number;
+  profitBersih: number;
+  storeBreakdowns: StoreExpenseBreakdown[];
+}
 
 export interface OrderItem {
   id: string;
@@ -10,28 +34,62 @@ export interface OrderItem {
   hargaBeli: number;
   hargaJual: number;
   toko: string;         // Toko Kita (e.g. HTG, PROHE, LUWENG BOGA, ADIFRUITA)
+  toko_id?: string;     // Foreign Key to master toko
+  tokoId?: string;
   tujuanDapur: string;  // Dinamis dari daftar dapur
+  dapur_id?: string;    // Foreign Key to master dapur
+  dapurId?: string;
   pemasok: string;      // Supplier/Pemasok
+  pemasok_id?: string;  // Foreign Key to master pemasok
+  pemasokId?: string;
   status: OrderStatus;
   paymentStatus?: PaymentStatus;
   deliveryStatus?: DeliveryStatus;
   tanggal: string;      // YYYY-MM-DD
   createdAt?: string;    // ISO timestamp string
+  created_at?: string;
   catatan?: string;
   rowIndex?: number;    // Baris indeks aktual di Google Sheets (sheet "pesanan")
+}
+
+export interface MasterToko {
+  id: string;
+  nama: string;
+  created_at?: string;
+  createdAt?: string;
+}
+
+export interface MasterPemasok {
+  id: string;
+  nama: string;
+  created_at?: string;
+  createdAt?: string;
+}
+
+export interface MasterDapur {
+  id: string;
+  nama: string;
+  alamat: string;
+  created_at?: string;
+  createdAt?: string;
 }
 
 export interface Kitchen {
   id: string;
   nama: string;
+  alamat?: string;
   penanggungJawab?: string;
   lokasi?: string;
+  created_at?: string;
+  createdAt?: string;
 }
 
 export interface Store {
   id: string;
   nama: string;
   lokasi?: string;
+  created_at?: string;
+  createdAt?: string;
 }
 
 export interface InvoiceRecord {
@@ -40,14 +98,21 @@ export interface InvoiceRecord {
   tanggalPrint: string;  // Tanggal real-time saat dibuat
   tanggal?: string;      // Tanggal transaksi (YYYY-MM-DD)
   createdAt: string;
+  created_at?: string;
   tujuanDapur: string;
+  dapur_id?: string;     // Foreign Key to master dapur
+  dapurId?: string;
   toko: string;
+  toko_id?: string;      // Foreign Key to master toko
+  tokoId?: string;
+  pemasok?: string;
+  pemasok_id?: string;   // Foreign Key to master pemasok
+  pemasokId?: string;
   items: OrderItem[];
   totalBeli: number;
   totalJual: number;
   totalProfit: number;
   rowIndex?: number;     // Baris indeks aktual di Google Sheets (sheet "transaksi")
-  pemasok?: string;
   status?: string;
 }
 
@@ -69,6 +134,7 @@ export interface NoteItem {
   satuan?: string;
   catatan: string;
   isDone: boolean;
+  status?: string;
   createdAt: string;
   orderId?: string;
 }
