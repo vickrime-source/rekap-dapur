@@ -65,7 +65,7 @@ Teks ucapan suara pengguna:
 
 Daftar Dapur Tersedia: ${availableKitchens.join(', ') || 'Cluring, Siliragung, Glenmore, Sempu, Pesanggaran'}
 Daftar Toko Tersedia: ${availableStores.join(', ') || 'HTG, PROHE, LUWENG BOGA, ADIFRUITA'}
-Daftar Pemasok Tersedia: ${availablePemasok.join(', ') || 'Pemasok 1, Pemasok 2'}
+Daftar Pemasok Tersedia: ${availablePemasok.join(', ') || 'Ajeng fruits, Sari buah, PMB'}
 
 KLASIFIKASI INTENT:
 1. "CREATE_NOTE": Jika pengguna mengatakan "buat notes...", "catat...", "tulis catatan...", "note...", atau memberikan instruksi memo/pengingat/follow up.

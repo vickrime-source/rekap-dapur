@@ -481,11 +481,23 @@ export function isOrderThisMonth(o: any, targetDateStr?: string): boolean {
 
   let targetY = wibY;
   let targetM = wibM;
+  let hasSpecificTarget = false;
+
   if (targetDateStr) {
-    const p = parseDateSafe(targetDateStr);
-    if (p) {
-      targetY = p.getFullYear();
-      targetM = p.getMonth() + 1;
+    if (targetDateStr.length === 7 && targetDateStr.includes('-')) {
+      const [y, m] = targetDateStr.split('-').map(Number);
+      if (!isNaN(y) && !isNaN(m)) {
+        targetY = y;
+        targetM = m;
+        hasSpecificTarget = true;
+      }
+    } else {
+      const p = parseDateSafe(targetDateStr);
+      if (p) {
+        targetY = p.getFullYear();
+        targetM = p.getMonth() + 1;
+        hasSpecificTarget = true;
+      }
     }
   }
 
@@ -493,6 +505,9 @@ export function isOrderThisMonth(o: any, targetDateStr?: string): boolean {
     if (!dateObj) return false;
     const y = dateObj.getFullYear();
     const m = dateObj.getMonth() + 1;
+    if (hasSpecificTarget) {
+      return y === targetY && m === targetM;
+    }
     return (
       (y === targetY && m === targetM) ||
       (y === wibY && m === wibM) ||

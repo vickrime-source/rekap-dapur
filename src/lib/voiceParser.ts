@@ -319,7 +319,7 @@ export function parseVoiceOrderSmart(
 
   const finalPemasok =
     parsed.pemasok ||
-    (availablePemasok.length > 0 ? availablePemasok[0] : 'Pemasok 1');
+    (availablePemasok.length > 0 ? availablePemasok[0] : 'Ajeng fruits');
 
   return {
     rawTranscript: parsed.rawTranscript,

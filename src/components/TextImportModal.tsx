@@ -27,7 +27,7 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
   const [parsedItems, setParsedItems] = useState<TextParseResult[]>([]);
   const [defaultToko, setDefaultToko] = useState(stores[0]?.nama || 'HTG');
   const [defaultDapur, setDefaultDapur] = useState(kitchens[0]?.nama || 'Siliragung');
-  const [defaultPemasok, setDefaultPemasok] = useState(pemasokList[0] || 'Pemasok 1');
+  const [defaultPemasok, setDefaultPemasok] = useState(pemasokList[0] || 'Ajeng fruits');
   const [targetDate, setTargetDate] = useState(selectedDate);
   const [isParsed, setIsParsed] = useState(false);
 
@@ -45,7 +45,8 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
       return;
     }
 
-    const items = parseWhatsAppText(rawText, defaultToko, defaultDapur, defaultPemasok);
+    const storeNames = stores.map((s) => s.nama);
+    const items = parseWhatsAppText(rawText, defaultToko, defaultDapur, defaultPemasok, storeNames);
     setParsedItems(items);
     setIsParsed(true);
   };

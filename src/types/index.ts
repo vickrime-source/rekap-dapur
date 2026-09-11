@@ -1,6 +1,6 @@
 export type OrderStatus = "pending" | "selesai";
 export type PaymentStatus = "PAID" | "UNPAID";
-export type DeliveryStatus = "DONE" | "PENDING";
+export type DeliveryStatus = "DONE" | "PENDING" | "SHIPPED";
 export type DashboardPeriod = "hari_ini" | "mingguan" | "bulan_ini" | "all_time";
 
 export interface StoreExpenseBreakdown {
@@ -126,15 +126,19 @@ export interface TextParseResult {
   pemasok?: string;
 }
 
+export type FollowUpStatus = 'pending' | 'completed' | 'cancelled';
+
 export interface NoteItem {
   id: string;
   tujuanDapur: string;
+  toko?: string;
+  pemasok?: string;
   namaBarang?: string;
   qty?: number;
   satuan?: string;
   catatan: string;
   isDone: boolean;
-  status?: string;
+  status?: FollowUpStatus | string;
   createdAt: string;
   orderId?: string;
 }

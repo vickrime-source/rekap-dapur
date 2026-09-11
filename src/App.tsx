@@ -27,6 +27,7 @@ import { DashboardView } from './components/DashboardView';
 import { TransactionsView } from './components/TransactionsView';
 import { OrderModal } from './components/OrderModal';
 import { NoteSheet } from './components/NoteSheet';
+import { FollowUpNoteModal } from './components/FollowUpNoteModal';
 import { InvoiceModal } from './components/InvoiceModal';
 import { InvoiceFormModal } from './components/InvoiceFormModal';
 import { TextImportModal } from './components/TextImportModal';
@@ -212,7 +213,7 @@ export default function App() {
     if (stores.some((s) => s.nama.startsWith('Toko '))) {
       setStores(INITIAL_STORES);
     }
-    if (pemasokList.some((p) => ['HTG', 'PROHE', 'LUWENG BOGA', 'ADIFRUITA'].includes(p))) {
+    if (pemasokList.some((p) => p.startsWith('Pemasok ') || ['HTG', 'PROHE', 'LUWENG BOGA', 'ADIFRUITA'].includes(p))) {
       setPemasokList(INITIAL_PEMASOK);
     }
 
@@ -224,15 +225,15 @@ export default function App() {
 
       if (['HTG', 'PROHE', 'LUWENG BOGA', 'ADIFRUITA'].includes(o.pemasok)) {
         toko = o.pemasok;
-        pemasok = 'Pemasok 1';
+        pemasok = INITIAL_PEMASOK[0];
         itemChanged = true;
       }
       if (['Toko 1', 'Toko 2', 'Toko 3', 'Toko 4'].includes(o.toko)) {
         toko = 'HTG';
         itemChanged = true;
       }
-      if (['Toko 1', 'Toko 2', 'Toko 3', 'Toko 4'].includes(o.pemasok)) {
-        pemasok = 'Pemasok 1';
+      if (['Toko 1', 'Toko 2', 'Toko 3', 'Toko 4', 'Pemasok 1', 'Pemasok 2', 'Pemasok 3', 'Pemasok 4'].includes(o.pemasok)) {
+        pemasok = INITIAL_PEMASOK[0];
         itemChanged = true;
       }
 
@@ -261,6 +262,10 @@ export default function App() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<OrderItem | null>(null);
   const [prefilledKitchen, setPrefilledKitchen] = useState<string | undefined>();
+
+  // Follow Up Note Modal States
+  const [followUpNoteTarget, setFollowUpNoteTarget] = useState<NoteItem | null>(null);
+  const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
 
   // Invoice Form (Step 1 Confirmation) & Invoice Modal (Step 2 Preview) States
   const [isInvoiceFormOpen, setIsInvoiceFormOpen] = useState(false);
@@ -740,76 +745,122 @@ export default function App() {
     setIsOrderModalOpen(true);
   };
 
-  // Highlight Notes Handlers: Ketika dicentang, langsung otomatis masuk sebagai pesanan!
+  // Highlight Follow Up Handlers: Buka Modal Follow Up untuk mengisi harga jual & beli
+  const handleOpenFollowUpNote = (note: NoteItem) => {
+    setFollowUpNoteTarget(note);
+    setIsFollowUpModalOpen(true);
+  };
+
+  // Handler ketika form Follow Up selesai diisi (Transaction-Safe + Soft Completion)
+  const handleCompleteFollowUpNote = async (data: {
+    noteId: string;
+    namaBarang: string;
+    qty: number;
+    satuan: string;
+    toko: string;
+    pemasok: string;
+    tujuanDapur: string;
+    hargaBeli: number;
+    hargaJual: number;
+    tanggal: string;
+    catatanTambahan?: string;
+  }) => {
+    const targetNote = notes.find((n) => n.id === data.noteId);
+    const targetTanggal = data.tanggal || selectedDate || getTodayWIB();
+
+    const newOrderFromNote: OrderItem = {
+      id: `ord-from-note-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      namaBarang: data.namaBarang,
+      qty: data.qty,
+      satuan: data.satuan,
+      hargaBeli: data.hargaBeli,
+      hargaJual: data.hargaJual,
+      toko: data.toko,
+      tujuanDapur: data.tujuanDapur,
+      pemasok: data.pemasok,
+      status: 'pending',
+      paymentStatus: 'UNPAID',
+      deliveryStatus: 'PENDING',
+      tanggal: targetTanggal,
+      createdAt: new Date().toISOString(),
+      catatan: data.catatanTambahan ? `Dari Catatan: ${data.catatanTambahan}` : `Dari Catatan: ${data.namaBarang} (${data.qty} ${data.satuan})`,
+    };
+
+    // Langkah 1: Buat dan simpan pesanan transaksi terlebih dahulu (Transaction-Safe)
+    try {
+      const saveRes = await saveOrderToDb(newOrderFromNote);
+      if (saveRes && !saveRes.success && saveRes.error) {
+        console.warn('Gagal menyimpan pesanan ke server, simpan di memori lokal:', saveRes.error);
+      }
+    } catch (err) {
+      console.warn('Gagal membuat transaksi di database:', err);
+    }
+
+    // Langkah 2: Tambahkan ke state transaksi / pesanan lokal
+    setOrders((prev) => [newOrderFromNote, ...prev]);
+
+    // Langkah 3: Soft completion - tandai status follow up menjadi 'completed' (BUKAN delete)
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === data.noteId
+          ? {
+              ...n,
+              isDone: true,
+              status: 'completed',
+              orderId: newOrderFromNote.id,
+              namaBarang: data.namaBarang,
+              qty: data.qty,
+              satuan: data.satuan,
+              toko: data.toko,
+              pemasok: data.pemasok,
+              tujuanDapur: data.tujuanDapur,
+            }
+          : n
+      )
+    );
+
+    // Langkah 4: Update status follow up di database Supabase secara soft completion
+    if (targetNote) {
+      try {
+        await updateNoteInDb(targetNote.id, {
+          isDone: true,
+          status: 'completed',
+          orderId: newOrderFromNote.id,
+          namaBarang: data.namaBarang,
+          qty: data.qty,
+          satuan: data.satuan,
+          toko: data.toko,
+          pemasok: data.pemasok,
+          tujuanDapur: data.tujuanDapur,
+        });
+      } catch (err) {
+        console.warn('Gagal memperbarui status follow up di Supabase:', err);
+      }
+    }
+
+    showToast(
+      `✓ Follow Up Berhasil: "${data.namaBarang}" (${data.qty} ${data.satuan}) telah masuk ke Transaksi Pesanan!`,
+      'success'
+    );
+  };
+
   const handleToggleNoteStatus = async (noteId: string) => {
     const target = notes.find((n) => n.id === noteId);
     if (!target) return;
-    const newDone = !target.isDone;
 
-    if (newDone) {
-      // Dicentang / Follow Up Selesai -> Langsung Masuk Sebagai Pesanan
-      const itemName = target.namaBarang?.trim() || target.catatan?.trim() || 'Barang dari Catatan';
-      const itemQty = target.qty && target.qty > 0 ? target.qty : 1;
-      const itemSatuan = target.satuan || 'Kg';
-      const targetDapur = target.tujuanDapur || kitchens[0]?.nama || 'Siliragung';
-      const targetToko = stores[0]?.nama || 'HTG';
-      const targetPemasok = pemasokList[0] || 'Pemasok 1';
-      const targetTanggal = selectedDate || new Date().toISOString().split('T')[0];
-
-      // Cari perkiraan harga dari riwayat jika barang pernah dipesan sebelumnya
-      const prevOrderWithPrice = orders.find(
-        (o) => o.namaBarang.toLowerCase() === itemName.toLowerCase() && (o.hargaBeli > 0 || o.hargaJual > 0)
-      );
-      const autoHargaBeli = prevOrderWithPrice?.hargaBeli || 0;
-      const autoHargaJual = prevOrderWithPrice?.hargaJual || 0;
-
-      const newOrderFromNote: OrderItem = {
-        id: `ord-from-note-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        namaBarang: itemName,
-        qty: itemQty,
-        hargaBeli: autoHargaBeli,
-        hargaJual: autoHargaJual,
-        toko: targetToko,
-        tujuanDapur: targetDapur,
-        pemasok: targetPemasok,
-        status: 'pending',
-        paymentStatus: 'UNPAID',
-        deliveryStatus: 'PENDING',
-        tanggal: targetTanggal,
-        createdAt: new Date().toISOString(),
-        catatan: `Dari Catatan: ${target.catatan || itemName} (${itemQty} ${itemSatuan})`,
-      };
-
-      // 1. Masukkan ke pesanan langsung
-      setOrders((prev) => [newOrderFromNote, ...prev]);
-
-      // 2. Tandai status note menjadi Done & simpan referensi orderId
-      setNotes((prev) =>
-        prev.map((n) => (n.id === noteId ? { ...n, isDone: true, orderId: newOrderFromNote.id } : n))
-      );
-
-      showToast(`Catatan dicentang: Langsung MASUK JADI PESANAN (${itemName} - ${itemQty} ${itemSatuan})!`, 'success');
-
-      // 3. Simpan order ke database Supabase
-      saveOrderToDb(newOrderFromNote);
-
-      // 4. Update status note di database Supabase
-      updateNoteInDb(target.id, {
-        isDone: true,
-        status: 'DONE',
-        orderId: newOrderFromNote.id,
-      });
-
+    if (!target.isDone) {
+      // Jika belum selesai, buka modal follow up untuk mengisi harga
+      handleOpenFollowUpNote(target);
     } else {
-      // Batal centang / Kembalikan ke Follow Up
+      // Kembalikan ke pending (soft toggle)
       setNotes((prev) =>
-        prev.map((n) => (n.id === noteId ? { ...n, isDone: false } : n))
+        prev.map((n) => (n.id === noteId ? { ...n, isDone: false, status: 'pending' } : n))
       );
-      showToast('Status catatan dikembalikan ke Follow Up', 'info');
+      showToast('Status item dikembalikan ke Follow Up aktif', 'info');
 
       updateNoteInDb(target.id, {
         isDone: false,
-        status: 'FOLLOW UP',
+        status: 'pending',
       });
     }
   };
@@ -817,7 +868,7 @@ export default function App() {
   const handleDeleteNote = async (noteId: string) => {
     const target = notes.find((n) => n.id === noteId);
     setNotes((prev) => prev.filter((n) => n.id !== noteId));
-    showToast('Catatan follow up dihapus', 'delete');
+    showToast('Item follow up berhasil dihapus', 'delete');
 
     if (target) {
       await deleteNoteFromDb(target.id);
@@ -833,7 +884,7 @@ export default function App() {
 
     // Save locally immediately
     setNotes((prev) => [newNote, ...prev]);
-    showToast('Catatan follow up berhasil disimpan', 'success');
+    showToast('Item follow up berhasil disimpan', 'success');
 
     // Sync to Supabase
     await saveNoteToDb(newNote);
@@ -1311,7 +1362,7 @@ export default function App() {
       hargaJual: res.hargaJual,
       toko: res.toko || stores[0]?.nama || 'HTG',
       tujuanDapur: res.tujuanDapur || kitchens[0]?.nama || 'Dapur',
-      pemasok: res.pemasok || pemasokList[0] || 'Pemasok 1',
+      pemasok: res.pemasok || pemasokList[0] || 'Ajeng fruits',
       status: 'pending',
       tanggal: targetDate || selectedDate,
       createdAt: new Date().toISOString(),
@@ -1369,6 +1420,7 @@ export default function App() {
           period={dashboardPeriod}
           onPeriodChange={setDashboardPeriod}
           onToggleNoteStatus={handleToggleNoteStatus}
+          onFollowUpNote={handleOpenFollowUpNote}
           onDeleteNote={handleDeleteNote}
           onOpenNewNoteSheet={(startVoice) => {
             setAutoStartVoiceNote(!!startVoice);
@@ -1550,8 +1602,30 @@ export default function App() {
         }}
         onSave={handleSaveNote}
         kitchens={kitchens}
+        stores={stores}
+        pemasokList={pemasokList}
+        masterToko={masterToko}
+        masterPemasok={masterPemasok}
         existingItemNames={Array.from(new Set(orders.map((o) => o.namaBarang)))}
         autoStartVoice={autoStartVoiceNote}
+      />
+
+      {/* 0.1 Follow Up Note Modal (Input Harga Jual & Beli -> Masuk ke Transaksi & Terhitung sebagai Pesanan) */}
+      <FollowUpNoteModal
+        isOpen={isFollowUpModalOpen}
+        note={followUpNoteTarget}
+        onClose={() => {
+          setIsFollowUpModalOpen(false);
+          setFollowUpNoteTarget(null);
+        }}
+        onDone={handleCompleteFollowUpNote}
+        kitchens={kitchens}
+        stores={stores}
+        pemasokList={pemasokList}
+        masterToko={masterToko}
+        masterPemasok={masterPemasok}
+        existingOrders={orders}
+        selectedDate={selectedDate}
       />
 
       {/* 1. Add / Edit Order Tab Bar Sheet */}

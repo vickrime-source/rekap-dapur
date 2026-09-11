@@ -13,7 +13,8 @@ import {
   Store as StoreType, 
   PaymentStatus, 
   DeliveryStatus,
-  InvoiceRecord
+  InvoiceRecord,
+  DashboardPeriod
 } from '../types';
 import { OrdersTableView } from './OrdersTableView';
 import { CalendarPickerModal } from './CalendarPickerModal';
@@ -21,7 +22,10 @@ import {
   formatTanggal, 
   parseDateSafe, 
   normalizeDateSimple, 
-  isOrderToday 
+  isOrderToday,
+  isOrderThisWeek,
+  isOrderThisMonth,
+  getWeekRange
 } from '../lib/formatters';
 
 interface DashboardViewProps {
@@ -49,8 +53,8 @@ interface DashboardViewProps {
   kitchens: Kitchen[];
   stores: StoreType[];
   pemasokList?: string[];
-  period?: any;
-  onPeriodChange?: any;
+  period?: DashboardPeriod;
+  onPeriodChange?: (period: DashboardPeriod) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -58,6 +62,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   isLoading = false,
   selectedDate,
   onDateChange,
+  period = 'mingguan',
+  onPeriodChange,
   onUpdatePaymentStatus,
   onUpdateDeliveryStatus,
   onUpdateGroupPaymentStatus,
@@ -78,10 +84,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [endDate, setEndDate] = useState<string | undefined>(undefined);
 
+  const weekRange = useMemo(() => getWeekRange(selectedDate), [selectedDate]);
+
   // Filter orders according to date, store, kitchen, and search
   const filteredOrders = useMemo(() => {
     return orders.filter((item) => {
-      // 1. Date Scope
+      // 1. Date Scope (Synchronized with HeaderBanner)
       if (useDateFilter) {
         if (endDate && endDate !== selectedDate) {
           const itemDate = parseDateSafe(item.tanggal);
@@ -97,7 +105,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           if (!isMatch) return false;
         }
       } else {
-        if (!isOrderToday(item, selectedDate)) return false;
+        // Respect active dashboard period (Hari Ini, Mingguan, Bulanan, All Time)
+        if (period === 'all_time') {
+          // tampilkan semua periode tanpa filter tanggal
+        } else if (period === 'hari_ini') {
+          if (!isOrderToday(item, selectedDate)) return false;
+        } else if (period === 'mingguan') {
+          if (!isOrderThisWeek(item, weekRange)) return false;
+        } else if (period === 'bulan_ini') {
+          if (!isOrderThisMonth(item, selectedDate)) return false;
+        }
       }
 
       // 2. Search query
@@ -129,6 +146,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     useDateFilter,
     selectedDate,
     endDate,
+    period,
+    weekRange,
     searchQuery,
     selectedStoreFilter,
     selectedKitchenFilter,
@@ -234,7 +253,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               >
                 <CalendarIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                 <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
-                  Kalender
+                  {period === 'mingguan' ? 'Minggu Ini' : period === 'bulan_ini' ? 'Bulan Ini' : period === 'all_time' ? 'Semua Tanggal' : 'Hari Ini'}
                 </span>
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               </button>

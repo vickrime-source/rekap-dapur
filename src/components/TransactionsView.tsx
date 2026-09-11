@@ -43,6 +43,7 @@ import { PeriodSegmentedControl } from './PeriodSegmentedControl';
 import { WeeklyReportCard } from './WeeklyReportCard';
 import { ExpenseMonitoringCard } from './ExpenseMonitoringCard';
 import { MonthlySyncModal } from './MonthlySyncModal';
+import { CustomDateRange } from './ReportPeriodPicker';
 
 export interface TransactionBatch {
   id: string;
@@ -135,6 +136,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
   const activePeriod = periodProp ?? internalPeriod;
   const handleSetPeriod = (p: DashboardPeriod) => {
+    setCustomRange(null);
     if (onPeriodChange) {
       onPeriodChange(p);
     } else {
@@ -147,11 +149,18 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     }
   };
 
+  // State dropdown bulan & custom date range
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    return selectedDate ? selectedDate.slice(0, 7) : getTodayWIB().slice(0, 7);
+  });
+  const [customRange, setCustomRange] = useState<CustomDateRange | null>(null);
+
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPemasok, setSelectedPemasok] = useState('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'PAID' | 'UNPAID'>('all');
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('all');
+  const [selectedDapurFilter, setSelectedDapurFilter] = useState<string>('all');
   const [isMonthlySyncOpen, setIsMonthlySyncOpen] = useState(false);
 
   // Pagination state (max 15 batches per page)
@@ -209,8 +218,25 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
   useEffect(() => {
     let isMounted = true;
-    const targetDate = activePeriod === 'hari_ini' ? getTodayWIB() : (selectedDate || getTodayWIB());
-    fetchPeriodSummaryFromDb(activePeriod, targetDate).then((res) => {
+    let periodQuery: 'hari_ini' | 'mingguan' | 'bulan_ini' | 'all_time' | 'custom' = activePeriod;
+    let targetDate = activePeriod === 'hari_ini' ? getTodayWIB() : (selectedDate || getTodayWIB());
+    let startDate: string | undefined = undefined;
+    let endDate: string | undefined = undefined;
+
+    if (customRange) {
+      periodQuery = 'custom';
+      startDate = customRange.startDate;
+      endDate = customRange.endDate;
+      targetDate = customRange.startDate;
+    } else if (activePeriod === 'bulan_ini') {
+      const [y, m] = selectedMonth.split('-').map(Number);
+      const lastDay = new Date(y, m, 0).getDate();
+      startDate = `${selectedMonth}-01`;
+      endDate = `${selectedMonth}-${String(lastDay).padStart(2, '0')}`;
+      targetDate = startDate;
+    }
+
+    fetchPeriodSummaryFromDb(periodQuery, targetDate, startDate, endDate).then((res) => {
       if (isMounted && res.success && res.stats) {
         setDbStats(res.stats);
       }
@@ -218,22 +244,29 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [activePeriod, selectedDate, orders.length]);
+  }, [activePeriod, selectedDate, selectedMonth, customRange, orders.length]);
 
-  // Compute period statistics (Total Qty, Pendapatan, Pengeluaran PO, Profit Bersih, and Store Breakdowns)
-  const periodStats = useMemo<PeriodSummaryStats>(() => {
+  // Orders filtered by active period (Hari Ini, Mingguan, Bulan Ini, Custom Range, All Time)
+  const periodOrders = useMemo(() => {
     const todayStr = getTodayWIB();
-    const periodOrders = orders.filter((item) => {
+    return orders.filter((item) => {
+      if (customRange) {
+        const itemDate = item.tanggal || (item.createdAt ? item.createdAt.split('T')[0] : '');
+        return itemDate >= customRange.startDate && itemDate <= customRange.endDate;
+      }
       if (activePeriod === 'hari_ini') {
         return isOrderToday(item, todayStr);
       } else if (activePeriod === 'mingguan') {
         return isOrderThisWeek(item, weekRange);
       } else if (activePeriod === 'bulan_ini') {
-        return isOrderThisMonth(item, selectedDate);
+        return isOrderThisMonth(item, selectedMonth);
       }
       return true; // all_time
     });
+  }, [orders, activePeriod, selectedMonth, customRange, weekRange]);
 
+  // Compute period statistics (Total Qty, Pendapatan, Pengeluaran PO, Profit Bersih, and Store Breakdowns)
+  const periodStats = useMemo<PeriodSummaryStats>(() => {
     let totalQty = 0;
     let totalPendapatan = 0;
     let totalPengeluaran = 0;
@@ -308,7 +341,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       profitBersih: totalPendapatan - totalPengeluaran,
       storeBreakdowns,
     };
-  }, [orders, activePeriod, selectedDate, weekRange]);
+  }, [periodOrders]);
 
   // Group raw orders & invoices into distinct transaction batches
   const transactionBatches = useMemo<TransactionBatch[]>(() => {
@@ -318,7 +351,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       const tanggal = o.tanggal || o.createdAt?.split('T')[0] || '';
       const dapur = o.tujuanDapur || 'Siliragung';
       const toko = o.toko || '';
-      const pemasok = o.pemasok || 'Pemasok 1';
+      const pemasok = o.pemasok || '-';
       const key = `${tanggal}||${dapur}||${toko}||${pemasok}`;
 
       if (!groups[key]) {
@@ -361,7 +394,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         const invDate = inv.tanggalPrint || inv.tanggal || inv.createdAt?.split('T')[0] || '';
         const invDapur = inv.tujuanDapur || inv.items?.[0]?.tujuanDapur || 'Siliragung';
         const invToko = inv.toko || inv.items?.[0]?.toko || '';
-        const invPemasok = inv.pemasok || inv.PEMASOK || inv.items?.[0]?.pemasok || 'Pemasok 1';
+        const invPemasok = inv.pemasok || inv.PEMASOK || inv.items?.[0]?.pemasok || '-';
         const key = `${invDate}||${invDapur}||${invToko}||${invPemasok}`;
 
         const existing = batches.find((b) => b.id === key || b.id === inv.id);
@@ -402,8 +435,16 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const filteredBatches = useMemo(() => {
     const todayStr = getTodayWIB();
     return transactionBatches.filter((batch) => {
-      // 1. Period filter (Hari Ini, Mingguan, Bulanan, All Time)
-      if (activePeriod === 'hari_ini') {
+      // 1. Period filter (Hari Ini, Mingguan, Bulanan, All Time, atau Rentang Kustom)
+      if (customRange) {
+        const batchDate = batch.tanggal || (batch.createdAt ? batch.createdAt.split('T')[0] : '');
+        const isMatch = (batchDate >= customRange.startDate && batchDate <= customRange.endDate) ||
+          (batch.items && batch.items.some(i => {
+            const d = i.tanggal || (i.createdAt ? i.createdAt.split('T')[0] : '');
+            return d >= customRange.startDate && d <= customRange.endDate;
+          }));
+        if (!isMatch) return false;
+      } else if (activePeriod === 'hari_ini') {
         const isMatch = (batch.items && batch.items.length > 0 && batch.items.some(i => isOrderToday(i, todayStr))) ||
           isOrderToday({ tanggal: batch.tanggal, createdAt: batch.createdAt }, todayStr);
         if (!isMatch) return false;
@@ -412,8 +453,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           isOrderThisWeek({ tanggal: batch.tanggal, createdAt: batch.createdAt }, weekRange);
         if (!isMatch) return false;
       } else if (activePeriod === 'bulan_ini') {
-        const isMatch = (batch.items && batch.items.length > 0 && batch.items.some(i => isOrderThisMonth(i, selectedDate))) ||
-          isOrderThisMonth({ tanggal: batch.tanggal, createdAt: batch.createdAt }, selectedDate);
+        const isMatch = (batch.items && batch.items.length > 0 && batch.items.some(i => isOrderThisMonth(i, selectedMonth))) ||
+          isOrderThisMonth({ tanggal: batch.tanggal, createdAt: batch.createdAt }, selectedMonth);
         if (!isMatch) return false;
       }
 
@@ -438,7 +479,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         return false;
       }
 
-      // 5. Payment status filter
+      // 5. Dapur filter (Integrated with Breakdown Dapur click)
+      if (selectedDapurFilter !== 'all' && batch.tujuanDapur !== selectedDapurFilter) {
+        return false;
+      }
+
+      // 6. Payment status filter
       if (selectedStatusFilter !== 'all' && batch.payStatus !== selectedStatusFilter) {
         return false;
       }
@@ -453,6 +499,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     selectedStoreFilter, 
     searchQuery, 
     selectedPemasok, 
+    selectedDapurFilter,
     selectedStatusFilter
   ]);
 
@@ -545,28 +592,40 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         </div>
 
         {/* Financial Report & Breakdown Toko/Pengepul */}
-        {activePeriod === 'mingguan' ? (
-          <WeeklyReportCard
-            stats={dbStats || periodStats}
-            weekRange={weekRange}
-            period="mingguan"
-            selectedStoreFilter={selectedStoreFilter}
-            onFilterStore={(toko) => {
-              setSelectedStoreFilter((prev) => (prev === toko ? 'all' : toko));
-            }}
-          />
-        ) : (
-          <WeeklyReportCard
-            stats={dbStats || periodStats}
-            weekRange={weekRange}
-            period={activePeriod}
-            selectedDate={selectedDate}
-            selectedStoreFilter={selectedStoreFilter}
-            onFilterStore={(toko) => {
-              setSelectedStoreFilter((prev) => (prev === toko ? 'all' : toko));
-            }}
-          />
-        )}
+        <WeeklyReportCard
+          stats={dbStats || periodStats}
+          weekRange={weekRange}
+          period={activePeriod}
+          selectedDate={selectedDate}
+          selectedMonth={selectedMonth}
+          customRange={customRange}
+          onSelectMonth={(month) => {
+            setCustomRange(null);
+            setSelectedMonth(month);
+            if (activePeriod !== 'bulan_ini') {
+              handleSetPeriod('bulan_ini');
+            }
+          }}
+          onSelectCustomRange={(range) => {
+            setCustomRange(range);
+          }}
+          onClearCustomRange={() => {
+            setCustomRange(null);
+          }}
+          selectedStoreFilter={selectedStoreFilter}
+          onFilterStore={(toko) => {
+            setSelectedStoreFilter((prev) => (prev === toko ? 'all' : toko));
+          }}
+          selectedPemasokFilter={selectedPemasok}
+          onFilterPemasok={(pemasok) => {
+            setSelectedPemasok((prev) => (prev === pemasok ? 'all' : pemasok));
+          }}
+          selectedDapurFilter={selectedDapurFilter}
+          onFilterDapur={(dapur) => {
+            setSelectedDapurFilter((prev) => (prev === dapur ? 'all' : dapur));
+          }}
+          periodOrders={periodOrders}
+        />
       </div>
 
       {/* 

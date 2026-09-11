@@ -98,10 +98,40 @@ const INITIAL_TOKO_SEED: FallbackMasterToko[] = [
 ];
 
 const INITIAL_PEMASOK_SEED: FallbackMasterPemasok[] = [
-  { id: 'pemasok-1', nama: 'Pemasok 1', created_at: new Date().toISOString() },
-  { id: 'pemasok-2', nama: 'Pemasok 2', created_at: new Date().toISOString() },
-  { id: 'pemasok-3', nama: 'Pemasok 3', created_at: new Date().toISOString() },
-  { id: 'pemasok-4', nama: 'Pemasok 4', created_at: new Date().toISOString() },
+  { id: 'pemasok-ajeng-fruits', nama: 'Ajeng fruits', created_at: new Date().toISOString() },
+  { id: 'pemasok-sari-buah', nama: 'Sari buah', created_at: new Date().toISOString() },
+  { id: 'pemasok-buah-mulyo', nama: 'Buah mulyo', created_at: new Date().toISOString() },
+  { id: 'pemasok-arnis-buah', nama: 'Arnis buah', created_at: new Date().toISOString() },
+  { id: 'pemasok-pmb', nama: 'PMB', created_at: new Date().toISOString() },
+  { id: 'pemasok-diah-buah', nama: 'Diah Buah', created_at: new Date().toISOString() },
+  { id: 'pemasok-pak-jarwo', nama: 'Pak Jarwo', created_at: new Date().toISOString() },
+  { id: 'pemasok-handoyo', nama: 'Handoyo', created_at: new Date().toISOString() },
+  { id: 'pemasok-pak-nyoto', nama: 'Pak nyoto', created_at: new Date().toISOString() },
+  { id: 'pemasok-pak-bahtiar', nama: 'Pak bahtiar', created_at: new Date().toISOString() },
+  { id: 'pemasok-salak-senepo', nama: 'Salak senepo', created_at: new Date().toISOString() },
+  { id: 'pemasok-crystal-fruits', nama: 'Crystal fruits', created_at: new Date().toISOString() },
+  { id: 'pemasok-indo-sayur', nama: 'indo sayur', created_at: new Date().toISOString() },
+  { id: 'pemasok-toko-daging-sapi-bwi', nama: 'Toko daging sapi banyuwangi', created_at: new Date().toISOString() },
+  { id: 'pemasok-raja-ayam', nama: 'Raja ayam', created_at: new Date().toISOString() },
+  { id: 'pemasok-bu-tiah', nama: 'Bu Tiah', created_at: new Date().toISOString() },
+  { id: 'pemasok-vazio', nama: 'Vazio', created_at: new Date().toISOString() },
+  { id: 'pemasok-pak-hadi', nama: 'Pak Hadi', created_at: new Date().toISOString() },
+  { id: 'pemasok-yogo', nama: 'Yogo', created_at: new Date().toISOString() },
+  { id: 'pemasok-roti-pradana', nama: 'Roti Pradana', created_at: new Date().toISOString() },
+  { id: 'pemasok-pak-toha', nama: 'Pak Toha', created_at: new Date().toISOString() },
+  { id: 'pemasok-nur-cavendish', nama: 'Nur Cavendish', created_at: new Date().toISOString() },
+  { id: 'pemasok-juhari-cavendish', nama: 'Juhari Cavendish', created_at: new Date().toISOString() },
+  { id: 'pemasok-mecca', nama: 'Mecca', created_at: new Date().toISOString() },
+  { id: 'pemasok-lontong-sempu', nama: 'Lontong sempu', created_at: new Date().toISOString() },
+  { id: 'pemasok-ladju-snack', nama: 'Ladju snack', created_at: new Date().toISOString() },
+  { id: 'pemasok-pak-adi-edamame', nama: 'Pak adi edamame', created_at: new Date().toISOString() },
+  { id: 'pemasok-pak-wargito-ndok-asin', nama: 'Pak wargito Ndok Asin', created_at: new Date().toISOString() },
+  { id: 'pemasok-suparti', nama: 'Suparti', created_at: new Date().toISOString() },
+  { id: 'pemasok-eko-lele', nama: 'Eko lele', created_at: new Date().toISOString() },
+  { id: 'pemasok-king', nama: 'King', created_at: new Date().toISOString() },
+  { id: 'pemasok-nur-patin', nama: 'Nur patin', created_at: new Date().toISOString() },
+  { id: 'pemasok-nanik-tuna', nama: 'Nanik tuna', created_at: new Date().toISOString() },
+  { id: 'pemasok-rambo-jambu-citra', nama: 'Rambo Jambu citra', created_at: new Date().toISOString() },
 ];
 
 const INITIAL_DAPUR_SEED: FallbackMasterDapur[] = [
@@ -186,7 +216,9 @@ export function getLocalOrders(filters: any = {}): FallbackOrder[] {
   const db = loadDb();
   let list = [...db.pesanan];
 
-  if (filters.period && filters.period !== 'all_time') {
+  if (filters.startDate && filters.endDate) {
+    list = list.filter((o) => o.tanggal >= filters.startDate && o.tanggal <= filters.endDate);
+  } else if (filters.period && filters.period !== 'all_time') {
     const today = new Date().toISOString().split('T')[0];
     const refDate = filters.date || today;
 
@@ -244,7 +276,7 @@ export function createLocalOrders(records: any[]): FallbackOrder[] {
       qty: Number(item.qty) || 1,
       satuan: item.satuan || 'Kg',
       toko: item.toko || '',
-      pemasok: item.pemasok || 'Pemasok 1',
+      pemasok: item.pemasok || '',
       status_pembayaran: item.status_pembayaran || item.paymentStatus || 'UNPAID',
       status_pengiriman: item.status_pengiriman || item.deliveryStatus || 'PENDING',
       status: item.status || 'pending',
@@ -325,7 +357,7 @@ export function createLocalTransaction(tx: any): FallbackTransaction {
     invoice_number: tx.invoice_number || tx.invoiceNumber || `INV-${Date.now()}`,
     tanggal: tx.tanggal || new Date().toISOString().split('T')[0],
     tanggal_print: tx.tanggal_print || tx.tanggalPrint || new Date().toLocaleDateString('id-ID'),
-    pemasok: tx.pemasok || 'Pemasok 1',
+    pemasok: tx.pemasok || '',
     barang: tx.barang || '',
     toko: tx.toko || '',
     dapur: tx.dapur || '',
@@ -416,8 +448,13 @@ export function deleteLocalNote(id: string): { success: boolean } {
 // ---------------------------------------------------------------------------
 // PERIOD SUMMARY FROM LOCAL DB
 // ---------------------------------------------------------------------------
-export function getLocalPeriodSummary(period: string = 'mingguan', targetDate?: string) {
-  const orders = getLocalOrders({ period, date: targetDate });
+export function getLocalPeriodSummary(
+  period: string = 'mingguan',
+  targetDate?: string,
+  startDate?: string,
+  endDate?: string
+) {
+  const orders = getLocalOrders({ period, date: targetDate, startDate, endDate });
 
   let totalQty = 0;
   let totalPendapatan = 0;

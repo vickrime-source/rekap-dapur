@@ -3,6 +3,7 @@ import { Sparkles, CheckCircle2, AlertCircle, X, Loader2, Square, FileText, Shop
 import { motion, AnimatePresence } from 'motion/react';
 import { OrderItem, Kitchen, Store as StoreType } from '../types';
 import { parseVoiceAssistantSmart, SmartVoiceResult } from '../lib/voiceParser';
+import { guessStoreForItem } from '../lib/storeMatcher';
 import { formatRupiah, getTodayWIB } from '../lib/formatters';
 
 interface SmartVoiceOrderOverlayProps {
@@ -165,13 +166,19 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
         parsedData.tujuanDapur ||
         (kitchens.length > 0 ? kitchens[0].nama : 'Cluring');
 
-      const finalStore =
-        parsedData.toko ||
-        (stores.length > 0 ? stores[0].nama : 'HTG');
+      let finalStore = parsedData.toko;
+      if (!finalStore && parsedData.namaBarang) {
+        const storeNames = stores.map((s) => s.nama);
+        const guessed = guessStoreForItem(parsedData.namaBarang, storeNames);
+        if (guessed) finalStore = guessed;
+      }
+      if (!finalStore) {
+        finalStore = stores.length > 0 ? stores[0].nama : 'HTG';
+      }
 
       const finalPemasok =
         parsedData.pemasok ||
-        (pemasokList.length > 0 ? pemasokList[0] : 'Pemasok 1');
+        (pemasokList.length > 0 ? pemasokList[0] : 'Ajeng fruits');
 
       const newOrderPayload: Omit<OrderItem, 'id' | 'createdAt'> = {
         namaBarang: parsedData.namaBarang || 'Ayam',

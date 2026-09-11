@@ -59,7 +59,7 @@ export function mapRawOrder(row: any): OrderItem {
     tujuanDapur: row.dapur || row.tujuanDapur || row.tujuan_dapur || '',
     dapur_id: row.dapur_id || row.dapurId,
     dapurId: row.dapur_id || row.dapurId,
-    pemasok: row.pemasok || 'Pemasok 1',
+    pemasok: row.pemasok || '',
     pemasok_id: row.pemasok_id || row.pemasokId,
     pemasokId: row.pemasok_id || row.pemasokId,
     status: orderStatus as 'pending' | 'selesai',
@@ -85,7 +85,7 @@ export function buildPesananPayload(item: Partial<OrderItem>) {
     satuan: item.satuan || 'Kg',
     toko: item.toko || '',
     ...(item.toko_id || item.tokoId ? { toko_id: item.toko_id || item.tokoId } : {}),
-    pemasok: item.pemasok || 'Pemasok 1',
+    pemasok: item.pemasok || '',
     ...(item.pemasok_id || item.pemasokId ? { pemasok_id: item.pemasok_id || item.pemasokId } : {}),
     status_pembayaran: ['PAID', 'UNPAID'].includes(payStatus) ? payStatus : 'UNPAID',
     status_pengiriman: ['DONE', 'PENDING'].includes(delStatus) ? delStatus : 'PENDING',
@@ -109,7 +109,7 @@ export function mapRawInvoice(row: any): InvoiceRecord {
     toko: row.toko || '',
     toko_id: row.toko_id || row.tokoId,
     tokoId: row.toko_id || row.tokoId,
-    pemasok: row.pemasok || 'Pemasok 1',
+    pemasok: row.pemasok || '',
     pemasok_id: row.pemasok_id || row.pemasokId,
     pemasokId: row.pemasok_id || row.pemasokId,
     items: items,
@@ -126,7 +126,7 @@ export function buildTransaksiPayload(record: Partial<InvoiceRecord>) {
     invoice_number: record.invoiceNumber || `INV-${Date.now()}`,
     tanggal: record.createdAt ? record.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
     tanggal_print: record.tanggalPrint || new Date().toLocaleDateString('id-ID'),
-    pemasok: record.pemasok || 'Pemasok 1',
+    pemasok: record.pemasok || '',
     ...(record.pemasok_id || record.pemasokId ? { pemasok_id: record.pemasok_id || record.pemasokId } : {}),
     barang: (record.items || []).map((i) => `${i.namaBarang} (${i.qty})`).join(', '),
     toko: record.toko || '',
@@ -143,13 +143,27 @@ export function buildTransaksiPayload(record: Partial<InvoiceRecord>) {
 }
 
 export function mapRawNote(row: any): NoteItem {
+  let rawCatatan = row.catatan || '';
+  let toko = row.toko || '';
+  let pemasok = row.pemasok || '';
+
+  // Ekstrak meta toko/pemasok jika tersimpan di catatan
+  const metaMatch = rawCatatan.match(/^\[META:TOKO=([^|]*)\|PEMASOK=([^\]]*)\]\s*/);
+  if (metaMatch) {
+    if (!toko) toko = metaMatch[1];
+    if (!pemasok) pemasok = metaMatch[2];
+    rawCatatan = rawCatatan.replace(metaMatch[0], '').trim();
+  }
+
   return {
     id: String(row.id || `note-${Date.now()}`),
     tujuanDapur: row.dapur || row.tujuanDapur || '',
+    toko: toko || undefined,
+    pemasok: pemasok || undefined,
     namaBarang: row.item || row.namaBarang || '',
     qty: row.qty !== undefined && row.qty !== null ? Number(row.qty) : undefined,
     satuan: row.satuan || 'Kg',
-    catatan: row.catatan || '',
+    catatan: rawCatatan,
     status: row.status || (row.is_done ? 'DONE' : 'FOLLOW UP'),
     isDone: Boolean(row.is_done !== undefined ? row.is_done : row.isDone),
     orderId: row.order_id || row.orderId,
@@ -158,13 +172,22 @@ export function mapRawNote(row: any): NoteItem {
 }
 
 export function buildNotesPayload(note: Partial<NoteItem>) {
+  let finalCatatan = (note.catatan || '').trim();
+  const tokoVal = (note.toko || '').trim();
+  const pemasokVal = (note.pemasok || '').trim();
+
+  // Simpan metadata toko & pemasok di awal catatan agar persist aman
+  if ((tokoVal || pemasokVal) && !finalCatatan.startsWith('[META:TOKO=')) {
+    finalCatatan = `[META:TOKO=${tokoVal}|PEMASOK=${pemasokVal}] ${finalCatatan}`.trim();
+  }
+
   return {
     ...(note.id ? { id: note.id } : {}),
     dapur: note.tujuanDapur || '',
     item: note.namaBarang || '',
     qty: note.qty !== undefined && note.qty !== null ? Number(note.qty) : null,
     satuan: note.satuan || 'Kg',
-    catatan: note.catatan || '',
+    catatan: finalCatatan,
     status: note.status || (note.isDone ? 'DONE' : 'FOLLOW UP'),
     is_done: Boolean(note.isDone),
     order_id: note.orderId || null,
@@ -177,13 +200,15 @@ export function buildNotesPayload(note: Partial<NoteItem>) {
 export async function fetchOrdersFromDb(params?: {
   period?: 'hari_ini' | 'mingguan' | 'bulan_ini' | 'all_time';
   date?: string;
+  startDate?: string;
+  endDate?: string;
   toko?: string;
   dapur?: string;
   limit?: number;
   page?: number;
   forceRefresh?: boolean;
 }): Promise<{ success: boolean; orders: OrderItem[]; error?: string }> {
-  const cacheKey = `pesanan_${params?.period || 'all'}_${params?.date || ''}_${params?.toko || ''}_${params?.dapur || ''}_${params?.page || 1}_${params?.limit || 100}`;
+  const cacheKey = `pesanan_${params?.period || 'all'}_${params?.date || ''}_${params?.startDate || ''}_${params?.endDate || ''}_${params?.toko || ''}_${params?.dapur || ''}_${params?.page || 1}_${params?.limit || 100}`;
 
   if (!params?.forceRefresh) {
     const cached = getFromCache<OrderItem[]>(cacheKey);
@@ -196,6 +221,8 @@ export async function fetchOrdersFromDb(params?: {
     const searchParams = new URLSearchParams();
     if (params?.period) searchParams.set('period', params.period);
     if (params?.date) searchParams.set('date', params.date);
+    if (params?.startDate) searchParams.set('startDate', params.startDate);
+    if (params?.endDate) searchParams.set('endDate', params.endDate);
     if (params?.toko) searchParams.set('toko', params.toko);
     if (params?.dapur) searchParams.set('dapur', params.dapur);
     if (params?.limit) searchParams.set('limit', String(params.limit));
@@ -212,8 +239,9 @@ export async function fetchOrdersFromDb(params?: {
     const orders = (json.data || []).map(mapRawOrder);
     setInCache(cacheKey, orders);
     return { success: true, orders };
-  } catch (err: any) {
-    return { success: false, orders: [], error: err?.message || 'Koneksi ke Supabase terputus' };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Koneksi ke Supabase terputus';
+    return { success: false, orders: [], error: msg };
   }
 }
 
@@ -262,7 +290,7 @@ export async function updateOrderInDb(id: string, updates: Partial<OrderItem>): 
 
 export async function batchUpdateStatusInDb(
   ids: string[],
-  updates: { paymentStatus?: 'PAID' | 'UNPAID'; deliveryStatus?: 'DONE' | 'PENDING'; status?: 'pending' | 'selesai' }
+  updates: { paymentStatus?: 'PAID' | 'UNPAID'; deliveryStatus?: 'DONE' | 'PENDING' | 'SHIPPED'; status?: 'pending' | 'selesai' }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const res = await fetch('/api/pesanan', {
@@ -464,12 +492,14 @@ export async function deleteNoteFromDb(id: string): Promise<{ success: boolean; 
 // Database-Side Period Summary & Weekly Store Report (Query Supabase Langsung!)
 // -----------------------------------------------------------------------------
 export async function fetchPeriodSummaryFromDb(
-  period: 'hari_ini' | 'mingguan' | 'bulan_ini' | 'all_time' = 'mingguan',
+  period: 'hari_ini' | 'mingguan' | 'bulan_ini' | 'all_time' | 'custom' = 'mingguan',
   date?: string,
+  startDate?: string,
+  endDate?: string,
   forceRefresh = false
 ): Promise<{ success: boolean; stats?: PeriodSummaryStats; error?: string }> {
   const targetDate = date || new Date().toISOString().split('T')[0];
-  const cacheKey = `summary_${period}_${targetDate}`;
+  const cacheKey = `summary_${period}_${targetDate}_${startDate || ''}_${endDate || ''}`;
 
   if (!forceRefresh) {
     const cached = getFromCache<PeriodSummaryStats>(cacheKey);
@@ -479,7 +509,15 @@ export async function fetchPeriodSummaryFromDb(
   }
 
   try {
-    const res = await fetch(`/api/pesanan?action=period_summary&period=${period}&date=${targetDate}`);
+    const params = new URLSearchParams({
+      action: 'period_summary',
+      period,
+      date: targetDate,
+    });
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+
+    const res = await fetch(`/api/pesanan?${params.toString()}`);
     const json = await res.json();
     if (!res.ok || !json.success) {
       return { success: false, error: json.error || 'Gagal menghitung statistik di database' };
@@ -487,8 +525,9 @@ export async function fetchPeriodSummaryFromDb(
     const stats = json.data as PeriodSummaryStats;
     setInCache(cacheKey, stats);
     return { success: true, stats };
-  } catch (err: any) {
-    return { success: false, error: err?.message || 'Gagal memuat rekap periode dari database' };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Gagal memuat rekap periode dari database';
+    return { success: false, error: msg };
   }
 }
 

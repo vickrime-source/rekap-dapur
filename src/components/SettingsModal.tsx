@@ -51,6 +51,8 @@ import {
   deleteMasterDapurFromDb, 
   checkMasterUsageFromDb 
 } from '../lib/supabaseDb';
+import { MASTER_TABLES_SQL } from '../lib/masterSqlScript';
+import { Code2 } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -129,6 +131,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(getNotificationSettings());
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(getNotificationPermissionStatus());
   const [testNotificationSent, setTestNotificationSent] = useState<boolean>(false);
+  const [showSqlModal, setShowSqlModal] = useState<boolean>(false);
+  const [copiedSql, setCopiedSql] = useState<boolean>(false);
+
+  const handleCopySql = () => {
+    navigator.clipboard.writeText(MASTER_TABLES_SQL);
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 2500);
+  };
 
   const handleUpdateNotificationSetting = <K extends keyof NotificationSettings>(
     key: K,
@@ -646,6 +656,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       {kitchens.length}
                     </span>
                   </button>
+                </div>
+
+                {/* Database SQL Helper Banner */}
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200/80">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                      <Database className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-black text-indigo-950 truncate">
+                        Skrip SQL Database (Supabase / Postgres)
+                      </h4>
+                      <p className="text-[10px] text-indigo-700 font-medium truncate">
+                        Tabel &amp; data master dapur, toko, pemasok
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleCopySql}
+                      className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-indigo-700 border border-indigo-200 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
+                      title="Salin query SQL ke clipboard"
+                    >
+                      {copiedSql ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Tersalin!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Salin SQL</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowSqlModal(true)}
+                      className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-[11px] font-black transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
+                      title="Lihat query SQL lengkap"
+                    >
+                      <Code2 className="w-3.5 h-3.5" />
+                      <span>Lihat SQL</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* --- SUB-VIEW 1: TOKO --- */}
@@ -1430,6 +1486,75 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </>
               )}
+            </motion.div>
+          </div>
+        )}
+
+        {/* SQL Viewer Modal */}
+        {showSqlModal && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-xs font-sans">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 text-slate-100 rounded-3xl p-4 sm:p-6 max-w-2xl w-full shadow-2xl border border-slate-700 flex flex-col max-h-[85vh] space-y-3"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                    <Database className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white">
+                      Skrip SQL Master: Dapur, Toko &amp; Pemasok
+                    </h3>
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      Supabase PostgreSQL DDL, Indexing, Seed Data &amp; RLS
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopySql}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    {copiedSql ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+                        <span>Tersalin!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Salin SQL</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowSqlModal(false)}
+                    className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 overflow-y-auto font-mono text-[11px] leading-relaxed text-emerald-400 select-all flex-1 max-h-[60vh]">
+                <pre className="whitespace-pre-wrap">{MASTER_TABLES_SQL}</pre>
+              </div>
+
+              <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400">
+                <span>File tersimpan juga di <code className="text-indigo-300 font-mono">/master_tables_schema.sql</code></span>
+                <button
+                  type="button"
+                  onClick={() => setShowSqlModal(false)}
+                  className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

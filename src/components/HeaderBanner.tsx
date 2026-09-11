@@ -8,6 +8,7 @@ import {
   Loader2,
   Receipt,
   Plus,
+  CircleCheck,
   CheckCircle2,
   Circle,
   Trash2,
@@ -17,7 +18,10 @@ import {
   Scale,
   Check,
   TrendingUp,
-  Database
+  Database,
+  ArrowRightCircle,
+  Store,
+  Truck
 } from 'lucide-react';
 import { OrderItem, NoteItem, Kitchen, DashboardPeriod } from '../types';
 import { 
@@ -39,6 +43,7 @@ interface HeaderBannerProps {
   period?: DashboardPeriod;
   onPeriodChange?: (period: DashboardPeriod) => void;
   onToggleNoteStatus: (noteId: string) => void;
+  onFollowUpNote?: (note: NoteItem) => void;
   onDeleteNote: (noteId: string) => void;
   onOpenNewNoteSheet: (startVoice?: boolean) => void;
   onOpenSettings: () => void;
@@ -58,9 +63,11 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
   orders = [],
   selectedDate,
   notes = [],
+  kitchens = [],
   period: periodProp,
   onPeriodChange,
   onToggleNoteStatus,
+  onFollowUpNote,
   onDeleteNote,
   onOpenNewNoteSheet,
   onOpenSettings,
@@ -314,83 +321,77 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
             </div>
           </div>
 
-          {/* Right Column: HIGHLIGHT NOTES (Follow up & Done Check Dot Status) */}
+          {/* Right Column: HIGHLIGHT FOLLOW UP (Daftar pesanan sementara untuk ditindaklanjuti) */}
           <div className="md:col-span-8 bg-slate-50/90 border border-slate-200 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-[inset_1px_1px_2px_rgba(255,255,255,0.9)]">
-            {/* Header of Highlight Notes */}
+            {/* Header of Follow Up Section */}
             <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
               <div className="flex items-center gap-1.5">
-                <div className="w-5 h-5 rounded-lg bg-slate-800 text-white flex items-center justify-center">
+                <div className="w-5 h-5 rounded-lg bg-indigo-900 text-white flex items-center justify-center">
                   <FileText className="w-3 h-3" />
                 </div>
                 <span className="text-[11px] font-black uppercase tracking-wider text-slate-900">
-                  NOTES
+                  FOLLOW UP
                 </span>
               </div>
 
-              {/* Action Button: New Note Button */}
+              {/* Action Button: Tambah Follow Up */}
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => onOpenNewNoteSheet(false)}
-                  className="px-2.5 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-black flex items-center gap-1 shadow-xs active:scale-95 transition-all cursor-pointer"
+                  className="px-2.5 py-1 rounded-xl bg-indigo-900 hover:bg-indigo-800 text-white text-[10px] font-black flex items-center gap-1 shadow-xs active:scale-95 transition-all cursor-pointer"
                 >
                   <Plus className="w-3 h-3 stroke-[3]" />
-                  <span>New Note</span>
+                  <span>Tambah Follow Up</span>
                 </button>
               </div>
             </div>
 
-            {/* List of Notes with Interactive Check Dot Status */}
+            {/* List of Follow Up Items with Checklist Icon & Trash */}
             <div className="mt-2 space-y-1.5 max-h-[145px] overflow-y-auto pr-1">
               {notes.length === 0 ? (
                 <div className="text-center py-2 text-slate-400 text-[11px] font-medium italic">
-                  Belum ada catatan follow up. Klik <strong>+ New Note</strong> untuk menambah catatan.
+                  Belum ada daftar follow up. Klik <strong>+ Tambah Follow Up</strong> untuk mencatat pesanan sementara.
                 </div>
               ) : (
                 notes.map((note) => {
                   return (
                     <div
                       key={note.id}
-                      className={`flex items-center justify-between gap-2 p-1.5 rounded-xl border transition-all ${
+                      className={`flex items-center justify-between gap-2 p-1.5 sm:p-2 rounded-xl border transition-all ${
                         note.isDone
-                          ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950'
-                          : 'bg-white border-slate-200/90 shadow-2xs'
+                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                          : 'bg-white border-slate-200/90 shadow-2xs hover:border-indigo-300'
                       }`}
                     >
-                      {/* Left: Interactive Check Dot + Details */}
-                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
-                        {/* Check Dot Status Button (Clicking automatically adds into orders) */}
-                        <button
-                          type="button"
-                          onClick={() => onToggleNoteStatus(note.id)}
-                          title={
-                            note.isDone
-                              ? 'Catatan sudah masuk ke Pesanan (Klik untuk batal centang)'
-                              : 'Klik centang: Langsung otomatis MASUK SEBAGAI PESANAN!'
-                          }
-                          className="flex-shrink-0 cursor-pointer focus:outline-none"
-                        >
-                          {note.isDone ? (
-                            <div className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            </div>
-                          ) : (
-                            <div className="w-4 h-4 rounded-full border-2 border-indigo-500 bg-indigo-50 flex items-center justify-center hover:bg-indigo-100 transition-colors">
-                              <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
-                            </div>
-                          )}
-                        </button>
-
-                        {/* Dapur Badge (Optional) */}
+                      {/* Left: [Dapur] [Toko] [Pemasok] [Nama Barang] [Qty] [Catatan] */}
+                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 flex-wrap sm:flex-nowrap">
+                        {/* Dapur Badge */}
                         {note.tujuanDapur ? (
                           <span className="flex-shrink-0 text-[8.5px] font-black uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
                             {note.tujuanDapur}
                           </span>
                         ) : null}
 
-                        {/* Optional Item Name */}
+                        {/* Toko Badge */}
+                        {note.toko ? (
+                          <span className="flex-shrink-0 text-[8.5px] font-black uppercase px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 truncate max-w-[90px] flex items-center gap-0.5">
+                            <Store className="w-2.5 h-2.5" />
+                            <span>{note.toko}</span>
+                          </span>
+                        ) : null}
+
+                        {/* Pemasok Badge */}
+                        {note.pemasok ? (
+                          <span className="flex-shrink-0 text-[8.5px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 truncate max-w-[80px] flex items-center gap-0.5">
+                            <Truck className="w-2.5 h-2.5" />
+                            <span>{note.pemasok}</span>
+                          </span>
+                        ) : null}
+
+                        {/* Nama Barang */}
                         {note.namaBarang && (
-                          <span className="flex-shrink-0 text-[8.5px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 truncate max-w-[90px]">
+                          <span className="flex-shrink-0 text-[8.5px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200 truncate max-w-[110px]">
                             {note.namaBarang}
                           </span>
                         )}
@@ -402,33 +403,51 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
                           </span>
                         )}
 
-                        {/* Note Description Text */}
+                        {/* Catatan Awal */}
                         <span
-                          className={`text-[10px] font-semibold truncate flex-1 ${
-                            note.isDone ? 'line-through text-slate-500' : 'text-slate-800'
+                          className={`text-[10px] font-semibold truncate flex-1 min-w-[100px] ${
+                            note.isDone ? 'line-through text-slate-400' : 'text-slate-800'
                           }`}
+                          title={note.catatan}
                         >
                           {note.catatan}
                         </span>
 
-                        {/* Masuk Pesanan Badge */}
                         {note.isDone && (
-                          <span className="flex-shrink-0 text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-0.5">
-                            <Check className="w-2.5 h-2.5 stroke-[3]" />
-                            <span>Pesanan</span>
+                          <span className="flex-shrink-0 text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            SELESAI
                           </span>
                         )}
                       </div>
 
-                      {/* Delete button */}
-                      <button
-                        type="button"
-                        onClick={() => onDeleteNote(note.id)}
-                        className="text-slate-400 hover:text-rose-600 p-0.5 rounded transition-colors flex-shrink-0 cursor-pointer"
-                        title="Hapus Catatan"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                      {/* Right: [✓ Checklist Button] [Trash Button] */}
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {/* Checklist Button: Klik untuk membuka proses Follow Up (lengkapi harga & simpan ke transaksi) */}
+                        <button
+                          type="button"
+                          onClick={() => (onFollowUpNote ? onFollowUpNote(note) : onToggleNoteStatus(note.id))}
+                          title={note.isDone ? "Sudah masuk transaksi (Klik untuk tinjau/ubah)" : "Proses Follow Up"}
+                          aria-label="Proses Follow Up"
+                          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer border ${
+                            note.isDone
+                              ? 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200'
+                              : 'bg-indigo-50/90 text-indigo-700 border-indigo-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 active:scale-95 shadow-2xs'
+                          }`}
+                        >
+                          <CircleCheck className="w-5 h-5" />
+                        </button>
+
+                        {/* Delete button */}
+                        <button
+                          type="button"
+                          onClick={() => onDeleteNote(note.id)}
+                          className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-all cursor-pointer"
+                          title="Hapus Follow Up"
+                          aria-label="Hapus Follow Up"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   );
                 })

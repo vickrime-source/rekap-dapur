@@ -1,4 +1,5 @@
 import { TextParseResult } from '../types';
+import { guessStoreForItem } from './storeMatcher';
 
 /**
  * Parses raw text (e.g. copied from WhatsApp messages) into structured order items.
@@ -12,7 +13,8 @@ export function parseWhatsAppText(
   text: string,
   defaultToko = 'HTG',
   defaultDapur = 'Siliragung',
-  defaultPemasok = 'Pemasok 1'
+  defaultPemasok = 'Ajeng fruits',
+  availableStores: string[] = []
 ): TextParseResult[] {
   if (!text || !text.trim()) return [];
 
@@ -87,12 +89,19 @@ export function parseWhatsAppText(
     if (hargaBeli === 0) hargaBeli = 15000;
     if (hargaJual === 0) hargaJual = Math.round(hargaBeli * 1.15);
 
+    // Auto-detect store from item name if rule matches
+    let itemToko = defaultToko;
+    if (availableStores && availableStores.length > 0) {
+      const guessed = guessStoreForItem(namaBarang, availableStores);
+      if (guessed) itemToko = guessed;
+    }
+
     results.push({
       namaBarang,
       qty,
       hargaBeli,
       hargaJual,
-      toko: defaultToko,
+      toko: itemToko,
       tujuanDapur: defaultDapur,
       pemasok: defaultPemasok
     });

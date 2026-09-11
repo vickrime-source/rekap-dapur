@@ -185,8 +185,8 @@ export function getDateRangeForPeriod(period: string, refDateStr?: string): { st
 // =============================================================================
 
 // DEFINISI KOLOM SPESIFIK: Menghemat Egress/Bandwidth (Jangan select *)
-export const ORDER_COLUMNS = 'id,dapur,dapur_id,item,tanggal,qty,satuan,toko,toko_id,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,pemasok_id,catatan,created_at';
-export const TRANSACTION_COLUMNS = 'id,invoice_number,tanggal,tanggal_print,pemasok,pemasok_id,barang,toko,toko_id,dapur,dapur_id,qty,harga_beli,total,total_profit,status_pembayaran,items,created_at';
+export const ORDER_COLUMNS = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at';
+export const TRANSACTION_COLUMNS = 'id,invoice_number,tanggal,tanggal_print,pemasok,barang,toko,dapur,qty,harga_beli,total,total_profit,status_pembayaran,items,created_at';
 export const NOTE_COLUMNS = 'id,dapur,item,qty,satuan,catatan,status,is_done,order_id,created_at';
 export const TOKO_COLUMNS = 'id,nama,created_at';
 export const PEMASOK_COLUMNS = 'id,nama,created_at';
@@ -195,6 +195,8 @@ export const DAPUR_COLUMNS = 'id,nama,alamat,created_at';
 export interface OrderFilterOptions {
   period?: 'hari_ini' | 'mingguan' | 'bulan_ini' | 'all_time';
   date?: string;
+  startDate?: string;
+  endDate?: string;
   toko?: string;
   dapur?: string;
   pemasok?: string;
@@ -220,8 +222,14 @@ export async function getOrdersFromDb(filters: OrderFilterOptions = {}) {
       .order('tanggal', { ascending: false })
       .order('created_at', { ascending: false });
 
-    // Filter periode (Hari Ini/Mingguan/Bulanan) di level DATABASE pakai .gte()/.lte()
-    if (filters.period && filters.period !== 'all_time') {
+    // Filter periode (Hari Ini/Mingguan/Bulanan/Custom Range) di level DATABASE pakai .gte()/.lte()
+    if (filters.startDate && filters.endDate) {
+      if (filters.startDate === filters.endDate) {
+        query = query.eq('tanggal', filters.startDate);
+      } else {
+        query = query.gte('tanggal', filters.startDate).lte('tanggal', filters.endDate);
+      }
+    } else if (filters.period && filters.period !== 'all_time') {
       const { startDate, endDate } = getDateRangeForPeriod(filters.period, filters.date);
       if (startDate && endDate) {
         if (startDate === endDate) {
@@ -282,12 +290,12 @@ export async function createOrdersInDb(ordersData: any[] | any) {
       qty: Number(item.qty) || 1,
       satuan: item.satuan || 'Kg',
       toko: item.toko || '',
-      pemasok: item.pemasok || 'Pemasok 1',
+      pemasok: item.pemasok || '',
       status_pembayaran: ['PAID', 'UNPAID'].includes(payStatus) ? payStatus : 'UNPAID',
-      status_pengiriman: ['DONE', 'PENDING'].includes(delStatus) ? delStatus : 'PENDING',
+      status_pengiriman: ['DONE', 'PENDING', 'SHIPPED'].includes(delStatus) ? delStatus : 'PENDING',
       status: ['pending', 'selesai'].includes(orderStatus) ? orderStatus : 'pending',
-      harga_jual: Number(item.harga_jual !== undefined ? item.harga_jual : item.hargaJual) || 0,
-      harga_beli: Number(item.harga_beli !== undefined ? item.harga_beli : item.hargaBeli) || 0,
+      harga_jual: Math.max(0, Number(item.harga_jual !== undefined ? item.harga_jual : item.hargaJual) || 0),
+      harga_beli: Math.max(0, Number(item.harga_beli !== undefined ? item.harga_beli : item.hargaBeli) || 0),
       catatan: item.catatan || '',
       created_at: item.created_at || item.createdAt || new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -474,7 +482,7 @@ export async function createTransactionInDb(tx: any) {
     invoice_number: tx.invoice_number || tx.invoiceNumber || `INV-${Date.now()}`,
     tanggal: tx.tanggal || new Date().toISOString().split('T')[0],
     tanggal_print: tx.tanggal_print || tx.tanggalPrint || new Date().toLocaleDateString('id-ID'),
-    pemasok: tx.pemasok || 'Pemasok 1',
+    pemasok: tx.pemasok || '',
     barang: tx.barang || (Array.isArray(tx.items) ? tx.items.map((i: any) => `${i.namaBarang || i.item} (${i.qty})`).join(', ') : ''),
     toko: tx.toko || '',
     dapur: tx.dapur || tx.tujuanDapur || '',
@@ -649,27 +657,41 @@ export async function deleteNoteFromDb(id: string) {
 // DATABASE AGGREGATION: Period Summary & Weekly Store Breakdown
 // (Calculated inside Postgres/Supabase directly, not in frontend)
 // =============================================================================
-export async function getPeriodSummaryFromDb(period: string = 'mingguan', dateStr?: string) {
+export async function getPeriodSummaryFromDb(
+  period: string = 'mingguan',
+  dateStr?: string,
+  customStartDate?: string,
+  customEndDate?: string
+) {
   const targetDate = dateStr || new Date().toISOString().split('T')[0];
 
   try {
     const supabase = getSupabase();
-    // 1. Try calling the PostgreSQL RPC function get_period_summary
-    try {
-      const { data, error } = await supabase.rpc('get_period_summary', {
-        p_period: period,
-        p_date: targetDate,
-      });
+    // 1. Try calling the PostgreSQL RPC function get_period_summary (hanya jika bukan rentang kustom)
+    if (!customStartDate && !customEndDate) {
+      try {
+        const { data, error } = await supabase.rpc('get_period_summary', {
+          p_period: period,
+          p_date: targetDate,
+        });
 
-      if (!error && data) {
-        return data;
+        if (!error && data) {
+          return data;
+        }
+      } catch {
+        // Fallback below
       }
-    } catch {
-      // Fallback below
     }
 
     // 2. Direct Supabase Query aggregation (Hanya tarik kolom kalkulasi, hemat egress!)
-    const { startDate, endDate } = getDateRangeForPeriod(period, targetDate);
+    let startDate = customStartDate;
+    let endDate = customEndDate;
+    if (!startDate || !endDate) {
+      const range = getDateRangeForPeriod(period, targetDate);
+      startDate = startDate || range.startDate;
+      endDate = endDate || range.endDate;
+    }
+
     let query = supabase.from('pesanan').select('tanggal,dapur,toko,qty,harga_jual,harga_beli,pemasok');
 
     if (startDate && endDate) {
@@ -683,7 +705,7 @@ export async function getPeriodSummaryFromDb(period: string = 'mingguan', dateSt
     const { data: rawOrders, error } = await query;
     if (error) {
       if (isTableMissingError(error)) {
-        return getLocalPeriodSummary(period, targetDate);
+        return getLocalPeriodSummary(period, targetDate, startDate, endDate);
       }
       throw error;
     }
@@ -768,7 +790,7 @@ export async function getPeriodSummaryFromDb(period: string = 'mingguan', dateSt
     };
   } catch (err: any) {
     if (isTableMissingError(err)) {
-      return getLocalPeriodSummary(period, targetDate);
+      return getLocalPeriodSummary(period, targetDate, customStartDate, customEndDate);
     }
     throw err;
   }
@@ -1035,49 +1057,25 @@ export async function checkMasterUsageInDb(
     let orderCount = 0;
     let transaksiCount = 0;
 
-    if (type === 'toko') {
-      const p1 = supabase.from('pesanan').select('id', { count: 'exact', head: true }).eq('toko_id', id);
-      const p2 = supabase.from('transaksi').select('id', { count: 'exact', head: true }).eq('toko_id', id);
-      const [r1, r2] = await Promise.all([p1, p2]);
-      orderCount = r1.count || 0;
-      transaksiCount = r2.count || 0;
-
-      if (entityName && orderCount === 0 && transaksiCount === 0) {
-        const p3 = supabase.from('pesanan').select('id', { count: 'exact', head: true }).ilike('toko', `%${entityName}%`);
-        const p4 = supabase.from('transaksi').select('id', { count: 'exact', head: true }).ilike('toko', `%${entityName}%`);
-        const [r3, r4] = await Promise.all([p3, p4]);
-        orderCount += (r3.count || 0);
-        transaksiCount += (r4.count || 0);
-      }
-    } else if (type === 'pemasok') {
-      const p1 = supabase.from('pesanan').select('id', { count: 'exact', head: true }).eq('pemasok_id', id);
-      const p2 = supabase.from('transaksi').select('id', { count: 'exact', head: true }).eq('pemasok_id', id);
-      const [r1, r2] = await Promise.all([p1, p2]);
-      orderCount = r1.count || 0;
-      transaksiCount = r2.count || 0;
-
-      if (entityName && orderCount === 0 && transaksiCount === 0) {
-        const p3 = supabase.from('pesanan').select('id', { count: 'exact', head: true }).eq('pemasok', entityName);
-        const p4 = supabase.from('transaksi').select('id', { count: 'exact', head: true }).eq('pemasok', entityName);
-        const [r3, r4] = await Promise.all([p3, p4]);
-        orderCount += (r3.count || 0);
-        transaksiCount += (r4.count || 0);
-      }
-    } else if (type === 'dapur') {
-      const p1 = supabase.from('pesanan').select('id', { count: 'exact', head: true }).eq('dapur_id', id);
-      const p2 = supabase.from('transaksi').select('id', { count: 'exact', head: true }).eq('dapur_id', id);
-      const [r1, r2] = await Promise.all([p1, p2]);
-      orderCount = r1.count || 0;
-      transaksiCount = r2.count || 0;
-
-      if (entityName && orderCount === 0 && transaksiCount === 0) {
-        const cleanD = entityName.replace(/^Dapur\s+/i, '');
-        const p3 = supabase.from('pesanan').select('id', { count: 'exact', head: true }).or(`dapur.ilike.%${cleanD}%,dapur.eq.${entityName}`);
-        const p4 = supabase.from('transaksi').select('id', { count: 'exact', head: true }).or(`dapur.ilike.%${cleanD}%,dapur.eq.${entityName}`);
-        const [r3, r4] = await Promise.all([p3, p4]);
-        orderCount += (r3.count || 0);
-        transaksiCount += (r4.count || 0);
-      }
+    if (type === 'toko' && entityName) {
+      const p3 = supabase.from('pesanan').select('id', { count: 'exact', head: true }).ilike('toko', `%${entityName}%`);
+      const p4 = supabase.from('transaksi').select('id', { count: 'exact', head: true }).ilike('toko', `%${entityName}%`);
+      const [r3, r4] = await Promise.all([p3, p4]);
+      orderCount = r3.count || 0;
+      transaksiCount = r4.count || 0;
+    } else if (type === 'pemasok' && entityName) {
+      const p3 = supabase.from('pesanan').select('id', { count: 'exact', head: true }).eq('pemasok', entityName);
+      const p4 = supabase.from('transaksi').select('id', { count: 'exact', head: true }).eq('pemasok', entityName);
+      const [r3, r4] = await Promise.all([p3, p4]);
+      orderCount = r3.count || 0;
+      transaksiCount = r4.count || 0;
+    } else if (type === 'dapur' && entityName) {
+      const cleanD = entityName.replace(/^Dapur\s+/i, '');
+      const p3 = supabase.from('pesanan').select('id', { count: 'exact', head: true }).or(`dapur.ilike.%${cleanD}%,dapur.eq.${entityName}`);
+      const p4 = supabase.from('transaksi').select('id', { count: 'exact', head: true }).or(`dapur.ilike.%${cleanD}%,dapur.eq.${entityName}`);
+      const [r3, r4] = await Promise.all([p3, p4]);
+      orderCount = r3.count || 0;
+      transaksiCount = r4.count || 0;
     }
 
     const isUsed = (orderCount + transaksiCount) > 0;

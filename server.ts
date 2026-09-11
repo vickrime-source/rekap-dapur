@@ -199,14 +199,18 @@ async function startServer() {
       if (action === 'period_summary' || action === 'summary') {
         const period = (req.query.period as string) || 'mingguan';
         const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
-        const summary = await getPeriodSummaryFromDb(period, date);
+        const startDate = req.query.startDate as string | undefined;
+        const endDate = req.query.endDate as string | undefined;
+        const summary = await getPeriodSummaryFromDb(period, date, startDate, endDate);
         return res.json({ success: true, data: summary });
       }
 
-      const { period, date, toko, dapur, pemasok, status, limit, page, offset } = req.query;
+      const { period, date, startDate, endDate, toko, dapur, pemasok, status, limit, page, offset } = req.query;
       const orders = await getOrdersFromDb({
         period: period as any,
         date: date as string,
+        startDate: startDate as string,
+        endDate: endDate as string,
         toko: toko as string,
         dapur: dapur as string,
         pemasok: pemasok as string,
