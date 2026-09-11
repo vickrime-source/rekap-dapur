@@ -114,7 +114,7 @@ async function startServer() {
 
       // Safely compress images using sharp with Promise.all to avoid race conditions
       try {
-        const { compressDocxImages } = await import('./api/lib/compressDocxImages.js');
+        const { compressDocxImages } = await import('./server/lib/compressDocxImages.js');
         docxBuffer = await compressDocxImages(docxBuffer);
       } catch (cErr) {
         console.warn('[Server convert-to-pdf] Compression warning:', cErr);
@@ -125,7 +125,7 @@ async function startServer() {
         return res.status(400).json({ error: 'CLOUDCONVERT_API_KEY tidak dikonfigurasi di environment variable server.' });
       }
 
-      const { convertDocxToPdfWithCloudConvert } = await import('./api/lib/cloudConvert.js');
+      const { convertDocxToPdfWithCloudConvert } = await import('./server/lib/cloudConvert.js');
       const pdfBuffer = await convertDocxToPdfWithCloudConvert(docxBuffer, apiKey);
 
       res.setHeader('Content-Type', 'application/pdf');
@@ -142,23 +142,42 @@ async function startServer() {
   // =========================================================================
 
   // 1. Connection and Status Check
-  const handleDbStatus = async (req: express.Request, res: express.Response) => {
+  const handleStatusOrConfig = async (req: express.Request, res: express.Response) => {
+    const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+    const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+    if (req.query.type === 'config') {
+      return res.json({
+        url,
+        anonKey,
+        configured: Boolean(url && (anonKey || serviceRoleKey)),
+      });
+    }
+
     try {
       const status = await checkSupabaseStatus();
-      res.json(status);
-    } catch (err: any) {
-      console.warn('[Supabase Status Warning]:', err?.message || err);
       res.json({
+        status: 'ok',
+        time: new Date().toISOString(),
+        url,
+        anonKey,
+        ...status,
+      });
+    } catch (err: any) {
+      res.json({
+        status: 'error',
         success: false,
-        configured: false,
+        configured: Boolean(url && (anonKey || serviceRoleKey)),
         error: err?.message || 'Gagal memeriksa status koneksi Supabase',
       });
     }
   };
 
-  app.get('/api/supabase-status', handleDbStatus);
-  app.get('/api/db-status', handleDbStatus);
-  app.get('/api/sheets-status', handleDbStatus); // Compatibility alias
+  app.get('/api/status', handleStatusOrConfig);
+  app.get('/api/supabase-status', handleStatusOrConfig);
+  app.get('/api/db-status', handleStatusOrConfig);
+  app.get('/api/sheets-status', handleStatusOrConfig); // Compatibility alias
 
   // Client Supabase Config (Anon Key & URL untuk Supabase Realtime Subscription)
   app.get('/api/supabase/config', (req, res) => {
@@ -174,8 +193,16 @@ async function startServer() {
 
   // 2. Orders (pesanan) Endpoints
   // GET: filter period / date / toko / dapur directly in database with pagination!
-  app.get('/api/supabase/pesanan', async (req, res) => {
+  const handleGetOrders = async (req: express.Request, res: express.Response) => {
     try {
+      const action = req.query.action;
+      if (action === 'period_summary' || action === 'summary') {
+        const period = (req.query.period as string) || 'mingguan';
+        const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
+        const summary = await getPeriodSummaryFromDb(period, date);
+        return res.json({ success: true, data: summary });
+      }
+
       const { period, date, toko, dapur, pemasok, status, limit, page, offset } = req.query;
       const orders = await getOrdersFromDb({
         period: period as any,
@@ -203,11 +230,35 @@ async function startServer() {
         warning: err?.message || 'Menyiapkan data pesanan',
       });
     }
-  });
+  };
 
-  // POST: Add new order(s)
-  app.post('/api/supabase/pesanan', async (req, res) => {
+  app.get('/api/pesanan', handleGetOrders);
+  app.get('/api/supabase/pesanan', handleGetOrders);
+
+  // POST: Add new order(s) OR batch update status
+  const handlePostOrders = async (req: express.Request, res: express.Response) => {
     try {
+      const action = req.query.action || req.body.action;
+      if (action === 'batch_status' || Array.isArray(req.body.ids)) {
+        const { ids, paymentStatus, deliveryStatus, status_pembayaran, status_pengiriman, status } = req.body;
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+          return res.status(400).json({ success: false, error: 'Daftar ID pesanan wajib disertakan.' });
+        }
+
+        const updated = await updateBatchOrdersInDb(ids, {
+          paymentStatus: paymentStatus || status_pembayaran,
+          deliveryStatus: deliveryStatus || status_pengiriman,
+          status,
+        });
+
+        return res.json({
+          success: true,
+          data: updated,
+          count: updated.length,
+          message: `${updated.length} pesanan berhasil diperbarui statusnya`,
+        });
+      }
+
       const items = req.body.items || req.body.data || req.body;
       const created = await createOrdersInDb(items);
       res.json({
@@ -223,11 +274,30 @@ async function startServer() {
         error: err?.message || 'Gagal menyimpan pesanan ke Supabase',
       });
     }
-  });
+  };
+
+  app.post('/api/pesanan', handlePostOrders);
+  app.post('/api/supabase/pesanan', handlePostOrders);
 
   // PUT/PATCH: Update order by ID
   const handleUpdateOrder = async (req: express.Request, res: express.Response) => {
     try {
+      const action = req.query.action || req.body.action;
+      if (action === 'batch_status' || (Array.isArray(req.body.ids) && req.body.ids.length > 0)) {
+        const { ids, paymentStatus, deliveryStatus, status_pembayaran, status_pengiriman, status } = req.body;
+        const updated = await updateBatchOrdersInDb(ids, {
+          paymentStatus: paymentStatus || status_pembayaran,
+          deliveryStatus: deliveryStatus || status_pengiriman,
+          status,
+        });
+        return res.json({
+          success: true,
+          data: updated,
+          count: updated.length,
+          message: `${updated.length} pesanan berhasil diperbarui statusnya`,
+        });
+      }
+
       const id = (req.query.id || req.body.id) as string;
       if (!id) {
         return res.status(400).json({ success: false, error: 'Parameter "id" pesanan wajib disertakan.' });
@@ -248,6 +318,8 @@ async function startServer() {
     }
   };
 
+  app.put('/api/pesanan', handleUpdateOrder);
+  app.patch('/api/pesanan', handleUpdateOrder);
   app.put('/api/supabase/pesanan', handleUpdateOrder);
   app.patch('/api/supabase/pesanan', handleUpdateOrder);
 
@@ -281,7 +353,7 @@ async function startServer() {
   });
 
   // DELETE: Delete order(s) by ID or list of IDs
-  app.delete('/api/supabase/pesanan', async (req, res) => {
+  const handleDeleteOrders = async (req: express.Request, res: express.Response) => {
     try {
       const id = (req.query.id || req.body.id) as string;
       const ids = (req.body.ids || (id ? [id] : [])) as string[];
@@ -303,10 +375,13 @@ async function startServer() {
         error: err?.message || 'Gagal menghapus pesanan dari Supabase',
       });
     }
-  });
+  };
+
+  app.delete('/api/pesanan', handleDeleteOrders);
+  app.delete('/api/supabase/pesanan', handleDeleteOrders);
 
   // 3. Transactions (transaksi) Endpoints
-  app.get('/api/supabase/transaksi', async (req, res) => {
+  const handleGetTransactions = async (req: express.Request, res: express.Response) => {
     try {
       const limit = req.query.limit ? Number(req.query.limit) : 50;
       const page = req.query.page ? Number(req.query.page) : 1;
@@ -325,9 +400,12 @@ async function startServer() {
         warning: err?.message || 'Menyiapkan data transaksi',
       });
     }
-  });
+  };
 
-  app.post('/api/supabase/transaksi', async (req, res) => {
+  app.get('/api/transaksi', handleGetTransactions);
+  app.get('/api/supabase/transaksi', handleGetTransactions);
+
+  const handlePostTransaction = async (req: express.Request, res: express.Response) => {
     try {
       const tx = await createTransactionInDb(req.body.data || req.body);
       res.json({
@@ -342,9 +420,12 @@ async function startServer() {
         error: err?.message || 'Gagal menyimpan transaksi ke Supabase',
       });
     }
-  });
+  };
 
-  app.delete('/api/supabase/transaksi', async (req, res) => {
+  app.post('/api/transaksi', handlePostTransaction);
+  app.post('/api/supabase/transaksi', handlePostTransaction);
+
+  const handleDeleteTransactions = async (req: express.Request, res: express.Response) => {
     try {
       const id = (req.query.id || req.body.id) as string;
       const ids = (req.body.ids || (id ? [id] : [])) as string[];
@@ -366,10 +447,13 @@ async function startServer() {
         error: err?.message || 'Gagal menghapus transaksi dari Supabase',
       });
     }
-  });
+  };
+
+  app.delete('/api/transaksi', handleDeleteTransactions);
+  app.delete('/api/supabase/transaksi', handleDeleteTransactions);
 
   // 4. Notes (notes) Endpoints
-  app.get('/api/supabase/notes', async (req, res) => {
+  const handleGetNotes = async (req: express.Request, res: express.Response) => {
     try {
       const notes = await getNotesFromDb();
       res.json({
@@ -386,9 +470,12 @@ async function startServer() {
         warning: err?.message || 'Menyiapkan data catatan',
       });
     }
-  });
+  };
 
-  app.post('/api/supabase/notes', async (req, res) => {
+  app.get('/api/notes', handleGetNotes);
+  app.get('/api/supabase/notes', handleGetNotes);
+
+  const handlePostNote = async (req: express.Request, res: express.Response) => {
     try {
       const note = await createNoteInDb(req.body.data || req.body);
       res.json({
@@ -403,7 +490,10 @@ async function startServer() {
         error: err?.message || 'Gagal menyimpan catatan ke Supabase',
       });
     }
-  });
+  };
+
+  app.post('/api/notes', handlePostNote);
+  app.post('/api/supabase/notes', handlePostNote);
 
   const handleUpdateNote = async (req: express.Request, res: express.Response) => {
     try {
@@ -426,10 +516,12 @@ async function startServer() {
     }
   };
 
+  app.put('/api/notes', handleUpdateNote);
+  app.patch('/api/notes', handleUpdateNote);
   app.put('/api/supabase/notes', handleUpdateNote);
   app.patch('/api/supabase/notes', handleUpdateNote);
 
-  app.delete('/api/supabase/notes', async (req, res) => {
+  const handleDeleteNote = async (req: express.Request, res: express.Response) => {
     try {
       const id = (req.query.id || req.body.id) as string;
       if (!id) {
@@ -448,11 +540,99 @@ async function startServer() {
         error: err?.message || 'Gagal menghapus catatan dari Supabase',
       });
     }
-  });
+  };
+
+  app.delete('/api/notes', handleDeleteNote);
+  app.delete('/api/supabase/notes', handleDeleteNote);
 
   // ---------------------------------------------------------------------------
   // 5. MASTER DATA (toko, pemasok, dapur) Endpoints
   // ---------------------------------------------------------------------------
+
+  // Unified master endpoint /api/master (by ?type=toko|pemasok|dapur or ?action=check_usage)
+  app.get('/api/master', async (req, res) => {
+    try {
+      const type = ((req.query.type || '') as string).toLowerCase();
+      const action = ((req.query.action || '') as string).toLowerCase();
+
+      if (action === 'check_usage' || action === 'check-usage' || type === 'check_usage') {
+        const targetType = (req.query.targetType || req.query.type || 'toko') as 'toko' | 'pemasok' | 'dapur';
+        const id = (req.query.id as string) || '';
+        const name = (req.query.name as string) || '';
+        const result = await checkMasterUsageInDb(targetType, id, name);
+        return res.json({ success: true, ...result });
+      }
+
+      if (type === 'toko') {
+        const data = await getMasterTokoFromDb();
+        return res.json({ success: true, data, count: data.length });
+      }
+      if (type === 'pemasok') {
+        const data = await getMasterPemasokFromDb();
+        return res.json({ success: true, data, count: data.length });
+      }
+      if (type === 'dapur') {
+        const data = await getMasterDapurFromDb();
+        return res.json({ success: true, data, count: data.length });
+      }
+
+      return res.status(400).json({ success: false, error: 'Parameter type (toko, pemasok, dapur) diperlukan' });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || 'Gagal mengambil data master' });
+    }
+  });
+
+  app.post('/api/master', async (req, res) => {
+    try {
+      const type = ((req.query.type || req.body.type || '') as string).toLowerCase();
+      if (type === 'toko') {
+        const nama = req.body.nama || req.body.name;
+        if (!nama || !nama.trim()) return res.status(400).json({ success: false, error: 'Nama toko wajib diisi' });
+        const data = await createMasterTokoInDb(nama);
+        return res.json({ success: true, data, message: 'Toko berhasil ditambahkan' });
+      }
+      if (type === 'pemasok') {
+        const nama = req.body.nama || req.body.name;
+        if (!nama || !nama.trim()) return res.status(400).json({ success: false, error: 'Nama pemasok wajib diisi' });
+        const data = await createMasterPemasokInDb(nama);
+        return res.json({ success: true, data, message: 'Pemasok berhasil ditambahkan' });
+      }
+      if (type === 'dapur') {
+        const nama = req.body.nama || req.body.name;
+        const alamat = req.body.alamat || req.body.address || '';
+        if (!nama || !nama.trim()) return res.status(400).json({ success: false, error: 'Nama dapur wajib diisi' });
+        const data = await createMasterDapurInDb(nama, alamat);
+        return res.json({ success: true, data, message: 'Dapur berhasil ditambahkan' });
+      }
+      return res.status(400).json({ success: false, error: 'Parameter type (toko, pemasok, dapur) diperlukan' });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || 'Gagal menyimpan data master' });
+    }
+  });
+
+  app.delete('/api/master', async (req, res) => {
+    try {
+      const type = ((req.query.type || req.body.type || '') as string).toLowerCase();
+      const id = (req.query.id || req.body.id) as string;
+      if (!id) return res.status(400).json({ success: false, error: 'ID wajib disertakan' });
+
+      if (type === 'toko') {
+        const result = await deleteMasterTokoInDb(id);
+        return res.json({ success: true, ...result });
+      }
+      if (type === 'pemasok') {
+        const result = await deleteMasterPemasokInDb(id);
+        return res.json({ success: true, ...result });
+      }
+      if (type === 'dapur') {
+        const result = await deleteMasterDapurInDb(id);
+        return res.json({ success: true, ...result });
+      }
+      return res.status(400).json({ success: false, error: 'Parameter type (toko, pemasok, dapur) diperlukan' });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || 'Gagal menghapus data master' });
+    }
+  });
 
   // CHECK USAGE (Cek ketergantungan sebelum menghapus)
   app.get('/api/supabase/master/check-usage', async (req, res) => {

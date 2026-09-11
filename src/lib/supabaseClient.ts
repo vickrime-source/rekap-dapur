@@ -18,7 +18,7 @@ export async function getClientSupabase(): Promise<SupabaseClient | null> {
 
       // Fallback: Jika belum ada di bundle client, ambil dari endpoint konfigurasi backend
       if (!url || !anonKey) {
-        const res = await fetch('/api/supabase/config');
+        const res = await fetch('/api/status?type=config');
         if (res.ok) {
           const data = await res.json();
           url = url || data.url || '';

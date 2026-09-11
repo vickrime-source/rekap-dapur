@@ -20,7 +20,7 @@ export interface SupabaseStatusResult {
 // -----------------------------------------------------------------------------
 export async function checkSupabaseStatus(): Promise<SupabaseStatusResult> {
   try {
-    const res = await fetch('/api/supabase-status');
+    const res = await fetch('/api/status');
     if (!res.ok) {
       return {
         success: false,
@@ -201,7 +201,7 @@ export async function fetchOrdersFromDb(params?: {
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.page) searchParams.set('page', String(params.page));
 
-    const url = `/api/supabase/pesanan?${searchParams.toString()}`;
+    const url = `/api/pesanan?${searchParams.toString()}`;
     const res = await fetch(url);
     const json = await res.json();
 
@@ -220,7 +220,7 @@ export async function fetchOrdersFromDb(params?: {
 export async function saveOrderToDb(order: OrderItem): Promise<{ success: boolean; error?: string; data?: OrderItem }> {
   try {
     const payload = buildPesananPayload(order);
-    const res = await fetch('/api/supabase/pesanan', {
+    const res = await fetch('/api/pesanan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -242,7 +242,7 @@ export async function saveOrderToDb(order: OrderItem): Promise<{ success: boolea
 export async function updateOrderInDb(id: string, updates: Partial<OrderItem>): Promise<{ success: boolean; error?: string }> {
   try {
     const payload = buildPesananPayload(updates);
-    const res = await fetch(`/api/supabase/pesanan?id=${encodeURIComponent(id)}`, {
+    const res = await fetch(`/api/pesanan?id=${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, ...payload }),
@@ -265,10 +265,10 @@ export async function batchUpdateStatusInDb(
   updates: { paymentStatus?: 'PAID' | 'UNPAID'; deliveryStatus?: 'DONE' | 'PENDING'; status?: 'pending' | 'selesai' }
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch('/api/supabase/batch-status', {
+    const res = await fetch('/api/pesanan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids, ...updates }),
+      body: JSON.stringify({ action: 'batch_status', ids, ...updates }),
     });
     const json = await res.json();
     if (!res.ok || !json.success) {
@@ -284,7 +284,7 @@ export async function batchUpdateStatusInDb(
 
 export async function deleteOrderFromDb(id: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch(`/api/supabase/pesanan?id=${encodeURIComponent(id)}`, {
+    const res = await fetch(`/api/pesanan?id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     const json = await res.json();
@@ -301,7 +301,7 @@ export async function deleteOrderFromDb(id: string): Promise<{ success: boolean;
 
 export async function deleteOrdersFromDb(ids: string[]): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch('/api/supabase/pesanan', {
+    const res = await fetch('/api/pesanan', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids }),
@@ -331,7 +331,7 @@ export async function fetchTransactionsFromDb(limit: number = 50, page: number =
   }
 
   try {
-    const res = await fetch(`/api/supabase/transaksi?limit=${limit}&page=${page}`);
+    const res = await fetch(`/api/transaksi?limit=${limit}&page=${page}`);
     const json = await res.json();
     if (!res.ok || !json.success) {
       return { success: false, transactions: [], error: json.error || 'Gagal memuat transaksi' };
@@ -347,7 +347,7 @@ export async function fetchTransactionsFromDb(limit: number = 50, page: number =
 export async function saveTransactionToDb(record: InvoiceRecord): Promise<{ success: boolean; error?: string }> {
   try {
     const payload = buildTransaksiPayload(record);
-    const res = await fetch('/api/supabase/transaksi', {
+    const res = await fetch('/api/transaksi', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -365,7 +365,7 @@ export async function saveTransactionToDb(record: InvoiceRecord): Promise<{ succ
 
 export async function deleteTransactionFromDb(id: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch(`/api/supabase/transaksi?id=${encodeURIComponent(id)}`, {
+    const res = await fetch(`/api/transaksi?id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     const json = await res.json();
@@ -392,7 +392,7 @@ export async function fetchNotesFromDb(forceRefresh = false): Promise<{ success:
   }
 
   try {
-    const res = await fetch('/api/supabase/notes');
+    const res = await fetch('/api/notes');
     const json = await res.json();
     if (!res.ok || !json.success) {
       return { success: false, notes: [], error: json.error || 'Gagal memuat catatan' };
@@ -408,7 +408,7 @@ export async function fetchNotesFromDb(forceRefresh = false): Promise<{ success:
 export async function saveNoteToDb(note: NoteItem): Promise<{ success: boolean; error?: string; data?: NoteItem }> {
   try {
     const payload = buildNotesPayload(note);
-    const res = await fetch('/api/supabase/notes', {
+    const res = await fetch('/api/notes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -428,7 +428,7 @@ export async function saveNoteToDb(note: NoteItem): Promise<{ success: boolean; 
 export async function updateNoteInDb(id: string, updates: Partial<NoteItem>): Promise<{ success: boolean; error?: string }> {
   try {
     const payload = buildNotesPayload(updates);
-    const res = await fetch(`/api/supabase/notes?id=${encodeURIComponent(id)}`, {
+    const res = await fetch(`/api/notes?id=${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -446,7 +446,7 @@ export async function updateNoteInDb(id: string, updates: Partial<NoteItem>): Pr
 
 export async function deleteNoteFromDb(id: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch(`/api/supabase/notes?id=${encodeURIComponent(id)}`, {
+    const res = await fetch(`/api/notes?id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     const json = await res.json();
@@ -479,7 +479,7 @@ export async function fetchPeriodSummaryFromDb(
   }
 
   try {
-    const res = await fetch(`/api/supabase/period-summary?period=${period}&date=${targetDate}`);
+    const res = await fetch(`/api/pesanan?action=period_summary&period=${period}&date=${targetDate}`);
     const json = await res.json();
     if (!res.ok || !json.success) {
       return { success: false, error: json.error || 'Gagal menghitung statistik di database' };
@@ -570,7 +570,7 @@ export async function updateGroupStatus(
 
 export async function fetchMasterTokoFromDb(): Promise<{ success: boolean; data: MasterToko[]; error?: string }> {
   try {
-    const res = await fetch('/api/supabase/master/toko');
+    const res = await fetch('/api/master?type=toko');
     const json = await res.json();
     if (!res.ok || !json.success) {
       return { success: false, data: [], error: json.error || 'Gagal memuat data toko' };
@@ -583,7 +583,7 @@ export async function fetchMasterTokoFromDb(): Promise<{ success: boolean; data:
 
 export async function saveMasterTokoToDb(nama: string): Promise<{ success: boolean; data?: MasterToko; error?: string }> {
   try {
-    const res = await fetch('/api/supabase/master/toko', {
+    const res = await fetch('/api/master?type=toko', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nama: nama.trim() }),
@@ -600,7 +600,7 @@ export async function saveMasterTokoToDb(nama: string): Promise<{ success: boole
 
 export async function deleteMasterTokoFromDb(id: string): Promise<{ success: boolean; message?: string; error?: string }> {
   try {
-    const res = await fetch(`/api/supabase/master/toko?id=${encodeURIComponent(id)}`, {
+    const res = await fetch(`/api/master?type=toko&id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     const json = await res.json();
@@ -615,7 +615,7 @@ export async function deleteMasterTokoFromDb(id: string): Promise<{ success: boo
 
 export async function fetchMasterPemasokFromDb(): Promise<{ success: boolean; data: MasterPemasok[]; error?: string }> {
   try {
-    const res = await fetch('/api/supabase/master/pemasok');
+    const res = await fetch('/api/master?type=pemasok');
     const json = await res.json();
     if (!res.ok || !json.success) {
       return { success: false, data: [], error: json.error || 'Gagal memuat data pemasok' };
@@ -628,7 +628,7 @@ export async function fetchMasterPemasokFromDb(): Promise<{ success: boolean; da
 
 export async function saveMasterPemasokToDb(nama: string): Promise<{ success: boolean; data?: MasterPemasok; error?: string }> {
   try {
-    const res = await fetch('/api/supabase/master/pemasok', {
+    const res = await fetch('/api/master?type=pemasok', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nama: nama.trim() }),
@@ -645,7 +645,7 @@ export async function saveMasterPemasokToDb(nama: string): Promise<{ success: bo
 
 export async function deleteMasterPemasokFromDb(id: string): Promise<{ success: boolean; message?: string; error?: string }> {
   try {
-    const res = await fetch(`/api/supabase/master/pemasok?id=${encodeURIComponent(id)}`, {
+    const res = await fetch(`/api/master?type=pemasok&id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     const json = await res.json();
@@ -660,7 +660,7 @@ export async function deleteMasterPemasokFromDb(id: string): Promise<{ success: 
 
 export async function fetchMasterDapurFromDb(): Promise<{ success: boolean; data: MasterDapur[]; error?: string }> {
   try {
-    const res = await fetch('/api/supabase/master/dapur');
+    const res = await fetch('/api/master?type=dapur');
     const json = await res.json();
     if (!res.ok || !json.success) {
       return { success: false, data: [], error: json.error || 'Gagal memuat data dapur' };
@@ -673,7 +673,7 @@ export async function fetchMasterDapurFromDb(): Promise<{ success: boolean; data
 
 export async function saveMasterDapurToDb(nama: string, alamat?: string): Promise<{ success: boolean; data?: MasterDapur; error?: string }> {
   try {
-    const res = await fetch('/api/supabase/master/dapur', {
+    const res = await fetch('/api/master?type=dapur', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nama: nama.trim(), alamat: alamat?.trim() || '' }),
@@ -690,7 +690,7 @@ export async function saveMasterDapurToDb(nama: string, alamat?: string): Promis
 
 export async function deleteMasterDapurFromDb(id: string): Promise<{ success: boolean; message?: string; error?: string }> {
   try {
-    const res = await fetch(`/api/supabase/master/dapur?id=${encodeURIComponent(id)}`, {
+    const res = await fetch(`/api/master?type=dapur&id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     const json = await res.json();
@@ -710,7 +710,7 @@ export async function checkMasterUsageFromDb(
 ): Promise<{ success: boolean; isUsed: boolean; orderCount: number; transaksiCount: number; message: string }> {
   try {
     const q = new URLSearchParams({ type, id, name: name || '' });
-    const res = await fetch(`/api/supabase/master/check-usage?${q.toString()}`);
+    const res = await fetch(`/api/master?action=check_usage&${q.toString()}`);
     const json = await res.json();
     if (!res.ok || !json.success) {
       return {

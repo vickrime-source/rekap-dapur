@@ -278,23 +278,11 @@ export function prepareScopedInvoiceData(options: ExportInvoiceOptions) {
 }
 
 /**
- * Fetch Google Docs docx template via server proxy
+ * Fetch Google Docs docx template directly from Google Docs export URL
  */
 export async function fetchDocxTemplateBuffer(storeName: string): Promise<ArrayBuffer> {
-  const proxyUrl = `/api/fetch-template?toko=${encodeURIComponent(storeName)}`;
-
-  try {
-    const response = await fetch(proxyUrl);
-    if (response.ok) {
-      return await response.arrayBuffer();
-    }
-  } catch (err) {
-    console.warn('Server proxy fetch failed, trying direct Google Docs export fallback...', err);
-  }
-
-  // Fallback to direct fetch if proxy unavailable
-  const directUrl = getTemplateUrlForStore(storeName);
-  const response = await fetch(directUrl);
+  const targetUrl = getTemplateUrlForStore(storeName);
+  const response = await fetch(targetUrl);
   if (!response.ok) {
     throw new Error(`Gagal mengambil template Google Docs untuk ${storeName} (${response.statusText})`);
   }
