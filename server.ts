@@ -143,9 +143,9 @@ async function startServer() {
 
   // 1. Connection and Status Check
   const handleStatusOrConfig = async (req: express.Request, res: express.Response) => {
-    const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
-    const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+    const anonKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
     if (req.query.type === 'config') {
       return res.json({
@@ -181,9 +181,9 @@ async function startServer() {
 
   // Client Supabase Config (Anon Key & URL untuk Supabase Realtime Subscription)
   app.get('/api/supabase/config', (req, res) => {
-    const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
-    const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+    const anonKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
     res.json({
       url,
       anonKey,

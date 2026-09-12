@@ -29,16 +29,18 @@ let supabaseClient: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient {
   if (!supabaseClient) {
-    const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+    // Backend (server-side & /api/*) HARUS gunakan SUPABASE_URL (tanpa prefix VITE_)
+    const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+    // Backend gunakan SUPABASE_SERVICE_ROLE_KEY (akses penuh server-side)
     const serviceRoleKey = (
       process.env.SUPABASE_SERVICE_ROLE_KEY || 
-      process.env.VITE_SUPABASE_ANON_KEY || 
       process.env.SUPABASE_ANON_KEY || 
+      process.env.VITE_SUPABASE_ANON_KEY || 
       ''
     ).trim();
 
     if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error('VITE_SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY / VITE_SUPABASE_ANON_KEY harus dikonfigurasi di environment variables.');
+      throw new Error('SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY harus dikonfigurasi di environment variables server.');
     }
 
     supabaseClient = createClient(supabaseUrl, serviceRoleKey, {
@@ -52,8 +54,8 @@ export function getSupabase(): SupabaseClient {
 }
 
 export function isSupabaseConfigured(): boolean {
-  const url = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
-  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+  const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
   return Boolean(url && key);
 }
 
@@ -75,6 +77,9 @@ export function isTableMissingError(err: any): boolean {
     message.includes('could not find the table') ||
     message.includes('could not find the function') ||
     message.includes('harus dikonfigurasi') ||
+    message.includes('konfigurasi') ||
+    message.includes('supabase_url') ||
+    message.includes('supabase_service_role_key') ||
     message.includes('failed to fetch') ||
     message.includes('fetch failed') ||
     message.includes('network') ||
@@ -88,7 +93,7 @@ export async function checkSupabaseStatus() {
     return {
       success: false,
       configured: false,
-      error: 'Environment variable VITE_SUPABASE_URL atau SUPABASE_SERVICE_ROLE_KEY belum diisi.',
+      error: 'Environment variable SUPABASE_URL atau SUPABASE_SERVICE_ROLE_KEY belum diisi di server.',
     };
   }
 
@@ -113,7 +118,7 @@ export async function checkSupabaseStatus() {
       success: hasTables,
       configured: true,
       tablesReady: hasTables,
-      url: (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL)?.replace(/^(https?:\/\/[^\/]+).*$/, '$1'),
+      url: (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL)?.replace(/^(https?:\/\/[^\/]+).*$/, '$1'),
       counts: {
         pesanan: pesananRes.count || 0,
         transaksi: transaksiRes.count || 0,
@@ -311,6 +316,10 @@ export async function createOrdersInDb(ordersData: any[] | any) {
     };
   });
 
+  if (!isSupabaseConfigured()) {
+    return createLocalOrders(records);
+  }
+
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('pesanan').insert(records).select(ORDER_COLUMNS);
@@ -366,6 +375,10 @@ export async function updateOrderInDb(id: string, updates: any) {
     payload.harga_beli = Number(updates.harga_beli !== undefined ? updates.harga_beli : updates.hargaBeli);
   }
 
+  if (!isSupabaseConfigured()) {
+    return updateLocalOrder(id, payload);
+  }
+
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
@@ -405,6 +418,10 @@ export async function updateBatchOrdersInDb(ids: string[], updates: any) {
     payload.status = updates.status;
   }
 
+  if (!isSupabaseConfigured()) {
+    return updateBatchLocalOrders(ids, payload);
+  }
+
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
@@ -431,6 +448,10 @@ export async function updateBatchOrdersInDb(ids: string[], updates: any) {
 export async function deleteOrdersFromDb(idOrIds: string | string[]) {
   const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
   if (ids.length === 0) return { deletedCount: 0 };
+
+  if (!isSupabaseConfigured()) {
+    return deleteLocalOrders(ids);
+  }
 
   try {
     const supabase = getSupabase();
@@ -509,6 +530,10 @@ export async function createTransactionInDb(tx: any) {
     updated_at: new Date().toISOString(),
   };
 
+  if (!isSupabaseConfigured()) {
+    return createLocalTransaction(record);
+  }
+
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('transaksi').insert(record).select(TRANSACTION_COLUMNS);
@@ -530,6 +555,10 @@ export async function createTransactionInDb(tx: any) {
 export async function deleteTransactionsFromDb(idOrIds: string | string[]) {
   const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
   if (ids.length === 0) return { deletedCount: 0 };
+
+  if (!isSupabaseConfigured()) {
+    return deleteLocalTransactions(ids);
+  }
 
   try {
     const supabase = getSupabase();
@@ -598,6 +627,10 @@ export async function createNoteInDb(note: any) {
     updated_at: new Date().toISOString(),
   };
 
+  if (!isSupabaseConfigured()) {
+    return createLocalNote(record);
+  }
+
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('notes').insert(record).select(NOTE_COLUMNS);
@@ -632,6 +665,10 @@ export async function updateNoteInDb(id: string, updates: any) {
   if (updates.satuan !== undefined) payload.satuan = updates.satuan;
   if (updates.dapur !== undefined || updates.tujuanDapur !== undefined) payload.dapur = updates.dapur || updates.tujuanDapur;
 
+  if (!isSupabaseConfigured()) {
+    return updateLocalNote(id, payload);
+  }
+
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('notes').update(payload).eq('id', id).select(NOTE_COLUMNS);
@@ -651,6 +688,10 @@ export async function updateNoteInDb(id: string, updates: any) {
 }
 
 export async function deleteNoteFromDb(id: string) {
+  if (!isSupabaseConfigured()) {
+    return deleteLocalNote(id);
+  }
+
   try {
     const supabase = getSupabase();
     const { error } = await supabase.from('notes').delete().eq('id', id);
@@ -680,6 +721,10 @@ export async function getPeriodSummaryFromDb(
   customEndDate?: string
 ) {
   const targetDate = dateStr || new Date().toISOString().split('T')[0];
+
+  if (!isSupabaseConfigured()) {
+    return getLocalPeriodSummary(period, targetDate, customStartDate, customEndDate);
+  }
 
   try {
     const supabase = getSupabase();
@@ -842,6 +887,10 @@ export async function createMasterTokoInDb(nama: string) {
   const cleanName = (nama || '').trim();
   if (!cleanName) throw new Error('Nama toko wajib diisi.');
 
+  if (!isSupabaseConfigured()) {
+    return createLocalMasterToko(cleanName);
+  }
+
   try {
     const supabase = getSupabase();
     // Check existing
@@ -877,6 +926,10 @@ export async function deleteMasterTokoInDb(id: string) {
   const usage = await checkMasterUsageInDb('toko', id);
   if (usage.isUsed) {
     throw new Error(usage.message);
+  }
+
+  if (!isSupabaseConfigured()) {
+    return deleteLocalMasterToko(id);
   }
 
   try {
@@ -927,6 +980,10 @@ export async function createMasterPemasokInDb(nama: string) {
   const cleanName = (nama || '').trim();
   if (!cleanName) throw new Error('Nama pemasok wajib diisi.');
 
+  if (!isSupabaseConfigured()) {
+    return createLocalMasterPemasok(cleanName);
+  }
+
   try {
     const supabase = getSupabase();
     const { data: existing } = await supabase
@@ -961,6 +1018,10 @@ export async function deleteMasterPemasokInDb(id: string) {
   const usage = await checkMasterUsageInDb('pemasok', id);
   if (usage.isUsed) {
     throw new Error(usage.message);
+  }
+
+  if (!isSupabaseConfigured()) {
+    return deleteLocalMasterPemasok(id);
   }
 
   try {
@@ -1011,6 +1072,10 @@ export async function createMasterDapurInDb(nama: string, alamat?: string) {
   const cleanName = (nama || '').trim().replace(/^Dapur\s+/i, '');
   if (!cleanName) throw new Error('Nama dapur wajib diisi.');
 
+  if (!isSupabaseConfigured()) {
+    return createLocalMasterDapur(cleanName, alamat);
+  }
+
   try {
     const supabase = getSupabase();
     const { data: existing } = await supabase
@@ -1053,6 +1118,10 @@ export async function deleteMasterDapurInDb(id: string) {
     throw new Error(usage.message);
   }
 
+  if (!isSupabaseConfigured()) {
+    return deleteLocalMasterDapur(id);
+  }
+
   try {
     const supabase = getSupabase();
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim());
@@ -1081,6 +1150,10 @@ export async function checkMasterUsageInDb(
   id: string,
   name?: string
 ): Promise<{ isUsed: boolean; orderCount: number; transaksiCount: number; message: string }> {
+  if (!isSupabaseConfigured()) {
+    return checkLocalMasterUsage(type, id, name);
+  }
+
   try {
     const supabase = getSupabase();
 

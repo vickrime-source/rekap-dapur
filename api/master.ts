@@ -22,31 +22,32 @@ function setCors(res: any) {
 }
 
 export default async function handler(req: any, res: any) {
-  setCors(res);
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  let body = req.body;
-  if (typeof body === 'string') {
-    try {
-      body = JSON.parse(body);
-    } catch {
-      // keep original
-    }
-  }
-  body = body || {};
-
-  const type = ((req.query.type || body.type || '') as string).toLowerCase();
-  const action = ((req.query.action || body.action || '') as string).toLowerCase();
-
   try {
+    setCors(res);
+
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+
+    let body = req.body;
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body);
+      } catch {
+        // keep original
+      }
+    }
+    body = body || {};
+    const query = req.query || {};
+
+    const type = ((query.type || body.type || '') as string).toLowerCase();
+    const action = ((query.action || body.action || '') as string).toLowerCase();
+
     // 1. Check Usage across orders & transactions
     if (action === 'check_usage' || action === 'check-usage' || type === 'check_usage') {
-      const targetType = (req.query.targetType || req.query.type || 'toko') as 'toko' | 'pemasok' | 'dapur';
-      const id = (req.query.id as string) || '';
-      const name = (req.query.name as string) || '';
+      const targetType = (query.targetType || query.type || 'toko') as 'toko' | 'pemasok' | 'dapur';
+      const id = (query.id as string) || '';
+      const name = (query.name as string) || '';
       const result = await checkMasterUsageInDb(targetType, id, name);
       return res.status(200).json({ success: true, ...result });
     }
@@ -66,7 +67,7 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({ success: true, data: item, message: 'Toko berhasil ditambahkan' });
       }
       if (req.method === 'DELETE') {
-        const id = (req.query.id || body.id) as string;
+        const id = (query.id || body.id) as string;
         if (!id) {
           return res.status(400).json({ success: false, error: 'ID toko wajib disertakan.' });
         }
@@ -90,7 +91,7 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({ success: true, data: item, message: 'Pemasok berhasil ditambahkan' });
       }
       if (req.method === 'DELETE') {
-        const id = (req.query.id || body.id) as string;
+        const id = (query.id || body.id) as string;
         if (!id) {
           return res.status(400).json({ success: false, error: 'ID pemasok wajib disertakan.' });
         }
@@ -115,7 +116,7 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({ success: true, data: item, message: 'Dapur berhasil ditambahkan' });
       }
       if (req.method === 'DELETE') {
-        const id = (req.query.id || body.id) as string;
+        const id = (query.id || body.id) as string;
         if (!id) {
           return res.status(400).json({ success: false, error: 'ID dapur wajib disertakan.' });
         }
@@ -130,9 +131,18 @@ export default async function handler(req: any, res: any) {
     });
   } catch (err: any) {
     console.error('[API /api/master Error]:', err);
-    return res.status(500).json({
-      success: false,
-      error: err?.message || 'Internal Server Error',
-    });
+    try {
+      setCors(res);
+      return res.status(500).json({
+        success: false,
+        error: err?.message || 'Terjadi kesalahan pada serverless function /api/master',
+        detail: typeof err === 'object' ? String(err?.stack || err) : String(err),
+      });
+    } catch {
+      return res.status(500).json({
+        success: false,
+        error: err?.message || 'Internal Server Error',
+      });
+    }
   }
 }
