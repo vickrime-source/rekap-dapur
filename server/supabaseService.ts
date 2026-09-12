@@ -23,7 +23,7 @@ import {
   createMasterDapur as createLocalMasterDapur,
   deleteMasterDapur as deleteLocalMasterDapur,
   checkMasterUsage as checkLocalMasterUsage,
-} from './localDbFallback';
+} from './localDbFallback.js';
 
 let supabaseClient: SupabaseClient | null = null;
 

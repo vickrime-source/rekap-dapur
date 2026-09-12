@@ -5,7 +5,7 @@ import {
   updateBatchOrdersInDb,
   deleteOrdersFromDb,
   getPeriodSummaryFromDb,
-} from '../server/supabaseService';
+} from '../server/supabaseService.js';
 
 function setCors(res: any) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');

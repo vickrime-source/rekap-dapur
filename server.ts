@@ -28,8 +28,8 @@ import {
   createMasterDapurInDb,
   deleteMasterDapurInDb,
   checkMasterUsageInDb,
-} from './server/supabaseService';
-import { parseVoiceOrderWithGemini } from './server/geminiService';
+} from './server/supabaseService.js';
+import { parseVoiceOrderWithGemini } from './server/geminiService.js';
 
 const TEMPLATE_URLS: Record<string, string> = {
   "LUWENG BOGA": "https://docs.google.com/document/d/1vCwDWoGEQhmyujqTF0l0VVJU3cH8nyxn/export?format=docx",

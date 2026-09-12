@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import JSZip from 'jszip';
 import sharp from 'sharp';
-import { compressDocxImages, compressDocxImagesWithStats } from './compressDocxImages';
+import { compressDocxImages, compressDocxImagesWithStats } from './compressDocxImages.js';
 
 describe('Server DOCX Image Compressor (compressDocxImages)', () => {
   it('should process all images with Promise.all and not drop any entries due to race conditions', async () => {
