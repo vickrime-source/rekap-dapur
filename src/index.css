@@ -260,16 +260,6 @@
     gap: 0.75rem !important;
   }
 
-  /* Ensure Card List shows on Tablet Landscape */
-  .tablet-landscape-show-cards {
-    display: block !important;
-  }
-
-  /* Ensure wide desktop table is hidden on Tablet Landscape in favor of 2-col cards */
-  .tablet-landscape-hide-table {
-    display: none !important;
-  }
-
   /* Allow Left Duo/Trio stats box to expand across top on landscape */
   .tablet-landscape-full-col {
     grid-column: 1 / -1 !important;

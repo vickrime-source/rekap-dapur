@@ -750,11 +750,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
       {/* 
         ========================================================================
-        3. CARD LIST RESPONSIVE MOBILE & TABLET LANDSCAPE (1 col mobile, 2 col tablet)
+        3. CARD LIST KHUSUS MOBILE PHONE (< 640px: block sm:hidden)
         Terfilter otomatis sesuai periode dan breakdown toko
         ========================================================================
       */}
-      <div className="block lg:hidden tablet-landscape-show-cards space-y-2.5">
+      <div className="block sm:hidden space-y-2.5">
         {isLoading && filteredBatches.length === 0 ? (
           <TableSkeleton rows={4} />
         ) : paginatedBatches.length === 0 ? (
@@ -921,11 +921,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
       {/* 
         ========================================================================
-        4. TRANSACTIONS TABLE (DESKTOP >= 1024px, disembunyikan di tablet landscape)
+        4. TRANSACTIONS TABLE (TABLET & DESKTOP >= 640px)
         Terintegrasi dengan fungsi Breakdown Toko Pengepul
         ========================================================================
       */}
-      <div className="hidden lg:block tablet-landscape-hide-table">
+      <div className="hidden sm:block">
         {isLoading && filteredBatches.length === 0 ? (
           <TableSkeleton rows={6} />
         ) : (
