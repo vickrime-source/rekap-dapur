@@ -225,13 +225,11 @@ async function startServer() {
         data: orders,
         count: orders.length,
       });
-    } catch (err: any) {
-      console.warn('[Supabase GET pesanan]:', err?.message || err);
-      res.json({
-        success: true,
-        data: [],
-        count: 0,
-        warning: err?.message || 'Menyiapkan data pesanan',
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
       });
     }
   };
@@ -271,11 +269,11 @@ async function startServer() {
         count: created.length,
         message: 'Pesanan berhasil disimpan ke database Supabase',
       });
-    } catch (err: any) {
-      console.warn('[Supabase POST pesanan]:', err?.message || err);
-      res.status(500).json({
-        success: false,
-        error: err?.message || 'Gagal menyimpan pesanan ke Supabase',
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
       });
     }
   };
@@ -313,11 +311,11 @@ async function startServer() {
         data: updated,
         message: 'Pesanan berhasil diperbarui di Supabase',
       });
-    } catch (err: any) {
-      console.warn('[Supabase UPDATE pesanan]:', err?.message || err);
-      res.status(500).json({
-        success: false,
-        error: err?.message || 'Gagal memperbarui pesanan di Supabase',
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
       });
     }
   };
@@ -347,11 +345,11 @@ async function startServer() {
         count: updated.length,
         message: `${updated.length} pesanan berhasil diperbarui statusnya`,
       });
-    } catch (err: any) {
-      console.warn('[Supabase BATCH STATUS]:', err?.message || err);
-      res.status(500).json({
-        success: false,
-        error: err?.message || 'Gagal memperbarui status batch di Supabase',
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
       });
     }
   });
@@ -372,11 +370,11 @@ async function startServer() {
         ...result,
         message: `${result.deletedCount} pesanan berhasil dihapus dari Supabase`,
       });
-    } catch (err: any) {
-      console.warn('[Supabase DELETE pesanan]:', err?.message || err);
-      res.status(500).json({
-        success: false,
-        error: err?.message || 'Gagal menghapus pesanan dari Supabase',
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
       });
     }
   };
@@ -395,13 +393,11 @@ async function startServer() {
         data: txs,
         count: txs.length,
       });
-    } catch (err: any) {
-      console.warn('[Supabase GET transaksi]:', err?.message || err);
-      res.json({
-        success: true,
-        data: [],
-        count: 0,
-        warning: err?.message || 'Menyiapkan data transaksi',
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
       });
     }
   };
@@ -417,11 +413,11 @@ async function startServer() {
         data: tx,
         message: 'Transaksi berhasil disimpan ke Supabase',
       });
-    } catch (err: any) {
-      console.warn('[Supabase POST transaksi]:', err?.message || err);
-      res.status(500).json({
-        success: false,
-        error: err?.message || 'Gagal menyimpan transaksi ke Supabase',
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
       });
     }
   };
@@ -444,11 +440,11 @@ async function startServer() {
         ...result,
         message: 'Transaksi berhasil dihapus dari Supabase',
       });
-    } catch (err: any) {
-      console.warn('[Supabase DELETE transaksi]:', err?.message || err);
-      res.status(500).json({
-        success: false,
-        error: err?.message || 'Gagal menghapus transaksi dari Supabase',
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
       });
     }
   };
@@ -465,13 +461,11 @@ async function startServer() {
         data: notes,
         count: notes.length,
       });
-    } catch (err: any) {
-      console.warn('[Supabase GET notes]:', err?.message || err);
-      res.json({
-        success: true,
-        data: [],
-        count: 0,
-        warning: err?.message || 'Menyiapkan data catatan',
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
       });
     }
   };
@@ -487,11 +481,11 @@ async function startServer() {
         data: note,
         message: 'Catatan berhasil disimpan ke Supabase',
       });
-    } catch (err: any) {
-      console.warn('[Supabase POST notes]:', err?.message || err);
-      res.status(500).json({
-        success: false,
-        error: err?.message || 'Gagal menyimpan catatan ke Supabase',
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
       });
     }
   };
@@ -511,11 +505,11 @@ async function startServer() {
         data: updated,
         message: 'Catatan berhasil diperbarui di Supabase',
       });
-    } catch (err: any) {
-      console.warn('[Supabase UPDATE notes]:', err?.message || err);
-      res.status(500).json({
-        success: false,
-        error: err?.message || 'Gagal memperbarui catatan di Supabase',
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
       });
     }
   };
@@ -537,11 +531,11 @@ async function startServer() {
         ...result,
         message: 'Catatan berhasil dihapus dari Supabase',
       });
-    } catch (err: any) {
-      console.warn('[Supabase DELETE notes]:', err?.message || err);
-      res.status(500).json({
-        success: false,
-        error: err?.message || 'Gagal menghapus catatan dari Supabase',
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
       });
     }
   };
@@ -581,8 +575,12 @@ async function startServer() {
       }
 
       return res.status(400).json({ success: false, error: 'Parameter type (toko, pemasok, dapur) diperlukan' });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err?.message || 'Gagal mengambil data master' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
     }
   });
 
@@ -609,8 +607,12 @@ async function startServer() {
         return res.json({ success: true, data, message: 'Dapur berhasil ditambahkan' });
       }
       return res.status(400).json({ success: false, error: 'Parameter type (toko, pemasok, dapur) diperlukan' });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err?.message || 'Gagal menyimpan data master' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
     }
   });
 
@@ -633,8 +635,12 @@ async function startServer() {
         return res.json({ success: true, ...result });
       }
       return res.status(400).json({ success: false, error: 'Parameter type (toko, pemasok, dapur) diperlukan' });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err?.message || 'Gagal menghapus data master' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
     }
   });
 
@@ -650,11 +656,11 @@ async function startServer() {
         success: true,
         ...result,
       });
-    } catch (err: any) {
-      console.warn('[Supabase master check-usage]:', err?.message || err);
-      res.status(500).json({
-        success: false,
-        error: err?.message || 'Gagal mengecek penggunaan data master',
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
       });
     }
   });
@@ -664,9 +670,12 @@ async function startServer() {
     try {
       const data = await getMasterTokoFromDb();
       res.json({ success: true, data, count: data.length });
-    } catch (err: any) {
-      console.warn('[Supabase GET master toko]:', err?.message || err);
-      res.status(500).json({ success: false, error: err?.message || 'Gagal mengambil master toko' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
     }
   });
 
@@ -678,9 +687,12 @@ async function startServer() {
       }
       const data = await createMasterTokoInDb(nama);
       res.json({ success: true, data, message: 'Toko berhasil ditambahkan' });
-    } catch (err: any) {
-      console.warn('[Supabase POST master toko]:', err?.message || err);
-      res.status(500).json({ success: false, error: err?.message || 'Gagal menyimpan master toko' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
     }
   });
 
@@ -692,9 +704,12 @@ async function startServer() {
       }
       const result = await deleteMasterTokoInDb(id);
       res.json({ success: true, ...result });
-    } catch (err: any) {
-      console.warn('[Supabase DELETE master toko]:', err?.message || err);
-      res.status(400).json({ success: false, error: err?.message || 'Gagal menghapus master toko' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
     }
   });
 
@@ -703,9 +718,12 @@ async function startServer() {
     try {
       const data = await getMasterPemasokFromDb();
       res.json({ success: true, data, count: data.length });
-    } catch (err: any) {
-      console.warn('[Supabase GET master pemasok]:', err?.message || err);
-      res.status(500).json({ success: false, error: err?.message || 'Gagal mengambil master pemasok' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
     }
   });
 
@@ -717,9 +735,12 @@ async function startServer() {
       }
       const data = await createMasterPemasokInDb(nama);
       res.json({ success: true, data, message: 'Pemasok berhasil ditambahkan' });
-    } catch (err: any) {
-      console.warn('[Supabase POST master pemasok]:', err?.message || err);
-      res.status(500).json({ success: false, error: err?.message || 'Gagal menyimpan master pemasok' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
     }
   });
 
@@ -731,9 +752,12 @@ async function startServer() {
       }
       const result = await deleteMasterPemasokInDb(id);
       res.json({ success: true, ...result });
-    } catch (err: any) {
-      console.warn('[Supabase DELETE master pemasok]:', err?.message || err);
-      res.status(400).json({ success: false, error: err?.message || 'Gagal menghapus master pemasok' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
     }
   });
 
@@ -742,9 +766,12 @@ async function startServer() {
     try {
       const data = await getMasterDapurFromDb();
       res.json({ success: true, data, count: data.length });
-    } catch (err: any) {
-      console.warn('[Supabase GET master dapur]:', err?.message || err);
-      res.status(500).json({ success: false, error: err?.message || 'Gagal mengambil master dapur' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
     }
   });
 
@@ -757,9 +784,12 @@ async function startServer() {
       }
       const data = await createMasterDapurInDb(nama, alamat);
       res.json({ success: true, data, message: 'Dapur berhasil ditambahkan' });
-    } catch (err: any) {
-      console.warn('[Supabase POST master dapur]:', err?.message || err);
-      res.status(500).json({ success: false, error: err?.message || 'Gagal menyimpan master dapur' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
     }
   });
 
@@ -771,9 +801,12 @@ async function startServer() {
       }
       const result = await deleteMasterDapurInDb(id);
       res.json({ success: true, ...result });
-    } catch (err: any) {
-      console.warn('[Supabase DELETE master dapur]:', err?.message || err);
-      res.status(400).json({ success: false, error: err?.message || 'Gagal menghapus master dapur' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
     }
   });
 

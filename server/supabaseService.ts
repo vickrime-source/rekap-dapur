@@ -73,7 +73,13 @@ export function isTableMissingError(err: any): boolean {
     message.includes('not found in the schema cache') ||
     (message.includes('relation') && message.includes('does not exist')) ||
     message.includes('could not find the table') ||
-    message.includes('could not find the function')
+    message.includes('could not find the function') ||
+    message.includes('harus dikonfigurasi') ||
+    message.includes('failed to fetch') ||
+    message.includes('fetch failed') ||
+    message.includes('network') ||
+    message.includes('enotfound') ||
+    message.includes('econnrefused')
   );
 }
 
@@ -207,6 +213,9 @@ export interface OrderFilterOptions {
 }
 
 export async function getOrdersFromDb(filters: OrderFilterOptions = {}) {
+  if (!isSupabaseConfigured()) {
+    return getLocalOrders(filters);
+  }
   try {
     const supabase = getSupabase();
     
@@ -452,6 +461,10 @@ export async function getTransactionsFromDb(limit: number = 50, page: number = 1
   const safeLimit = Math.min(limit || 50, 100);
   const offset = (page - 1) * safeLimit;
 
+  if (!isSupabaseConfigured()) {
+    return getLocalTransactions(safeLimit);
+  }
+
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
@@ -544,6 +557,9 @@ export async function deleteTransactionsFromDb(idOrIds: string | string[]) {
 // NOTES (notes) CRUD
 // =============================================================================
 export async function getNotesFromDb(limit: number = 100) {
+  if (!isSupabaseConfigured()) {
+    return getLocalNotes();
+  }
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
@@ -801,6 +817,9 @@ export async function getPeriodSummaryFromDb(
 // =============================================================================
 
 export async function getMasterTokoFromDb() {
+  if (!isSupabaseConfigured()) {
+    return getLocalMasterToko();
+  }
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
@@ -879,6 +898,9 @@ export async function deleteMasterTokoInDb(id: string) {
 }
 
 export async function getMasterPemasokFromDb() {
+  if (!isSupabaseConfigured()) {
+    return getLocalMasterPemasok();
+  }
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
@@ -956,6 +978,9 @@ export async function deleteMasterPemasokInDb(id: string) {
 }
 
 export async function getMasterDapurFromDb() {
+  if (!isSupabaseConfigured()) {
+    return getLocalMasterDapur();
+  }
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
