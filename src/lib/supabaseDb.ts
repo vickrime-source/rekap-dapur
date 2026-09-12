@@ -208,15 +208,7 @@ export async function fetchOrdersFromDb(params?: {
   page?: number;
   forceRefresh?: boolean;
 }): Promise<{ success: boolean; orders: OrderItem[]; error?: string }> {
-  const cacheKey = `pesanan_${params?.period || 'all'}_${params?.date || ''}_${params?.startDate || ''}_${params?.endDate || ''}_${params?.toko || ''}_${params?.dapur || ''}_${params?.page || 1}_${params?.limit || 100}`;
-
-  if (!params?.forceRefresh) {
-    const cached = getFromCache<OrderItem[]>(cacheKey);
-    if (cached) {
-      return { success: true, orders: cached };
-    }
-  }
-
+  // Always fetch fresh from Supabase - bypass cacheManager completely for /api/pesanan
   try {
     const searchParams = new URLSearchParams();
     if (params?.period) searchParams.set('period', params.period);
@@ -227,9 +219,16 @@ export async function fetchOrdersFromDb(params?: {
     if (params?.dapur) searchParams.set('dapur', params.dapur);
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.page) searchParams.set('page', String(params.page));
+    // Cache buster parameter to prevent any browser/service worker HTTP caching
+    searchParams.set('_t', String(Date.now()));
 
     const url = `/api/pesanan?${searchParams.toString()}`;
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+    });
     const json = await res.json();
 
     if (!res.ok || !json.success) {
@@ -237,7 +236,6 @@ export async function fetchOrdersFromDb(params?: {
     }
 
     const orders = (json.data || []).map(mapRawOrder);
-    setInCache(cacheKey, orders);
     return { success: true, orders };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Koneksi ke Supabase terputus';
@@ -609,7 +607,12 @@ export async function updateGroupStatus(
 
 export async function fetchMasterTokoFromDb(): Promise<{ success: boolean; data: MasterToko[]; error?: string }> {
   try {
-    const res = await fetch('/api/master?type=toko');
+    const res = await fetch(`/api/master?type=toko&_t=${Date.now()}`, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+    });
     const json = await res.json();
     if (!res.ok || !json.success) {
       return { success: false, data: [], error: json.error || 'Gagal memuat data toko' };
@@ -654,7 +657,12 @@ export async function deleteMasterTokoFromDb(id: string): Promise<{ success: boo
 
 export async function fetchMasterPemasokFromDb(): Promise<{ success: boolean; data: MasterPemasok[]; error?: string }> {
   try {
-    const res = await fetch('/api/master?type=pemasok');
+    const res = await fetch(`/api/master?type=pemasok&_t=${Date.now()}`, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+    });
     const json = await res.json();
     if (!res.ok || !json.success) {
       return { success: false, data: [], error: json.error || 'Gagal memuat data pemasok' };
@@ -699,7 +707,12 @@ export async function deleteMasterPemasokFromDb(id: string): Promise<{ success: 
 
 export async function fetchMasterDapurFromDb(): Promise<{ success: boolean; data: MasterDapur[]; error?: string }> {
   try {
-    const res = await fetch('/api/master?type=dapur');
+    const res = await fetch(`/api/master?type=dapur&_t=${Date.now()}`, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+    });
     const json = await res.json();
     if (!res.ok || !json.success) {
       return { success: false, data: [], error: json.error || 'Gagal memuat data dapur' };

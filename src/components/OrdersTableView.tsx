@@ -221,17 +221,17 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
     <div className="space-y-4 font-sans text-slate-800">
       {/* 
         ========================================================================
-        CARD LIST KHUSUS MOBILE (viewport < 640px: block sm:hidden)
+        CARD LIST RESPONSIVE MOBILE & TABLET LANDSCAPE (1 col mobile, 2 col tablet)
         Langsung menampilkan daftar pesanan secara bersih tanpa section tambahan
         ========================================================================
       */}
-      <div className="block sm:hidden space-y-2.5">
+      <div className="block lg:hidden tablet-landscape-show-cards space-y-2.5">
         {paginatedGroups.length === 0 ? (
           <div className="bg-white border border-slate-200 rounded-xl p-4 text-center text-slate-500 text-xs shadow-xs">
             Tidak ada data pesanan
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 tablet-landscape-grid-2 gap-3">
             {paginatedGroups.map((group) => {
               const isExpanded = expandedCardIds.has(group.id);
               const isMenuOpen = activeMenu?.id === group.id;
@@ -397,11 +397,10 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
 
       {/* 
         ========================================================================
-        TABEL LENGKAP YANG SUDAH ADA SEKARANG (TIDAK DIUBAH STRUKTURNYA)
-        Tetap sama persis: semua transaksi, semua status, tanpa filter.
+        TABEL LENGKAP DESKTOP (Tersedia di layar lebar, disembunyikan di tablet landscape untuk card 2 kolom)
         ========================================================================
       */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden font-sans">
+      <div className="hidden lg:block tablet-landscape-hide-table bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden font-sans">
       {/* 
         REVISION REQUIREMENT 2:
         Table structure from Left to Right:

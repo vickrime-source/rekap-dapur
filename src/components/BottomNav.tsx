@@ -53,8 +53,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   };
 
   return (
-    <div className="fixed bottom-3 left-0 right-0 z-30 px-4 max-w-lg mx-auto no-print pointer-events-none">
-      <nav className="clay-card bg-white/90 backdrop-blur-xl h-[72px] rounded-3xl flex items-center justify-between px-8 border border-white/80 shadow-[0_10px_30px_rgba(166,180,200,0.5)] pointer-events-auto">
+    <div className="fixed bottom-3 sm:bottom-4 md:bottom-5 left-0 right-0 z-30 px-4 max-w-md md:max-w-lg mx-auto no-print pointer-events-none">
+      <nav className="clay-card bg-white/95 backdrop-blur-xl h-[72px] rounded-3xl flex items-center justify-between px-8 border border-white/80 shadow-[0_10px_30px_rgba(166,180,200,0.5)] pointer-events-auto">
         {/* KIRI — Dashboard */}
         <button
           onClick={() => onChangeTab('dashboard')}

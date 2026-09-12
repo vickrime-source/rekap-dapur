@@ -48,7 +48,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-end justify-center no-print font-sans">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 no-print font-sans">
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -64,7 +64,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
           transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-          className="relative w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[85vh] z-10 border-t border-slate-200/80 overflow-hidden"
+          className="relative w-full max-w-lg sm:max-w-xl tablet-landscape-modal bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[85vh] z-10 border-t sm:border border-slate-200/80 overflow-hidden"
         >
           {/* Mobile Drag Indicator */}
           <div className="pt-3 pb-1 flex justify-center">

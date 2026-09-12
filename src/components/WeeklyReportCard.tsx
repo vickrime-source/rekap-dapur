@@ -328,7 +328,7 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
       </div>
 
       {/* 4 Financial Metric Cards (Flat, Clean, High Legibility) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 tablet-landscape-grid-4 gap-2.5">
         {/* Metric 1: Total Pesanan Masuk */}
         <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-3 flex flex-col justify-between min-h-[82px]">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">

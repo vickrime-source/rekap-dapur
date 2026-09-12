@@ -160,7 +160,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-end justify-center no-print font-sans">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 no-print font-sans">
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -170,13 +170,13 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
           className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
         />
 
-        {/* Bottom Sheet Modal */}
+        {/* Bottom Sheet Modal (Centered and bounded for tablet landscape) */}
         <motion.div
           initial={{ y: '100%' }}
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
           transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-          className="relative w-full max-w-3xl bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[92vh] z-10 border-t border-slate-200/80 overflow-hidden"
+          className="relative w-full max-w-2xl tablet-landscape-modal bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh] z-10 border-t sm:border border-slate-200/80 overflow-hidden"
         >
           {/* Mobile Drag Indicator */}
           <div className="pt-3 pb-1 flex justify-center">

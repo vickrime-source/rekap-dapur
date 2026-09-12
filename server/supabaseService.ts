@@ -881,10 +881,14 @@ export async function deleteMasterTokoInDb(id: string) {
 
   try {
     const supabase = getSupabase();
-    const { error } = await supabase
-      .from('toko')
-      .delete()
-      .eq('id', id);
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim());
+    let query = supabase.from('toko').delete();
+    if (isUUID) {
+      query = query.eq('id', id.trim());
+    } else {
+      query = query.ilike('nama', id.trim());
+    }
+    const { error } = await query;
 
     if (error) {
       if (isTableMissingError(error)) return deleteLocalMasterToko(id);
@@ -961,10 +965,14 @@ export async function deleteMasterPemasokInDb(id: string) {
 
   try {
     const supabase = getSupabase();
-    const { error } = await supabase
-      .from('pemasok')
-      .delete()
-      .eq('id', id);
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim());
+    let query = supabase.from('pemasok').delete();
+    if (isUUID) {
+      query = query.eq('id', id.trim());
+    } else {
+      query = query.ilike('nama', id.trim());
+    }
+    const { error } = await query;
 
     if (error) {
       if (isTableMissingError(error)) return deleteLocalMasterPemasok(id);
@@ -1047,10 +1055,15 @@ export async function deleteMasterDapurInDb(id: string) {
 
   try {
     const supabase = getSupabase();
-    const { error } = await supabase
-      .from('dapur')
-      .delete()
-      .eq('id', id);
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim());
+    let query = supabase.from('dapur').delete();
+    if (isUUID) {
+      query = query.eq('id', id.trim());
+    } else {
+      const cleanName = id.trim().replace(/^Dapur\s+/i, '');
+      query = query.or(`nama.eq.${cleanName},nama.eq.${id.trim()}`);
+    }
+    const { error } = await query;
 
     if (error) {
       if (isTableMissingError(error)) return deleteLocalMasterDapur(id);
@@ -1074,9 +1087,14 @@ export async function checkMasterUsageInDb(
     // Get the name if not provided
     let entityName = name;
     if (!entityName && id) {
-      const table = type === 'toko' ? 'toko' : type === 'pemasok' ? 'pemasok' : 'dapur';
-      const { data } = await supabase.from(table).select('nama').eq('id', id).maybeSingle();
-      if (data?.nama) entityName = data.nama;
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim());
+      if (isUUID) {
+        const table = type === 'toko' ? 'toko' : type === 'pemasok' ? 'pemasok' : 'dapur';
+        const { data } = await supabase.from(table).select('nama').eq('id', id.trim()).maybeSingle();
+        if (data?.nama) entityName = data.nama;
+      } else {
+        entityName = id.trim();
+      }
     }
 
     let orderCount = 0;

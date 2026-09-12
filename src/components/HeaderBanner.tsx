@@ -265,8 +265,8 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
         */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5">
           
-          {/* Left Column: Stacked Unified Duo-Card (Atas: Pesanan, Bawah: Pending) */}
-          <div className="md:col-span-4 flex flex-col sm:flex-row md:flex-col gap-2">
+          {/* Left Column: Stacked Unified Duo-Card (Atas: Pesanan, Bawah: Pending, Box 3: Total Laba Bersih) */}
+          <div className="md:col-span-4 tablet-landscape-full-col flex flex-col sm:flex-row md:flex-col tablet-landscape-grid-3 gap-2">
             {/* Top Box: PESANAN */}
             <div className="flex-1 bg-indigo-50/80 border border-indigo-200/80 rounded-2xl p-2.5 flex items-center justify-between shadow-[inset_1px_1px_2px_rgba(255,255,255,0.9)]">
               <div className="flex items-center gap-2.5">
@@ -322,7 +322,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
           </div>
 
           {/* Right Column: HIGHLIGHT FOLLOW UP (Daftar pesanan sementara untuk ditindaklanjuti) */}
-          <div className="md:col-span-8 bg-slate-50/90 border border-slate-200 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-[inset_1px_1px_2px_rgba(255,255,255,0.9)]">
+          <div className="md:col-span-8 tablet-landscape-full-col bg-slate-50/90 border border-slate-200 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-[inset_1px_1px_2px_rgba(255,255,255,0.9)]">
             {/* Header of Follow Up Section */}
             <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
               <div className="flex items-center gap-1.5">

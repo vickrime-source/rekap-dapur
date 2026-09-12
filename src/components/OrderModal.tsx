@@ -519,17 +519,17 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   return (
     <>
       <AnimatePresence>
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 backdrop-blur-xs no-print font-sans">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-xs no-print font-sans">
           {/* Backdrop click to dismiss */}
           <div className="absolute inset-0" onClick={onClose} />
 
-          {/* Bottom Sheet Modal Container (100% Persis Struktur & Ukuran Existing) */}
+          {/* Bottom Sheet Modal Container (Responsive Centered on Tablet/Desktop) */}
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className="relative w-full max-w-lg bg-white rounded-t-3xl shadow-2xl border-t border-slate-200 overflow-hidden z-10 max-h-[90vh] flex flex-col"
+            className="relative w-full max-w-lg sm:max-w-xl md:max-w-2xl tablet-landscape-modal bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-200 overflow-hidden z-10 max-h-[92vh] sm:max-h-[88vh] flex flex-col"
           >
             {/* Pull Tab Bar / Handle */}
             <div className="w-full pt-3 pb-1 flex justify-center items-center cursor-grab bg-slate-50 border-b border-slate-100">

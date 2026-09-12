@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { 
   OrderItem, 
@@ -18,8 +18,7 @@ import {
 import { 
   INITIAL_KITCHENS, 
   INITIAL_STORES, 
-  INITIAL_PEMASOK, 
-  INITIAL_ORDERS 
+  INITIAL_PEMASOK 
 } from './constants/initialData';
 import { HeaderBanner } from './components/HeaderBanner';
 import { BottomNav, TabType } from './components/BottomNav';
@@ -69,8 +68,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
-  // Persistent State
-  const [orders, setOrders] = useLocalStorage<OrderItem[]>('dapur_tracker_orders_v4', INITIAL_ORDERS);
+  // Pure in-memory orders state populated ONLY from Supabase (never from localStorage)
+  const [orders, setOrders] = useState<OrderItem[]>([]);
   const [kitchens, setKitchens] = useLocalStorage<Kitchen[]>('dapur_tracker_kitchens_v4', INITIAL_KITCHENS);
   const [stores, setStores] = useLocalStorage<StoreType[]>('dapur_tracker_stores_v4', INITIAL_STORES);
   const [pemasokList, setPemasokList] = useLocalStorage<string[]>('dapur_tracker_pemasok_v4', INITIAL_PEMASOK);
@@ -78,6 +77,32 @@ export default function App() {
   const [exportHistory, setExportHistory] = useLocalStorage<ExportHistoryItem[]>('dapur_export_history_v1', []);
   const [notes, setNotes] = useLocalStorage<NoteItem[]>('dapur_highlight_notes_v1', []);
   const [dashboardPeriod, setDashboardPeriod] = useLocalStorage<DashboardPeriod>('dapur_dashboard_period_v2', 'mingguan');
+
+  // Purge legacy cached orders and old dummy master data from localStorage and sessionStorage
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('dapur_tracker_orders_v4');
+        window.localStorage.removeItem('dapur_tracker_orders');
+        
+        // Check if cached pemasok contains old dummy data (Pemasok 1/2/3/4)
+        const cachedPemasok = window.localStorage.getItem('dapur_tracker_pemasok_v4');
+        if (cachedPemasok && (cachedPemasok.includes('Pemasok 1') || cachedPemasok.includes('Pemasok 2'))) {
+          window.localStorage.removeItem('dapur_tracker_pemasok_v4');
+          setPemasokList(INITIAL_PEMASOK);
+        }
+        window.localStorage.removeItem('dapur_tracker_pemasok');
+
+        Object.keys(window.sessionStorage || {}).forEach((key) => {
+          if (key.includes('pesanan') || key.includes('order') || key.includes('pemasok')) {
+            window.sessionStorage.removeItem(key);
+          }
+        });
+      }
+    } catch {
+      // ignore storage access errors
+    }
+  }, []);
 
   // Supabase Database Sync State
   const [isLoadingDb, setIsLoadingDb] = useState(false);

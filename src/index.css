@@ -235,4 +235,53 @@
   }
 }
 
+/* ==========================================================================
+   RESPONSIVE TABLET LANDSCAPE BREAKPOINTS (768px - 1280px, landscape)
+   ========================================================================== */
+@media (min-width: 768px) and (max-width: 1280px) and (orientation: landscape) {
+  /* 2-Column Grid for Card Lists on Tablet Landscape */
+  .tablet-landscape-grid-2 {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.875rem !important;
+  }
+
+  /* 3-Column Horizontal Parallel Grid for Metric Summary Cards */
+  .tablet-landscape-grid-3 {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.75rem !important;
+  }
+
+  /* 4-Column Horizontal Parallel Grid for Financial Metrics */
+  .tablet-landscape-grid-4 {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 0.75rem !important;
+  }
+
+  /* Ensure Card List shows on Tablet Landscape */
+  .tablet-landscape-show-cards {
+    display: block !important;
+  }
+
+  /* Ensure wide desktop table is hidden on Tablet Landscape in favor of 2-col cards */
+  .tablet-landscape-hide-table {
+    display: none !important;
+  }
+
+  /* Allow Left Duo/Trio stats box to expand across top on landscape */
+  .tablet-landscape-full-col {
+    grid-column: 1 / -1 !important;
+  }
+
+  /* Clean max-width and center alignment for Modals */
+  .tablet-landscape-modal {
+    max-width: 680px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    border-radius: 1.5rem !important;
+  }
+}
+
 

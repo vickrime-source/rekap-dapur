@@ -750,11 +750,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
       {/* 
         ========================================================================
-        3. CARD LIST KHUSUS MOBILE (< 640px: block sm:hidden)
+        3. CARD LIST RESPONSIVE MOBILE & TABLET LANDSCAPE (1 col mobile, 2 col tablet)
         Terfilter otomatis sesuai periode dan breakdown toko
         ========================================================================
       */}
-      <div className="block sm:hidden space-y-2.5">
+      <div className="block lg:hidden tablet-landscape-show-cards space-y-2.5">
         {isLoading && filteredBatches.length === 0 ? (
           <TableSkeleton rows={4} />
         ) : paginatedBatches.length === 0 ? (
@@ -767,7 +767,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             )}
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 tablet-landscape-grid-2 gap-3">
             {paginatedBatches.map((batch) => {
               const isExpanded = expandedBatchIds.has(batch.id);
               const isMenuOpen = activeMenu?.id === batch.id;
@@ -921,11 +921,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
       {/* 
         ========================================================================
-        4. TRANSACTIONS TABLE (DESKTOP / TABLET >= 640px)
+        4. TRANSACTIONS TABLE (DESKTOP >= 1024px, disembunyikan di tablet landscape)
         Terintegrasi dengan fungsi Breakdown Toko Pengepul
         ========================================================================
       */}
-      <div className="hidden sm:block">
+      <div className="hidden lg:block tablet-landscape-hide-table">
         {isLoading && filteredBatches.length === 0 ? (
           <TableSkeleton rows={6} />
         ) : (
