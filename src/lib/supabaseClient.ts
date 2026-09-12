@@ -13,8 +13,16 @@ export async function getClientSupabase(): Promise<SupabaseClient | null> {
   initPromise = (async () => {
     try {
       // Primary: Gunakan environment variable browser Vite (VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY)
-      let url = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || '';
-      let anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim() || '';
+      let url = '';
+      let anonKey = '';
+      try {
+        if (typeof import.meta !== 'undefined' && import.meta && import.meta.env) {
+          url = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || '';
+          anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim() || '';
+        }
+      } catch {
+        // Abaikan jika bukan runtime browser/vite
+      }
 
       // Fallback: Jika belum ada di bundle client, ambil dari endpoint konfigurasi backend
       if (!url || !anonKey) {

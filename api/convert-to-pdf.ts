@@ -1,5 +1,5 @@
-import { convertDocxToPdfWithCloudConvert } from '../server/lib/cloudConvert.js';
-import { compressDocxImages } from '../server/lib/compressDocxImages.js';
+import { convertDocxToPdfWithCloudConvert } from '../server/lib/cloudConvert';
+import { compressDocxImages } from '../server/lib/compressDocxImages';
 
 export const config = {
   api: {

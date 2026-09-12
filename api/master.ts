@@ -9,7 +9,7 @@ import {
   createMasterDapurInDb,
   deleteMasterDapurInDb,
   checkMasterUsageInDb,
-} from '../server/supabaseService.js';
+} from '../server/supabaseService';
 
 function setCors(res: any) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');

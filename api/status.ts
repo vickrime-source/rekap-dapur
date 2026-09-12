@@ -1,4 +1,4 @@
-import { checkSupabaseStatus } from '../server/supabaseService.js';
+import { checkSupabaseStatus } from '../server/supabaseService';
 
 export default async function handler(req: any, res: any) {
   try {
