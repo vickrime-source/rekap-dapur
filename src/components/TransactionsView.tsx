@@ -12,7 +12,9 @@ import {
   Activity,
   Download,
   Settings,
-  RefreshCw
+  RefreshCw,
+  Eye,
+  Printer
 } from 'lucide-react';
 import { 
   OrderItem, 
@@ -84,8 +86,9 @@ interface TransactionsViewProps {
   onDuplicateOrder?: (item: OrderItem) => void;
   onDeleteOrder: (id: string) => void;
   onDeleteKitchenOrders: (kitchenName: string, date: string) => void;
-  onOpenInvoiceModal: (items: OrderItem[], kitchenName?: string, storeName?: string) => void;
+  onOpenInvoiceModal?: (items: OrderItem[], kitchenName?: string, storeName?: string) => void;
   onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+  onViewInvoice?: (items: OrderItem[], kitchenName?: string, storeName?: string, dateStr?: string) => void;
   onDeleteInvoice?: (id: string) => void;
   onDeleteTransaction?: (batch: TransactionBatch) => void;
   onOpenAddModal: (prefilledKitchen?: string) => void;
@@ -106,13 +109,19 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   selectedDate,
   period: periodProp,
   onPeriodChange,
+  onToggleStatus,
   onUpdatePaymentStatus,
   onUpdateDeliveryStatus,
   onUpdateGroupPaymentStatus,
   onUpdateGroupDeliveryStatus,
+  onToggleBatchStatus,
   onEditOrder,
   onDuplicateOrder,
   onDeleteOrder,
+  onDeleteKitchenOrders,
+  onOpenInvoiceModal,
+  onExportInvoicePdf,
+  onViewInvoice,
   onDeleteInvoice,
   onDeleteTransaction,
   onOpenSettings,
@@ -873,8 +882,38 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                       </span>
                     </div>
 
-                    {/* Quick Action Buttons */}
+                    {/* Quick Action Buttons: Eye View, Print, Delete & 3-Dots */}
                     <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onViewInvoice) {
+                            onViewInvoice(batch.items, batch.tujuanDapur, batch.toko, batch.tanggal);
+                          } else if (onOpenInvoiceModal) {
+                            onOpenInvoiceModal(batch.items, batch.tujuanDapur, batch.toko);
+                          }
+                        }}
+                        className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-800 border border-sky-200 active:scale-95 transition-all cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
+                        title={`Lihat Bukti Invoice Dapur ${batch.tujuanDapur}`}
+                      >
+                        <Eye className="w-3.5 h-3.5 stroke-[2.5]" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onExportInvoicePdf) {
+                            onExportInvoicePdf(batch.items, batch.tujuanDapur, batch.toko, batch.tanggal);
+                          } else if (onOpenInvoiceModal) {
+                            onOpenInvoiceModal(batch.items, batch.tujuanDapur, batch.toko);
+                          }
+                        }}
+                        className="p-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-900 border border-amber-500/80 active:scale-95 transition-all cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
+                        title={`1-Click Export Invoice PDF Dapur ${batch.tujuanDapur}`}
+                      >
+                        <Printer className="w-3.5 h-3.5 stroke-[2.5]" />
+                      </button>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1049,7 +1088,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         <th className="py-2.5 px-2 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px] text-amber-800">CASHBACK</th>
                         <th className="py-2.5 px-2 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px] text-emerald-800">LABA BERSIH</th>
                         <th className="py-2.5 px-2 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[80px]">STATUS</th>
-                        <th className="py-2.5 px-1.5 text-center w-16 bg-slate-100 sticky top-0">AKSI</th>
+                        <th className="py-2.5 px-1.5 text-center min-w-[125px] bg-slate-100 sticky top-0">AKSI</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium text-slate-800 bg-white">
@@ -1163,9 +1202,39 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                               </button>
                             </td>
 
-                            {/* 12. AKSI: Quick Delete & 3-Dots */}
+                            {/* 12. AKSI: View, Print, Quick Delete & 3-Dots */}
                             <td className="py-2.5 px-1.5 text-center align-middle">
                               <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onViewInvoice) {
+                                      onViewInvoice(batch.items, batch.tujuanDapur, batch.toko, batch.tanggal);
+                                    } else if (onOpenInvoiceModal) {
+                                      onOpenInvoiceModal(batch.items, batch.tujuanDapur, batch.toko);
+                                    }
+                                  }}
+                                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-800 font-extrabold shadow-2xs transition-all active:scale-95 border border-sky-200 cursor-pointer"
+                                  title={`Lihat Bukti Invoice Dapur ${batch.tujuanDapur}`}
+                                >
+                                  <Eye className="w-3.5 h-3.5 stroke-[2.5]" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onExportInvoicePdf) {
+                                      onExportInvoicePdf(batch.items, batch.tujuanDapur, batch.toko, batch.tanggal);
+                                    } else if (onOpenInvoiceModal) {
+                                      onOpenInvoiceModal(batch.items, batch.tujuanDapur, batch.toko);
+                                    }
+                                  }}
+                                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold shadow-2xs transition-all active:scale-95 border border-amber-500/80 cursor-pointer"
+                                  title={`1-Click Export Invoice PDF Dapur ${batch.tujuanDapur}`}
+                                >
+                                  <Printer className="w-3.5 h-3.5 stroke-[2.5]" />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={(e) => {

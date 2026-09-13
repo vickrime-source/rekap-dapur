@@ -46,6 +46,7 @@ interface DashboardViewProps {
   onOpenAddModal: (prefilledKitchen?: string) => void;
   onOpenInvoiceModal: (items: OrderItem[], kitchenName?: string, storeName?: string) => void;
   onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+  onViewInvoice?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
   onOpenTextImport?: () => void;
   onOpenExportModal?: () => void;
   kitchens: Kitchen[];
@@ -72,6 +73,7 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
   onDeleteBatchOrders,
   onOpenInvoiceModal,
   onExportInvoicePdf,
+  onViewInvoice,
   kitchens,
   stores,
 }) => {
@@ -272,6 +274,7 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
         onDeleteBatchOrders={onDeleteBatchOrders}
         onOpenInvoiceModal={onOpenInvoiceModal}
         onExportInvoicePdf={onExportInvoicePdf}
+        onViewInvoice={onViewInvoice}
       />
     </div>
   );

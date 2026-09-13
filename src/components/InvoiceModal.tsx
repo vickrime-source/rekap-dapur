@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, 
   Printer, 
@@ -9,15 +9,17 @@ import {
   Phone, 
   CreditCard, 
   Download, 
-  Sparkles,
-  FileDown,
-  Eye,
-  CheckCircle2
+  Sparkles, 
+  FileDown, 
+  Eye, 
+  CheckCircle2,
+  Image as ImageIcon,
+  Loader2
 } from 'lucide-react';
 import { OrderItem } from '../types';
 import { formatRupiah, formatTanggalRealtime, formatTanggalInvoice, resolveRecipientSppgName, parseIndonesianNumber } from '../lib/formatters';
 import { getStoreProfile } from '../lib/storeProfiles';
-import { printHtmlInvoiceDirectly } from '../lib/htmlInvoicePdf';
+import { printHtmlInvoiceDirectly, exportHtmlInvoicePng } from '../lib/htmlInvoicePdf';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface InvoiceModalProps {
@@ -31,6 +33,7 @@ interface InvoiceModalProps {
   recipientAddress?: string;
   recipientPhone?: string;
   bayarAmount?: number;
+  initialFullPreview?: boolean;
   onTriggerBackgroundExport?: (options: {
     storeName: string;
     kitchenName: string;
@@ -56,18 +59,21 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   recipientAddress,
   recipientPhone,
   bayarAmount = 0,
+  initialFullPreview = false,
   onTriggerBackgroundExport,
   onSaveInvoiceRecord,
 }) => {
   const [bayar, setBayar] = useState<number>(bayarAmount);
-  const [showFullPreview, setShowFullPreview] = useState(false);
+  const [showFullPreview, setShowFullPreview] = useState(initialFullPreview);
+  const [isGeneratingPng, setIsGeneratingPng] = useState(false);
+  const invoicePaperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setBayar(bayarAmount);
-      setShowFullPreview(false);
+      setShowFullPreview(initialFullPreview);
     }
-  }, [isOpen, bayarAmount]);
+  }, [isOpen, bayarAmount, initialFullPreview]);
 
   if (!isOpen || items.length === 0) return null;
 
@@ -158,6 +164,33 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
     onClose();
   };
 
+  const handleStartPngExport = async () => {
+    if (isGeneratingPng) return;
+    setIsGeneratingPng(true);
+    try {
+      if (onSaveInvoiceRecord) {
+        onSaveInvoiceRecord();
+      }
+      await exportHtmlInvoicePng({
+        storeName: mainStore,
+        kitchenName: mainKitchen,
+        items: displayItems,
+        invoiceNumber,
+        bayar,
+        customNama: finalRecipientName,
+        customAlamat: recipientAddress || '-',
+        customNomor: recipientPhone || '-',
+        customTanggal: invoiceDate,
+        targetElement: showFullPreview ? invoicePaperRef.current : null,
+      });
+    } catch (err: any) {
+      console.error('Failed to export PNG:', err);
+      alert('Gagal mengunduh gambar PNG invoice.');
+    } finally {
+      setIsGeneratingPng(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 no-print font-sans">
@@ -234,7 +267,10 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
             {showFullPreview ? (
               /* A4 Paper HTML Preview */
               <div className="bg-slate-200 p-2 sm:p-4 rounded-2xl overflow-x-auto">
-                <div className="bg-white shadow-xl rounded-lg p-6 sm:p-8 min-w-[650px] max-w-[760px] mx-auto text-slate-900 text-xs border border-slate-300">
+                <div 
+                  ref={invoicePaperRef}
+                  className="bg-white shadow-xl rounded-lg p-6 sm:p-8 min-w-[650px] max-w-[760px] mx-auto text-slate-900 text-xs border border-slate-300"
+                >
                   {/* Top Header */}
                   <div className="border-b border-slate-300 pb-4 mb-4">
                     {/* Logo at Top-Left */}
@@ -460,23 +496,37 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
             )}
           </div>
 
-          {/* Action Buttons: Only DOCX and PDF */}
-          <div className="p-4 bg-slate-50 border-t border-slate-200/80 grid grid-cols-2 gap-3">
+          {/* Action Buttons: DOCX, PNG, and PDF */}
+          <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200/80 grid grid-cols-3 gap-2 sm:gap-3">
             <button
               type="button"
               onClick={handleStartDocxExport}
-              className="py-3 px-4 bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold text-xs rounded-2xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="py-2.5 sm:py-3 px-2 sm:px-3 bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold text-xs rounded-xl sm:rounded-2xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
-              <FileDown className="w-4 h-4 text-indigo-300" />
+              <FileDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-300 shrink-0" />
               <span>Unduh DOCX</span>
             </button>
 
             <button
               type="button"
-              onClick={handleStartPdfExport}
-              className="py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-xs rounded-2xl shadow-md shadow-indigo-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              disabled={isGeneratingPng}
+              onClick={handleStartPngExport}
+              className="py-2.5 sm:py-3 px-2 sm:px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl sm:rounded-2xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 whitespace-nowrap"
             >
-              <Download className="w-4 h-4" />
+              {isGeneratingPng ? (
+                <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin shrink-0" />
+              ) : (
+                <ImageIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-100 shrink-0" />
+              )}
+              <span>{isGeneratingPng ? 'Memproses...' : 'Unduh PNG'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleStartPdfExport}
+              className="py-2.5 sm:py-3 px-2 sm:px-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-xs rounded-xl sm:rounded-2xl shadow-md shadow-indigo-600/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
               <span>Unduh PDF</span>
             </button>
           </div>

@@ -304,6 +304,7 @@ export default function App() {
   const [invoiceBayar, setInvoiceBayar] = useState<number>(0);
 
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [invoiceInitialFullPreview, setInvoiceInitialFullPreview] = useState(false);
   const [invoiceItems, setInvoiceItems] = useState<OrderItem[]>([]);
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [invoiceTargetKitchen, setInvoiceTargetKitchen] = useState<string | undefined>();
@@ -1327,8 +1328,44 @@ export default function App() {
     setInvoiceNumber(invNum);
     setInvoiceTargetKitchen(data.kitchenName);
     setInvoiceTargetStore(data.storeName);
+    setInvoiceInitialFullPreview(false);
     setIsInvoiceModalOpen(true);
   };
+
+  // Handler for View-Only Preview (Eye Icon):
+  // Opens the existing InvoiceModal directly in A4 HTML preview mode (view-only),
+  // allowing user to inspect and screenshot/download PNG as transaction proof without triggering print dialog.
+  const handleViewInvoice = useCallback((
+    items: OrderItem[],
+    kitchenName?: string,
+    storeName?: string,
+    _dateStr?: string
+  ) => {
+    if (!items || items.length === 0) {
+      showToast('Tidak ada item untuk dilihat invoice-nya', 'error');
+      return;
+    }
+
+    const targetKitchen = kitchenName || items[0]?.tujuanDapur || 'Siliragung';
+    const targetStore = storeName || items[0]?.toko || 'HTG';
+    const invNum = generateInvoiceNumber(targetKitchen);
+
+    const totalAmount = items.reduce(
+      (sum, item) => sum + parseIndonesianNumber(item.qty) * parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0),
+      0
+    );
+
+    setInvoiceRecipientName(targetKitchen);
+    setInvoiceRecipientAddress('-');
+    setInvoiceRecipientPhone('-');
+    setInvoiceBayar(totalAmount);
+    setInvoiceItems(items);
+    setInvoiceNumber(invNum);
+    setInvoiceTargetKitchen(targetKitchen);
+    setInvoiceTargetStore(targetStore);
+    setInvoiceInitialFullPreview(true);
+    setIsInvoiceModalOpen(true);
+  }, []);
 
   const handleSaveInvoiceRecord = async () => {
     if (invoices.some((inv) => inv.invoiceNumber === invoiceNumber)) return;
@@ -1692,6 +1729,7 @@ export default function App() {
                   onDeleteBatchOrders={handleDeleteBatchOrders}
                   onOpenInvoiceModal={handleStartInvoiceFlow}
                   onExportInvoicePdf={handleDirect1ClickExportInvoicePdf}
+                  onViewInvoice={handleViewInvoice}
                   onOpenTextImport={() => setIsTextImportOpen(true)}
                   onOpenExportModal={() => setIsExportOpen(true)}
                   onOpenAddModal={() => handleOpenAddModal()}
@@ -1727,6 +1765,7 @@ export default function App() {
                   onDeleteKitchenOrders={handleDeleteKitchenOrders}
                   onOpenInvoiceModal={handleStartInvoiceFlow}
                   onExportInvoicePdf={handleDirect1ClickExportInvoicePdf}
+                  onViewInvoice={handleViewInvoice}
                   onDeleteInvoice={handleDeleteInvoice}
                   onDeleteTransaction={handleDeleteTransaction}
                   onOpenAddModal={handleOpenAddModal}
@@ -1877,7 +1916,10 @@ export default function App() {
       {/* 3. Invoice Preview & Export (Step 2 Bottom Sheet) */}
       <InvoiceModal
         isOpen={isInvoiceModalOpen}
-        onClose={() => setIsInvoiceModalOpen(false)}
+        onClose={() => {
+          setIsInvoiceModalOpen(false);
+          setInvoiceInitialFullPreview(false);
+        }}
         invoiceNumber={invoiceNumber}
         items={invoiceItems}
         tujuanDapur={invoiceTargetKitchen}
@@ -1886,6 +1928,7 @@ export default function App() {
         recipientAddress={invoiceRecipientAddress}
         recipientPhone={invoiceRecipientPhone}
         bayarAmount={invoiceBayar}
+        initialFullPreview={invoiceInitialFullPreview}
         onTriggerBackgroundExport={handleTriggerBackgroundExport}
         onSaveInvoiceRecord={handleSaveInvoiceRecord}
       />

@@ -285,8 +285,19 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
   `;
 }
 
+async function loadHtml2Canvas(): Promise<any> {
+  try {
+    const mod = await import('html2canvas-pro');
+    return mod.default || (mod as any).html2canvas || mod;
+  } catch (err) {
+    console.warn('html2canvas-pro failed to load, falling back to html2canvas:', err);
+    const mod = await import('html2canvas');
+    return mod.default || mod;
+  }
+}
+
 /**
- * Exports the HTML Invoice to crisp, high-resolution PDF file using html2canvas & jsPDF.
+ * Exports the HTML Invoice to crisp, high-resolution PDF file using html2canvas-pro & jsPDF.
  * Guaranteed never to be blank and completely hidden from screen!
  */
 export async function exportHtmlInvoicePdf(
@@ -332,11 +343,10 @@ export async function exportHtmlInvoicePdf(
 
     onProgress?.('Membuat berkas PDF tajam...');
 
-    const [html2canvasModule, { jsPDF }] = await Promise.all([
-      import('html2canvas'),
+    const [html2canvas, { jsPDF }] = await Promise.all([
+      loadHtml2Canvas(),
       import('jspdf'),
     ]);
-    const html2canvas = (html2canvasModule.default || html2canvasModule) as any;
 
     const canvas = await html2canvas(container, {
       scale: 2,
@@ -397,6 +407,146 @@ export async function exportHtmlInvoicePdf(
 
     onProgress?.('Selesai!');
     return { pdfBlob, pdfUrl, fileName };
+  } finally {
+    if (document.body.contains(container)) {
+      document.body.removeChild(container);
+    }
+  }
+}
+
+/**
+ * Exports the HTML Invoice directly to a high-resolution PNG image file using html2canvas-pro.
+ * Natively parses modern CSS color formats (oklch, color-mix, etc).
+ * Generates an image file (.png) and triggers automatic download.
+ */
+export async function exportHtmlInvoicePng(
+  options: HtmlInvoiceOptions & { targetElement?: HTMLElement | null },
+  onProgress?: (msg: string) => void
+): Promise<{ pngBlob: Blob; pngUrl: string; fileName: string }> {
+  onProgress?.('Mempersiapkan gambar invoice...');
+
+  const cleanNumber = options.invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeStore = options.storeName.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const fileName = `Invoice_${safeStore}_${cleanNumber}.png`;
+
+  const html2canvas = await loadHtml2Canvas();
+
+  // If a live visible targetElement is provided, try capturing it directly
+  if (options.targetElement) {
+    try {
+      onProgress?.('Mengambil tangkapan layar invoice...');
+      const canvas = await html2canvas(options.targetElement, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      });
+
+      return await new Promise((resolve, reject) => {
+        canvas.toBlob((blob: Blob | null) => {
+          if (!blob) {
+            reject(new Error('Gagal menghasilkan gambar PNG dari invoice'));
+            return;
+          }
+
+          const pngUrl = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = pngUrl;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => {
+            document.body.removeChild(link);
+          }, 500);
+
+          onProgress?.('Selesai!');
+          resolve({ pngBlob: blob, pngUrl, fileName });
+        }, 'image/png');
+      });
+    } catch (targetErr) {
+      console.warn('Direct targetElement capture failed, falling back to standalone A4 HTML container:', targetErr);
+      // Fall through to standalone high-res container
+    }
+  }
+
+  // Fallback: build standalone high-res container
+  const htmlContent = generateInvoiceHtmlString(options);
+
+  const container = document.createElement('div');
+  container.id = 'html-invoice-render-target-png';
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '0px';
+  container.style.width = '794px';
+  container.style.background = '#ffffff';
+  container.style.zIndex = '-9999';
+  container.style.opacity = '0';
+  container.style.pointerEvents = 'none';
+  container.innerHTML = htmlContent;
+
+  document.body.appendChild(container);
+
+  try {
+    onProgress?.('Memproses grafik invoice...');
+
+    const images = Array.from(container.querySelectorAll('img'));
+    await Promise.all(
+      images.map((img) => {
+        if (img.complete && img.naturalWidth > 0) return Promise.resolve(null);
+        return new Promise((resolve) => {
+          img.onload = () => resolve(null);
+          img.onerror = () => resolve(null);
+          setTimeout(resolve, 300);
+        });
+      })
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    onProgress?.('Membuat berkas gambar PNG...');
+
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 794,
+      onclone: (clonedDoc: Document) => {
+        const el = clonedDoc.getElementById('html-invoice-render-target-png');
+        if (el) {
+          el.style.left = '0px';
+          el.style.top = '0px';
+          el.style.opacity = '1';
+          el.style.zIndex = '1';
+        }
+      },
+    });
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob: Blob | null) => {
+        if (!blob) {
+          reject(new Error('Gagal menghasilkan gambar PNG'));
+          return;
+        }
+
+        const pngUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = pngUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+        }, 500);
+
+        onProgress?.('Selesai!');
+        resolve({ pngBlob: blob, pngUrl, fileName });
+      }, 'image/png');
+    });
   } finally {
     if (document.body.contains(container)) {
       document.body.removeChild(container);

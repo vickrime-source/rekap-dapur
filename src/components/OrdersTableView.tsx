@@ -7,7 +7,8 @@ import {
   Trash2, 
   Package,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Eye
 } from 'lucide-react';
 import { OrderItem, PaymentStatus, DeliveryStatus } from '../types';
 import { formatRupiah, formatTanggalDisatuin, getTokoBadgeStyle, parseIndonesianNumber, formatJam } from '../lib/formatters';
@@ -39,6 +40,7 @@ interface OrderRowProps {
   onGroupDeliveryChange: (groupItems: OrderItem[], status: DeliveryStatus) => void;
   onOpenInvoiceModal: (items: OrderItem[], kitchenName: string, storeName: string) => void;
   onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+  onViewInvoice?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
 }
 
 const OrderRow: React.FC<OrderRowProps> = React.memo(({
@@ -52,6 +54,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
   onGroupDeliveryChange,
   onOpenInvoiceModal,
   onExportInvoicePdf,
+  onViewInvoice,
 }) => {
   const isFirst = itemIdx === 0;
   const isLastInGroup = itemIdx === rowSpan - 1;
@@ -227,10 +230,28 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
       {isFirst && (
         <td
           rowSpan={rowSpan}
-          className="py-1 px-0.5 text-center relative align-middle border-l border-slate-100"
+          className="py-1 px-1 text-center relative align-middle border-l border-slate-100"
         >
-          <div className="flex items-center justify-center space-x-0.5">
+          <div className="flex items-center justify-center space-x-1">
+            {/* Tombol Lihat/Preview Invoice A4 View-Only (Screenshot Bukti) */}
             <button
+              type="button"
+              onClick={() => {
+                if (onViewInvoice) {
+                  onViewInvoice(group.items, group.tujuanDapur, group.toko, group.tanggal);
+                } else {
+                  onOpenInvoiceModal(group.items, group.tujuanDapur, group.toko);
+                }
+              }}
+              className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-800 font-extrabold shadow-2xs transition-all active:scale-95 border border-sky-200 cursor-pointer"
+              title={`Lihat Bukti Invoice Dapur ${group.tujuanDapur}`}
+            >
+              <Eye className="w-3.5 h-3.5 stroke-[2.5]" />
+            </button>
+
+            {/* Tombol Cetak / Export PDF (Tetap ada) */}
+            <button
+              type="button"
               onClick={() => {
                 if (onExportInvoicePdf) {
                   onExportInvoicePdf(group.items, group.tujuanDapur, group.toko, group.tanggal);
@@ -280,6 +301,7 @@ interface OrdersTableViewProps {
   onDeleteBatchOrders?: (items: OrderItem[]) => void;
   onOpenInvoiceModal: (items: OrderItem[], kitchenName: string, storeName: string) => void;
   onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+  onViewInvoice?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
 }
 
 export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
@@ -295,6 +317,7 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
   onDeleteBatchOrders,
   onOpenInvoiceModal,
   onExportInvoicePdf,
+  onViewInvoice,
 }) => {
   // Pagination State (Max 15 groups per page)
   const [currentPage, setCurrentPage] = useState(1);
@@ -509,7 +532,7 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
                 CASHBACK
               </th>
               {/* 12. AKSI */}
-              <th className="py-2 px-1 text-center w-12 bg-slate-100 sticky top-0">
+              <th className="py-2 px-1 text-center min-w-[86px] bg-slate-100 sticky top-0">
                 AKSI
               </th>
             </tr>
@@ -530,6 +553,7 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
                   onGroupDeliveryChange={handleGroupDeliveryChange}
                   onOpenInvoiceModal={onOpenInvoiceModal}
                   onExportInvoicePdf={onExportInvoicePdf}
+                  onViewInvoice={onViewInvoice}
                 />
               ));
             })}

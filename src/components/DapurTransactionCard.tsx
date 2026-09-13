@@ -7,7 +7,8 @@ import {
   Edit2, 
   X, 
   Truck,
-  Printer
+  Printer,
+  Eye
 } from 'lucide-react';
 import { OrderItem } from '../types';
 import { formatRupiah, formatTanggalDisatuin, parseIndonesianNumber } from '../lib/formatters';
@@ -24,6 +25,7 @@ interface DapurTransactionCardProps {
   onDeleteKitchenOrders: (storeName: string, date: string) => void;
   onOpenInvoiceModal: (items: OrderItem[], kitchenName?: string, storeName?: string) => void;
   onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+  onViewInvoice?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
   onAddItemToKitchen: (storeName: string) => void;
 }
 
@@ -37,6 +39,7 @@ export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = React.m
   onDeleteKitchenOrders,
   onOpenInvoiceModal,
   onExportInvoicePdf,
+  onViewInvoice,
   onAddItemToKitchen,
 }) => {
   // Calculate Totals for this Store (Memoized in single pass)
@@ -232,6 +235,23 @@ export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = React.m
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
+                      {/* IKON LIHAT (Preview Invoice A4 View-Only / Screenshot Bukti) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const kitchenItems = items.filter((it) => it.tujuanDapur === item.tujuanDapur);
+                          if (onViewInvoice) {
+                            onViewInvoice(kitchenItems, item.tujuanDapur, storeName, item.tanggal);
+                          } else {
+                            onOpenInvoiceModal(kitchenItems, item.tujuanDapur, storeName);
+                          }
+                        }}
+                        className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-800 font-extrabold shadow-2xs transition-all active:scale-95 border border-sky-200 cursor-pointer"
+                        title="Lihat Bukti Invoice Dapur Ini"
+                      >
+                        <Eye className="w-3.5 h-3.5 stroke-[2.5]" />
+                      </button>
+
                       {/* IKON CETAK (Export PDF Invoice) */}
                       <button
                         onClick={() => {
