@@ -196,7 +196,7 @@ export function getDateRangeForPeriod(period: string, refDateStr?: string): { st
 // =============================================================================
 
 // DEFINISI KOLOM SPESIFIK: Menghemat Egress/Bandwidth (Jangan select *)
-export const ORDER_COLUMNS = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at';
+export const ORDER_COLUMNS = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at,cashback';
 export const TRANSACTION_COLUMNS = 'id,invoice_number,tanggal,tanggal_print,pemasok,barang,toko,dapur,qty,harga_beli,total,total_profit,status_pembayaran,items,created_at';
 export const NOTE_COLUMNS = 'id,dapur,item,qty,satuan,catatan,status,is_done,order_id,created_at';
 export const TOKO_COLUMNS = 'id,nama,created_at';
@@ -310,6 +310,7 @@ export async function createOrdersInDb(ordersData: any[] | any) {
       status: ['pending', 'selesai'].includes(orderStatus) ? orderStatus : 'pending',
       harga_jual: Math.max(0, Number(item.harga_jual !== undefined ? item.harga_jual : item.hargaJual) || 0),
       harga_beli: Math.max(0, Number(item.harga_beli !== undefined ? item.harga_beli : item.hargaBeli) || 0),
+      cashback: Math.max(0, Number(item.cashback) || 0),
       catatan: item.catatan || '',
       created_at: item.created_at || item.createdAt || new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -373,6 +374,9 @@ export async function updateOrderInDb(id: string, updates: any) {
   }
   if (updates.harga_beli !== undefined || updates.hargaBeli !== undefined) {
     payload.harga_beli = Number(updates.harga_beli !== undefined ? updates.harga_beli : updates.hargaBeli);
+  }
+  if (updates.cashback !== undefined) {
+    payload.cashback = Math.max(0, Number(updates.cashback) || 0);
   }
 
   if (!isSupabaseConfigured()) {
@@ -459,6 +463,13 @@ export async function deleteOrdersFromDb(idOrIds: string | string[]) {
       .from('pesanan')
       .delete({ count: 'exact' })
       .in('id', ids);
+
+    // Sync delete from transaksi table as well
+    try {
+      await supabase.from('transaksi').delete().in('id', ids);
+    } catch {
+      // ignore
+    }
 
     if (error) {
       if (isTableMissingError(error)) {

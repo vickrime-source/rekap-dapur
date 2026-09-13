@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS public.pesanan (
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'selesai')),
   harga_jual NUMERIC(15, 2) NOT NULL DEFAULT 0,
   harga_beli NUMERIC(15, 2) NOT NULL DEFAULT 0,
+  cashback NUMERIC(15, 2) NOT NULL DEFAULT 0,
   pemasok TEXT NOT NULL DEFAULT 'Pemasok 1',
   pemasok_id TEXT REFERENCES public.pemasok(id) ON DELETE RESTRICT,
   catatan TEXT NOT NULL DEFAULT '',
@@ -69,6 +70,7 @@ CREATE TABLE IF NOT EXISTS public.pesanan (
 ALTER TABLE public.pesanan ADD COLUMN IF NOT EXISTS toko_id TEXT REFERENCES public.toko(id) ON DELETE RESTRICT;
 ALTER TABLE public.pesanan ADD COLUMN IF NOT EXISTS pemasok_id TEXT REFERENCES public.pemasok(id) ON DELETE RESTRICT;
 ALTER TABLE public.pesanan ADD COLUMN IF NOT EXISTS dapur_id TEXT REFERENCES public.dapur(id) ON DELETE RESTRICT;
+ALTER TABLE public.pesanan ADD COLUMN IF NOT EXISTS cashback NUMERIC(15, 2) NOT NULL DEFAULT 0;
 
 -- Indexing untuk query cepat berdasarkan tanggal, toko, dapur, dan status
 CREATE INDEX IF NOT EXISTS idx_pesanan_tanggal ON public.pesanan (tanggal);

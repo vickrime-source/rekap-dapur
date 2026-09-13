@@ -17,16 +17,14 @@ import {
   DashboardPeriod
 } from '../types';
 import { OrdersTableView } from './OrdersTableView';
-import { CalendarPickerModal } from './CalendarPickerModal';
 import { 
-  formatTanggal, 
-  parseDateSafe, 
-  normalizeDateSimple, 
   isOrderToday,
   isOrderThisWeek,
   isOrderThisMonth,
   getWeekRange
 } from '../lib/formatters';
+
+export type TimeFilterOption = 'all_time' | 'hari_ini' | 'mingguan' | 'bulan_ini';
 
 interface DashboardViewProps {
   orders: OrderItem[];
@@ -57,7 +55,7 @@ interface DashboardViewProps {
   onPeriodChange?: (period: DashboardPeriod) => void;
 }
 
-export const DashboardView: React.FC<DashboardViewProps> = ({
+export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
   orders,
   isLoading = false,
   selectedDate,
@@ -80,42 +78,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('all');
   const [selectedKitchenFilter, setSelectedKitchenFilter] = useState<string>('all');
-  const [useDateFilter, setUseDateFilter] = useState<boolean>(false);
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [endDate, setEndDate] = useState<string | undefined>(undefined);
+  const [timeFilter, setTimeFilter] = useState<TimeFilterOption>('all_time');
 
   const weekRange = useMemo(() => getWeekRange(selectedDate), [selectedDate]);
 
-  // Filter orders according to date, store, kitchen, and search
+  // Filter orders according to timeFilter, store, kitchen, and search
   const filteredOrders = useMemo(() => {
     return orders.filter((item) => {
-      // 1. Date Scope (Synchronized with HeaderBanner)
-      if (useDateFilter) {
-        if (endDate && endDate !== selectedDate) {
-          const itemDate = parseDateSafe(item.tanggal);
-          const start = parseDateSafe(selectedDate);
-          const end = parseDateSafe(endDate);
-          if (itemDate && start && end) {
-            if (itemDate < start || itemDate > end) return false;
-          }
-        } else {
-          const itemNorm = normalizeDateSimple(item.tanggal);
-          const selNorm = normalizeDateSimple(selectedDate);
-          const isMatch = itemNorm === selNorm || isOrderToday(item, selectedDate);
-          if (!isMatch) return false;
-        }
-      } else {
-        // Respect active dashboard period (Hari Ini, Mingguan, Bulanan, All Time)
-        if (period === 'all_time') {
-          // tampilkan semua periode tanpa filter tanggal
-        } else if (period === 'hari_ini') {
-          if (!isOrderToday(item, selectedDate)) return false;
-        } else if (period === 'mingguan') {
-          if (!isOrderThisWeek(item, weekRange)) return false;
-        } else if (period === 'bulan_ini') {
-          if (!isOrderThisMonth(item, selectedDate)) return false;
-        }
+      // 1. Time Filter (Dropdown: All Time, Hari Ini, Minggu Ini, Bulan Ini - Default: All Time)
+      if (timeFilter === 'hari_ini') {
+        if (!isOrderToday(item, selectedDate)) return false;
+      } else if (timeFilter === 'mingguan') {
+        if (!isOrderThisWeek(item, weekRange)) return false;
+      } else if (timeFilter === 'bulan_ini') {
+        if (!isOrderThisMonth(item, selectedDate)) return false;
       }
+      // 'all_time' -> lolos semua tanggal
 
       // 2. Search query
       const q = searchQuery.toLowerCase().trim();
@@ -143,10 +121,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     });
   }, [
     orders,
-    useDateFilter,
+    timeFilter,
     selectedDate,
-    endDate,
-    period,
     weekRange,
     searchQuery,
     selectedStoreFilter,
@@ -215,49 +191,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </select>
           </div>
 
-          {/* Pill 3: Calendar Icon + Custom Date Scope */}
+          {/* Pill 3: Dropdown Filter Waktu Sederhana (All Time, Hari Ini, Minggu Ini, Bulan Ini) */}
           <div className="relative inline-flex items-center">
-            {useDateFilter ? (
-              <div className="rounded-full px-3.5 py-2 bg-indigo-50/90 border border-indigo-300 shadow-2xs flex items-center gap-1.5 cursor-pointer min-h-[44px]">
-                <CalendarIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                <span
-                  onClick={() => setIsCalendarOpen(true)}
-                  className="text-xs font-bold text-indigo-900 whitespace-nowrap"
-                >
-                  {endDate && endDate !== selectedDate
-                    ? `${formatTanggal(selectedDate, false)} - ${formatTanggal(endDate, false)}`
-                    : formatTanggal(selectedDate, false)}
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setUseDateFilter(false);
-                    setEndDate(undefined);
-                  }}
-                  className="text-indigo-400 hover:text-indigo-700 ml-0.5 p-1 min-h-[32px] flex items-center justify-center cursor-pointer"
-                  title="Reset Filter Tanggal Khusus"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setUseDateFilter(true);
-                  setIsCalendarOpen(true);
-                }}
-                className="rounded-full px-3.5 py-2 bg-white border border-slate-200/90 shadow-2xs hover:border-indigo-300 transition-all flex items-center gap-1.5 cursor-pointer text-left min-h-[44px]"
-                title="Pilih Tanggal Khusus"
-              >
-                <CalendarIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
-                  {period === 'mingguan' ? 'Minggu Ini' : period === 'bulan_ini' ? 'Bulan Ini' : period === 'all_time' ? 'Semua Tanggal' : 'Hari Ini'}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              </button>
-            )}
+            <div className={`rounded-full px-3.5 py-2 border shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer min-h-[44px] ${
+              timeFilter !== 'all_time'
+                ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-bold ring-1 ring-indigo-300'
+                : 'bg-white border-slate-200/90 text-slate-800 hover:border-indigo-300'
+            }`}>
+              <CalendarIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <span className="text-xs font-bold whitespace-nowrap">
+                {timeFilter === 'hari_ini'
+                  ? 'Hari Ini'
+                  : timeFilter === 'mingguan'
+                  ? 'Minggu Ini'
+                  : timeFilter === 'bulan_ini'
+                  ? 'Bulan Ini'
+                  : 'All Time'}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            </div>
+            <select
+              value={timeFilter}
+              onChange={(e) => setTimeFilter(e.target.value as TimeFilterOption)}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs"
+              aria-label="Filter Waktu Pesanan"
+            >
+              <option value="all_time">All Time</option>
+              <option value="hari_ini">Hari Ini</option>
+              <option value="mingguan">Minggu Ini</option>
+              <option value="bulan_ini">Bulan Ini</option>
+            </select>
           </div>
 
           {/* Reset active store filter if clicked from breakdown */}
@@ -310,26 +273,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         onOpenInvoiceModal={onOpenInvoiceModal}
         onExportInvoicePdf={onExportInvoicePdf}
       />
-
-      {/* Popover Calendar Modal */}
-      <CalendarPickerModal
-        isOpen={isCalendarOpen}
-        onClose={() => setIsCalendarOpen(false)}
-        selectedDate={selectedDate}
-        endDate={endDate}
-        onSelectRange={(start, end) => {
-          onDateChange(start);
-          setEndDate(end);
-          setUseDateFilter(true);
-          setIsCalendarOpen(false);
-        }}
-        onSelectSingleDate={(dateStr) => {
-          onDateChange(dateStr);
-          setEndDate(undefined);
-          setUseDateFilter(true);
-          setIsCalendarOpen(false);
-        }}
-      />
     </div>
   );
-};
+});

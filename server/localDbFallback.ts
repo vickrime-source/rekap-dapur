@@ -40,6 +40,7 @@ export interface FallbackOrder {
   status: string;
   harga_jual: number;
   harga_beli: number;
+  cashback?: number;
   catatan: string;
   created_at: string;
   updated_at: string;
@@ -282,6 +283,7 @@ export function createLocalOrders(records: any[]): FallbackOrder[] {
       status: item.status || 'pending',
       harga_jual: Number(item.harga_jual !== undefined ? item.harga_jual : item.hargaJual) || 0,
       harga_beli: Number(item.harga_beli !== undefined ? item.harga_beli : item.hargaBeli) || 0,
+      cashback: Number(item.cashback) || 0,
       catatan: item.catatan || '',
       created_at: item.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -335,6 +337,17 @@ export function deleteLocalOrders(ids: string[]): { deletedCount: number } {
   const prevCount = db.pesanan.length;
   db.pesanan = db.pesanan.filter((o) => !ids.includes(o.id));
   const deletedCount = prevCount - db.pesanan.length;
+
+  const idsSet = new Set(ids);
+  db.transaksi = db.transaksi.filter((t) => {
+    if (idsSet.has(t.id)) return false;
+    if (t.items && Array.isArray(t.items)) {
+      const hasRemaining = t.items.some((it: any) => !idsSet.has(it.id));
+      if (!hasRemaining) return false;
+    }
+    return true;
+  });
+
   saveDb();
   return { deletedCount };
 }

@@ -58,6 +58,8 @@ export interface TransactionBatch {
   totalQty: number;
   totalBeli: number;
   totalJual?: number;
+  totalLabaBersih?: number;
+  totalKeKoperasi?: number;
   items: OrderItem[];
   rowIndex?: number;
 }
@@ -270,10 +272,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     let totalQty = 0;
     let totalPendapatan = 0;
     let totalPengeluaran = 0;
+    let totalLabaBersih = 0;
+    let totalKeKoperasi = 0;
     const storeMap: Record<string, { 
       totalQty: number; 
       totalBeli: number; 
       totalJual: number; 
+      totalLabaBersih: number;
+      totalKeKoperasi: number;
       count: number;
       pemasokSet: Set<string>;
       batchKeys: Set<string>;
@@ -284,10 +290,16 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       const qty = parseIndonesianNumber(item.qty) || 0;
       const beli = parseIndonesianNumber(item.hargaBeli) || 0;
       const jual = parseIndonesianNumber(item.hargaJual) || 0;
+      const cb = parseIndonesianNumber(item.cashback) || 0;
+
+      const labaBersihItem = cb > 0 ? (cb - beli) * qty : (jual - beli) * qty;
+      const keKoperasiItem = cb > 0 ? (jual - cb) * qty : 0;
 
       totalQty += qty;
       totalPendapatan += (qty * jual);
       totalPengeluaran += (qty * beli);
+      totalLabaBersih += labaBersihItem;
+      totalKeKoperasi += keKoperasiItem;
 
       const tokoKey = (item.toko || 'Lainnya').trim() || 'Lainnya';
       if (!storeMap[tokoKey]) {
@@ -295,6 +307,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           totalQty: 0, 
           totalBeli: 0, 
           totalJual: 0, 
+          totalLabaBersih: 0,
+          totalKeKoperasi: 0,
           count: 0,
           pemasokSet: new Set<string>(),
           batchKeys: new Set<string>(),
@@ -303,6 +317,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       storeMap[tokoKey].totalQty += qty;
       storeMap[tokoKey].totalBeli += (qty * beli);
       storeMap[tokoKey].totalJual += (qty * jual);
+      storeMap[tokoKey].totalLabaBersih += labaBersihItem;
+      storeMap[tokoKey].totalKeKoperasi += keKoperasiItem;
       storeMap[tokoKey].count += 1;
       if (item.pemasok && item.pemasok.trim() && item.pemasok.trim() !== '-') {
         storeMap[tokoKey].pemasokSet.add(item.pemasok.trim());
@@ -315,7 +331,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
     const storeBreakdowns: StoreExpenseBreakdown[] = Object.entries(storeMap)
       .map(([toko, val]) => {
-        const profit = val.totalJual - val.totalBeli;
+        const profit = val.totalLabaBersih;
         const marginPercent = val.totalJual > 0 ? Math.round((profit / val.totalJual) * 100) : 0;
         return {
           toko,
@@ -323,6 +339,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           totalBeli: val.totalBeli,
           totalJual: val.totalJual,
           profit,
+          totalKeKoperasi: val.totalKeKoperasi,
           orderCount: val.count,
           transactionCount: val.batchKeys.size || val.count,
           pemasokList: Array.from(val.pemasokSet),
@@ -338,7 +355,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       totalTransactions: globalBatchKeys.size || periodOrders.length,
       totalPendapatan,
       totalPengeluaran,
-      profitBersih: totalPendapatan - totalPengeluaran,
+      profitBersih: totalLabaBersih,
+      totalKeKoperasi,
+      totalLabaBersih,
       storeBreakdowns,
     };
   }, [periodOrders]);
@@ -370,6 +389,22 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       const totalBeli = items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.hargaBeli) || 0), 0);
       const totalJual = items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.hargaJual || i.hargaBeli) || 0), 0);
 
+      let totalLabaBersih = 0;
+      let totalKeKoperasi = 0;
+      items.forEach((i) => {
+        const q = Number(i.qty) || 0;
+        const hb = Number(i.hargaBeli) || 0;
+        const hj = Number(i.hargaJual || i.hargaBeli) || 0;
+        const cb = Number(i.cashback) || 0;
+
+        if (cb > 0) {
+          totalLabaBersih += (cb - hb) * q;
+          totalKeKoperasi += (hj - cb) * q;
+        } else {
+          totalLabaBersih += (hj - hb) * q;
+        }
+      });
+
       return {
         id: key,
         batchIndex: idx++,
@@ -383,6 +418,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         totalQty,
         totalBeli,
         totalJual,
+        totalLabaBersih,
+        totalKeKoperasi,
         items,
         rowIndex: items[0]?.rowIndex,
       };
@@ -408,6 +445,25 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           const totalBeli = Number(inv.totalBeli || inv['H. BELI'] || 0) || items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.hargaBeli) || 0), 0);
           const totalJual = Number(inv.totalAmount || inv.totalJual || inv.TOTAL || 0) || items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.hargaJual || i.hargaBeli) || 0), 0) || totalBeli;
 
+          let totalLabaBersih = 0;
+          let totalKeKoperasi = 0;
+          if (items.length > 0) {
+            items.forEach((i) => {
+              const q = Number(i.qty) || 0;
+              const hb = Number(i.hargaBeli) || 0;
+              const hj = Number(i.hargaJual || i.hargaBeli) || 0;
+              const cb = Number(i.cashback) || 0;
+              if (cb > 0) {
+                totalLabaBersih += (cb - hb) * q;
+                totalKeKoperasi += (hj - cb) * q;
+              } else {
+                totalLabaBersih += (hj - hb) * q;
+              }
+            });
+          } else {
+            totalLabaBersih = totalJual - totalBeli;
+          }
+
           batches.push({
             id: inv.id || key,
             batchIndex: idx++,
@@ -421,6 +477,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             totalQty,
             totalBeli,
             totalJual,
+            totalLabaBersih,
+            totalKeKoperasi,
             items,
             rowIndex: inv.rowIndex,
           });
@@ -515,6 +573,21 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     const startIndex = (currentPage - 1) * pageSize;
     return filteredBatches.slice(startIndex, startIndex + pageSize);
   }, [filteredBatches, currentPage, pageSize]);
+
+  // Rekap Total Akumulasi Transaksi Terfilter (termasuk Total Ke Koperasi & Total Laba Bersih)
+  const summaryTotals = useMemo(() => {
+    return filteredBatches.reduce(
+      (acc, b) => {
+        acc.totalQty += b.totalQty || 0;
+        acc.totalBeli += b.totalBeli || 0;
+        acc.totalJual += (b.totalJual || b.totalBeli || 0);
+        acc.totalKeKoperasi += (b.totalKeKoperasi || 0);
+        acc.totalLabaBersih += (b.totalLabaBersih !== undefined ? b.totalLabaBersih : ((b.totalJual || 0) - b.totalBeli));
+        return acc;
+      },
+      { totalQty: 0, totalBeli: 0, totalJual: 0, totalKeKoperasi: 0, totalLabaBersih: 0 }
+    );
+  }, [filteredBatches]);
 
   const handleToggleBatchPayment = (batch: TransactionBatch) => {
     const nextStatus: PaymentStatus = batch.payStatus === 'PAID' ? 'UNPAID' : 'PAID';
@@ -873,9 +946,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                     {/* Total Rupiah */}
                     <div className="text-right">
                       <span className="text-[9px] text-slate-500 block font-medium">Total Beli</span>
-                      <span className="font-black font-nominal text-xs text-slate-900">
+                      <span className="font-black font-nominal text-xs text-slate-900 block">
                         {formatRupiah(batch.totalBeli)}
                       </span>
+                      {batch.totalKeKoperasi && batch.totalKeKoperasi > 0 ? (
+                        <span className="text-[8.5px] text-amber-700 font-bold block">
+                          CB: +{formatRupiah(batch.totalKeKoperasi)}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
 
@@ -968,6 +1046,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         <th className="py-2.5 px-1.5 text-center w-10 bg-slate-100 sticky top-0">QTY</th>
                         <th className="py-2.5 px-2.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[90px]">H. BELI</th>
                         <th className="py-2.5 px-2.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[90px]">TOTAL (JUAL)</th>
+                        <th className="py-2.5 px-2 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px] text-amber-800">CASHBACK</th>
+                        <th className="py-2.5 px-2 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px] text-emerald-800">LABA BERSIH</th>
                         <th className="py-2.5 px-2 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[80px]">STATUS</th>
                         <th className="py-2.5 px-1.5 text-center w-16 bg-slate-100 sticky top-0">AKSI</th>
                       </tr>
@@ -976,6 +1056,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                       {paginatedBatches.map((batch) => {
                         const isPaid = batch.payStatus === 'PAID';
                         const isMenuOpen = activeMenu?.id === batch.id;
+                        const labaBersih = batch.totalLabaBersih !== undefined ? batch.totalLabaBersih : ((batch.totalJual || 0) - batch.totalBeli);
+                        const keKoperasi = batch.totalKeKoperasi || 0;
 
                         return (
                           <tr key={batch.id} className="hover:bg-slate-50/90 transition-colors">
@@ -1012,8 +1094,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                                     <div className="font-bold text-slate-900 truncate">
                                       • {it.namaBarang}
                                     </div>
-                                    <div className="text-[8.5px] font-nominal font-semibold text-slate-500 whitespace-nowrap">
-                                      {it.qty} × {formatRupiah(it.hargaBeli)}
+                                    <div className="text-[8.5px] font-nominal font-semibold text-slate-500 whitespace-nowrap flex items-center gap-1">
+                                      <span>{it.qty} × {formatRupiah(it.hargaBeli)}</span>
+                                      {it.cashback && Number(it.cashback) > 0 ? (
+                                        <span className="text-[8px] font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200" title={`Cashback: ${formatRupiah(it.cashback)}`}>
+                                          CB: {formatRupiah(it.cashback)}
+                                        </span>
+                                      ) : null}
                                     </div>
                                   </div>
                                 ))}
@@ -1042,7 +1129,25 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                               {formatRupiah(batch.totalJual || batch.totalBeli)}
                             </td>
 
-                            {/* 9. STATUS PAYMENT 1-CLICK TOGGLE */}
+                            {/* 9. CASHBACK / KE KOPERASI */}
+                            <td className="py-2.5 px-2 text-right font-black font-nominal text-[10px] align-middle whitespace-nowrap">
+                              {keKoperasi > 0 ? (
+                                <span className="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/90 font-bold">
+                                  +{formatRupiah(keKoperasi)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 font-medium block text-center">-</span>
+                              )}
+                            </td>
+
+                            {/* 10. LABA BERSIH */}
+                            <td className="py-2.5 px-2 text-right font-black font-nominal text-[10px] align-middle whitespace-nowrap">
+                              <span className={labaBersih >= 0 ? 'text-emerald-700' : 'text-rose-600'}>
+                                {labaBersih >= 0 ? `+${formatRupiah(labaBersih)}` : `-${formatRupiah(Math.abs(labaBersih))}`}
+                              </span>
+                            </td>
+
+                            {/* 11. STATUS PAYMENT 1-CLICK TOGGLE */}
                             <td className="py-2.5 px-2 text-center whitespace-nowrap align-middle">
                               <button
                                 type="button"
@@ -1058,7 +1163,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                               </button>
                             </td>
 
-                            {/* 10. AKSI: Quick Delete & 3-Dots */}
+                            {/* 12. AKSI: Quick Delete & 3-Dots */}
                             <td className="py-2.5 px-1.5 text-center align-middle">
                               <div className="flex items-center justify-center gap-1">
                                 <button
@@ -1100,7 +1205,65 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         );
                       })}
                     </tbody>
+                    <tfoot className="sticky bottom-0 z-10 bg-slate-100 border-t-2 border-slate-300 shadow-2xs">
+                      <tr className="text-slate-900 text-[9px] font-black">
+                        <td colSpan={5} className="py-2.5 px-3 text-right uppercase tracking-wider text-slate-700 font-extrabold">
+                          TOTAL REKAP ({filteredBatches.length} Transaksi) :
+                        </td>
+                        <td className="py-2.5 px-1.5 text-center font-black font-nominal text-[10px] text-slate-900">
+                          {summaryTotals.totalQty}
+                        </td>
+                        <td className="py-2.5 px-2.5 text-right font-black font-nominal text-[10px] text-rose-700 whitespace-nowrap">
+                          {formatRupiah(summaryTotals.totalBeli)}
+                        </td>
+                        <td className="py-2.5 px-2.5 text-right font-black font-nominal text-[10px] text-emerald-800 whitespace-nowrap">
+                          {formatRupiah(summaryTotals.totalJual)}
+                        </td>
+                        <td className="py-2.5 px-2 text-right font-black font-nominal text-[10px] text-amber-800 whitespace-nowrap">
+                          {summaryTotals.totalKeKoperasi > 0 ? `+${formatRupiah(summaryTotals.totalKeKoperasi)}` : 'Rp 0'}
+                        </td>
+                        <td className="py-2.5 px-2 text-right font-black font-nominal text-[10px] whitespace-nowrap">
+                          <span className={summaryTotals.totalLabaBersih >= 0 ? 'text-emerald-700' : 'text-rose-600'}>
+                            {summaryTotals.totalLabaBersih >= 0 ? `+${formatRupiah(summaryTotals.totalLabaBersih)}` : `-${formatRupiah(Math.abs(summaryTotals.totalLabaBersih))}`}
+                          </span>
+                        </td>
+                        <td colSpan={2} className="py-2.5 px-2 text-center text-slate-400 font-medium">
+                          -
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
+                </div>
+
+                {/* Baris Rekap Total Bawah Halaman Transaksi */}
+                <div className="bg-slate-50 border-t border-slate-200 px-3 sm:px-4 py-3">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider">
+                        Rekap Total ({filteredBatches.length} Transaksi Terfilter)
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs font-nominal">
+                      <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Modal:</span>
+                        <span className="font-black text-rose-700">{formatRupiah(summaryTotals.totalBeli)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Omset:</span>
+                        <span className="font-black text-emerald-800">{formatRupiah(summaryTotals.totalJual)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 shadow-2xs">
+                        <span className="text-[10px] font-bold text-amber-800 uppercase">Total Ke Koperasi:</span>
+                        <span className="font-black text-amber-900">+{formatRupiah(summaryTotals.totalKeKoperasi)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs">
+                        <span className="text-[10px] font-bold text-emerald-800 uppercase">Total Laba Bersih:</span>
+                        <span className={`font-black ${summaryTotals.totalLabaBersih >= 0 ? 'text-emerald-900' : 'text-rose-700'}`}>
+                          {summaryTotals.totalLabaBersih >= 0 ? `+${formatRupiah(summaryTotals.totalLabaBersih)}` : `-${formatRupiah(Math.abs(summaryTotals.totalLabaBersih))}`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Pagination Component */}

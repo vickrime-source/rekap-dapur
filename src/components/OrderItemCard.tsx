@@ -21,7 +21,7 @@ interface OrderItemCardProps {
   onDelete: (id: string) => void;
 }
 
-export const OrderItemCard: React.FC<OrderItemCardProps> = ({
+export const OrderItemCard: React.FC<OrderItemCardProps> = React.memo(({
   item,
   onToggleStatus,
   onEdit,
@@ -166,4 +166,4 @@ export const OrderItemCard: React.FC<OrderItemCardProps> = ({
       </div>
     </motion.div>
   );
-};
+});

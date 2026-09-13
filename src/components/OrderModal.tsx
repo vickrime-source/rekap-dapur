@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   X, 
   Plus, 
@@ -64,6 +64,7 @@ interface ItemRow {
   satuan: string;
   hargaBeli: number;
   hargaJual: number;
+  cashback?: number;
 }
 
 const COMMON_UNITS = ['Kg', 'Gram', 'Pcs', 'Ikat', 'Tray', 'Pack', 'Liter', 'Box', 'Karung', 'Ekor'];
@@ -87,8 +88,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [itemRows, setItemRows] = useState<ItemRow[]>([]);
   const [activeItemIndex, setActiveItemIndex] = useState<number>(0);
   const [toko, setToko] = useState('');
+  const [tokoId, setTokoId] = useState<string>('');
   const [tujuanDapur, setTujuanDapur] = useState('');
+  const [tujuanDapurId, setTujuanDapurId] = useState<string>('');
   const [pemasok, setPemasok] = useState('');
+  const [pemasokId, setPemasokId] = useState<string>('');
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('UNPAID');
   const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatus>('PENDING');
   const [tanggal, setTanggal] = useState(selectedDate || getTodayWIB());
@@ -117,6 +121,19 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const availableKitchens = masterDapur.length > 0 ? masterDapur.map((d) => d.nama) : kitchens.map((k) => k.nama);
   const availablePemasok = masterPemasok.length > 0 ? masterPemasok.map((p) => p.nama) : pemasokList;
 
+  // Memoized existing item names for fast auto-suggest (prevent recalculation on keystrokes)
+  const existingNames = useMemo(
+    () => Array.from(new Set(existingOrders.map((o) => o.namaBarang))),
+    [existingOrders]
+  );
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
   // Initialize or reset form state
   useEffect(() => {
     if (!isOpen) return;
@@ -130,12 +147,35 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           satuan: initialData.satuan || 'Kg',
           hargaBeli: Math.round(initialData.hargaBeli || 0),
           hargaJual: Math.round(initialData.hargaJual || 0),
+          cashback: initialData.cashback !== undefined ? Math.round(initialData.cashback) : 0,
         },
       ]);
       setActiveItemIndex(0);
-      setToko(initialData.toko || '');
-      setTujuanDapur(initialData.tujuanDapur || '');
-      setPemasok(initialData.pemasok || '');
+
+      // Resolve Toko ID & Name
+      const foundToko = masterToko.find(
+        (t) => t.id === (initialData.toko_id || initialData.tokoId) || t.nama.toLowerCase() === (initialData.toko || '').toLowerCase()
+      );
+      setToko(foundToko ? foundToko.nama : (initialData.toko || ''));
+      setTokoId(foundToko ? foundToko.id : (initialData.toko_id || initialData.tokoId || ''));
+
+      // Resolve Dapur ID & Name
+      const cleanInitDapur = (initialData.tujuanDapur || '').replace(/^dapur\s+/i, '').trim().toLowerCase();
+      const foundDapur = masterDapur.find(
+        (d) => d.id === (initialData.dapur_id || initialData.dapurId) ||
+          d.nama.toLowerCase() === (initialData.tujuanDapur || '').toLowerCase() ||
+          d.nama.toLowerCase() === cleanInitDapur
+      );
+      setTujuanDapur(foundDapur ? foundDapur.nama : (initialData.tujuanDapur || ''));
+      setTujuanDapurId(foundDapur ? foundDapur.id : (initialData.dapur_id || initialData.dapurId || ''));
+
+      // Resolve Pemasok ID & Name
+      const foundPemasok = masterPemasok.find(
+        (p) => p.id === (initialData.pemasok_id || initialData.pemasokId) || p.nama.toLowerCase() === (initialData.pemasok || '').toLowerCase()
+      );
+      setPemasok(foundPemasok ? foundPemasok.nama : (initialData.pemasok || ''));
+      setPemasokId(foundPemasok ? foundPemasok.id : (initialData.pemasok_id || initialData.pemasokId || ''));
+
       setPaymentStatus(initialData.paymentStatus || (initialData.status === 'selesai' ? 'PAID' : 'UNPAID'));
       setDeliveryStatus(initialData.deliveryStatus || (initialData.status === 'selesai' ? 'DONE' : 'PENDING'));
       setTanggal(initialData.tanggal || selectedDate || getTodayWIB());
@@ -149,12 +189,27 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           satuan: 'Kg',
           hargaBeli: 0,
           hargaJual: 0,
+          cashback: 0,
         },
       ]);
       setActiveItemIndex(0);
       setToko('');
-      setTujuanDapur(prefilledKitchen || '');
+      setTokoId('');
+
+      if (prefilledKitchen) {
+        const cleanPrefill = prefilledKitchen.replace(/^dapur\s+/i, '').trim().toLowerCase();
+        const foundD = masterDapur.find(
+          (d) => d.nama.toLowerCase() === prefilledKitchen.toLowerCase() || d.nama.toLowerCase() === cleanPrefill
+        );
+        setTujuanDapur(foundD ? foundD.nama : prefilledKitchen);
+        setTujuanDapurId(foundD ? foundD.id : '');
+      } else {
+        setTujuanDapur('');
+        setTujuanDapurId('');
+      }
+
       setPemasok('');
+      setPemasokId('');
       setPaymentStatus('UNPAID');
       setDeliveryStatus('PENDING');
       setTanggal(selectedDate || getTodayWIB());
@@ -168,7 +223,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     return () => {
       stopVoiceRecognition();
     };
-  }, [initialData, prefilledKitchen, isOpen, selectedDate]);
+  }, [initialData, prefilledKitchen, isOpen, selectedDate, masterToko, masterDapur, masterPemasok]);
 
   // Voice recognition cleanup
   const stopVoiceRecognition = () => {
@@ -324,6 +379,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     satuan: 'Kg',
     hargaBeli: 0,
     hargaJual: 0,
+    cashback: 0,
   };
 
   const updateCurrentItem = (field: keyof ItemRow, value: any) => {
@@ -346,6 +402,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       satuan: 'Kg',
       hargaBeli: 0,
       hargaJual: 0,
+      cashback: 0,
     };
     setItemRows((prev) => [...prev, newItem]);
     setActiveItemIndex(itemRows.length);
@@ -359,7 +416,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     }
   };
 
-  // Suggestion handling when typing Nama Barang
+  // Suggestion handling when typing Nama Barang with 150ms debounce
   const handleItemNameChange = (val: string) => {
     updateCurrentItem('namaBarang', val);
 
@@ -369,12 +426,18 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       setToko(autoStore);
     }
 
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
     if (val.trim().length >= 1) {
-      const existingNames = Array.from(new Set(existingOrders.map((o) => o.namaBarang)));
-      const results = getItemSuggestions(val, existingNames, 5);
-      setSuggestions(results);
-      setSelectedSugIdx(0);
-      setActiveSuggestionRowId(currentItem.id);
+      const rowId = currentItem.id;
+      debounceTimerRef.current = setTimeout(() => {
+        const results = getItemSuggestions(val, existingNames, 8);
+        setSuggestions(results);
+        setSelectedSugIdx(0);
+        setActiveSuggestionRowId(rowId);
+      }, 150);
     } else {
       setSuggestions([]);
       setActiveSuggestionRowId(null);
@@ -420,15 +483,39 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     setActiveSuggestionRowId(null);
   };
 
-  // Grand totals across all items
-  const totalModalSemua = itemRows.reduce(
-    (sum, r) => sum + (Number(r.qty) || 0) * (Number(r.hargaBeli) || 0),
-    0
-  );
-  const totalPenjualanSemua = itemRows.reduce(
-    (sum, r) => sum + (Number(r.qty) || 0) * (Number(r.hargaJual) || 0),
-    0
-  );
+  // Grand totals across all items (memoized)
+  const totalModalSemua = useMemo(() => {
+    return itemRows.reduce(
+      (sum, r) => sum + (Number(r.qty) || 0) * (Number(r.hargaBeli) || 0),
+      0
+    );
+  }, [itemRows]);
+
+  const totalPenjualanSemua = useMemo(() => {
+    return itemRows.reduce(
+      (sum, r) => sum + (Number(r.qty) || 0) * (Number(r.hargaJual) || 0),
+      0
+    );
+  }, [itemRows]);
+
+  // Grand totals laba bersih & ke koperasi across all items
+  const { totalLabaBersihSemua, totalKeKoperasiSemua } = useMemo(() => {
+    let laba = 0;
+    let kop = 0;
+    itemRows.forEach((r) => {
+      const q = Number(r.qty) || 0;
+      const hb = Number(r.hargaBeli) || 0;
+      const hj = Number(r.hargaJual) || 0;
+      const cb = Number(r.cashback) || 0;
+      if (cb > 0) {
+        laba += (cb - hb) * q;
+        kop += (hj - cb) * q;
+      } else {
+        laba += (hj - hb) * q;
+      }
+    });
+    return { totalLabaBersihSemua: laba, totalKeKoperasiSemua: kop };
+  }, [itemRows]);
 
   // Form validity check
   const isFormValid =
@@ -466,8 +553,44 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       return;
     }
 
+    // VALIDASI CASHBACK (per item):
+    // Kalau cashback diisi: HARUS harga_beli <= cashback <= harga_jual
+    for (let i = 0; i < itemRows.length; i++) {
+      const row = itemRows[i];
+      const cb = Number(row.cashback) || 0;
+      const hb = Number(row.hargaBeli) || 0;
+      const hj = Number(row.hargaJual) || 0;
+
+      if (cb > 0) {
+        if (cb < hb || cb > hj) {
+          const namaBarang = row.namaBarang.trim() || `Item #${i + 1}`;
+          alert(`Cashback ${namaBarang} harus di antara Rp ${formatIDR(hb)} dan Rp ${formatIDR(hj)}`);
+          setActiveItemIndex(i);
+          return;
+        }
+      }
+    }
+
     const calculatedStatus =
       deliveryStatus === 'DONE' && paymentStatus === 'PAID' ? 'selesai' : 'pending';
+
+    const cleanDapurName = tujuanDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
+    const finalTokoId =
+      tokoId ||
+      masterToko.find((t) => t.nama.toLowerCase() === toko.trim().toLowerCase())?.id ||
+      '';
+    const finalPemasokId =
+      pemasokId ||
+      masterPemasok.find((p) => p.nama.toLowerCase() === pemasok.trim().toLowerCase())?.id ||
+      '';
+    const finalDapurId =
+      tujuanDapurId ||
+      masterDapur.find(
+        (d) =>
+          d.nama.toLowerCase() === tujuanDapur.trim().toLowerCase() ||
+          d.nama.toLowerCase() === cleanDapurName
+      )?.id ||
+      '';
 
     if (initialData) {
       const firstRow = itemRows[0];
@@ -478,9 +601,16 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           satuan: firstRow.satuan || 'Kg',
           hargaBeli: Math.max(0, Number(firstRow.hargaBeli) || 0),
           hargaJual: Math.max(0, Number(firstRow.hargaJual) || 0),
+          cashback: Number(firstRow.cashback) > 0 ? Number(firstRow.cashback) : 0,
           toko,
+          toko_id: finalTokoId,
+          tokoId: finalTokoId,
           tujuanDapur,
+          dapur_id: finalDapurId,
+          dapurId: finalDapurId,
           pemasok,
+          pemasok_id: finalPemasokId,
+          pemasokId: finalPemasokId,
           status: calculatedStatus,
           paymentStatus,
           deliveryStatus,
@@ -496,9 +626,16 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         satuan: row.satuan || 'Kg',
         hargaBeli: Math.max(0, Number(row.hargaBeli) || 0),
         hargaJual: Math.max(0, Number(row.hargaJual) || 0),
+        cashback: Number(row.cashback) > 0 ? Number(row.cashback) : 0,
         toko,
+        toko_id: finalTokoId,
+        tokoId: finalTokoId,
         tujuanDapur,
+        dapur_id: finalDapurId,
+        dapurId: finalDapurId,
         pemasok,
+        pemasok_id: finalPemasokId,
+        pemasokId: finalPemasokId,
         status: calculatedStatus,
         paymentStatus,
         deliveryStatus,
@@ -641,14 +778,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     type="text"
                     required
                     id="input-nama-barang"
-                    placeholder="Contoh: Cabe Merah, Ayam Broiler"
+                    placeholder="Nama barang..."
                     value={currentItem.namaBarang}
                     onChange={(e) => handleItemNameChange(e.target.value)}
                     onKeyDown={handleItemKeyDown}
                     onFocus={() => {
                       if (currentItem.namaBarang.trim().length >= 1) {
-                        const existingNames = Array.from(new Set(existingOrders.map((o) => o.namaBarang)));
-                        const results = getItemSuggestions(currentItem.namaBarang, existingNames, 5);
+                        const results = getItemSuggestions(currentItem.namaBarang, existingNames, 8);
                         setSuggestions(results);
                         setActiveSuggestionRowId(currentItem.id);
                       }
@@ -658,8 +794,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
                   {/* Autocomplete Popup */}
                   {isSuggestionOpen && (
-                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden py-1 divide-y divide-slate-100">
-                      <div className="px-3 py-1 text-[9px] font-black text-slate-400 uppercase tracking-wider bg-slate-50 flex items-center justify-between">
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden py-1 divide-y divide-slate-100 max-h-60 overflow-y-auto">
+                      <div className="sticky top-0 px-3 py-1 text-[9px] font-black text-slate-400 uppercase tracking-wider bg-slate-50 flex items-center justify-between z-10">
                         <span>Saran Otomatis (Enter / Klik)</span>
                         <span className="font-mono text-[8px] bg-slate-200 text-slate-700 px-1 rounded">↵ Enter</span>
                       </div>
@@ -744,11 +880,56 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   />
                 </div>
 
-                {/* Estimasi Margin di bawah Harga dalam card yang sama */}
+                {/* Field 4: CASHBACK (Opsional per item barang) */}
+                <div className="space-y-1">
+                  <MoneyInput
+                    label="Cashback (Opsional)"
+                    id={`input-cashback-${currentItem.id}`}
+                    placeholder="0 (opsional)"
+                    value={currentItem.cashback || 0}
+                    onChange={(val) => updateCurrentItem('cashback', val)}
+                  />
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium px-0.5">
+                    <span>Opsional per barang</span>
+                    {currentItem.hargaBeli > 0 && currentItem.hargaJual > 0 && (
+                      <span className="text-slate-400 font-mono">
+                        Valid: Rp {formatIDR(currentItem.hargaBeli)} - Rp {formatIDR(currentItem.hargaJual)}
+                      </span>
+                    )}
+                  </div>
+                  {/* Inline real-time validation error */}
+                  {(() => {
+                    const cb = Number(currentItem.cashback) || 0;
+                    const hb = Number(currentItem.hargaBeli) || 0;
+                    const hj = Number(currentItem.hargaJual) || 0;
+                    if (cb > 0) {
+                      if (hb > 0 && cb < hb) {
+                        return (
+                          <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold flex items-center gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                            <span>Cashback tidak boleh kurang dari Harga Beli (Rp {formatIDR(hb)})</span>
+                          </div>
+                        );
+                      }
+                      if (hj > 0 && cb > hj) {
+                        return (
+                          <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold flex items-center gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                            <span>Cashback tidak boleh lebih dari Harga Jual (Rp {formatIDR(hj)})</span>
+                          </div>
+                        );
+                      }
+                    }
+                    return null;
+                  })()}
+                </div>
+
+                {/* Estimasi Laba Bersih & Ke Koperasi Live Preview */}
                 <ProfitPreview
                   quantity={currentItem.qty}
                   purchasePrice={currentItem.hargaBeli}
                   sellingPrice={currentItem.hargaJual}
+                  cashback={currentItem.cashback}
                 />
               </div>
 
@@ -792,9 +973,14 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                               <span className="font-mono font-bold block text-slate-900">
                                 {formatIDR((r.qty || 0) * (r.hargaJual || 0))}
                               </span>
-                              <span className="text-[9.5px] text-slate-400 font-mono">
+                              <span className="text-[9.5px] text-slate-400 font-mono block">
                                 Beli: {formatIDR((r.qty || 0) * (r.hargaBeli || 0))}
                               </span>
+                              {Boolean(r.cashback && r.cashback > 0) && (
+                                <span className="text-[9.5px] font-bold text-amber-700 font-mono block">
+                                  CB: {formatIDR(r.cashback)}
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -820,15 +1006,23 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     <select
                       required
                       id="select-order-toko"
-                      value={toko}
+                      value={tokoId || masterToko.find((t) => t.nama.toLowerCase() === toko.toLowerCase())?.id || toko}
                       onChange={(e) => {
-                        if (e.target.value === '__ADD_NEW__') {
+                        const val = e.target.value;
+                        if (val === '__ADD_NEW__') {
                           setQuickAddType('toko');
                           setQuickAddNama('');
                           setQuickAddAlamat('');
                           setQuickAddError(null);
                         } else {
-                          setToko(e.target.value);
+                          const matched = masterToko.find((t) => t.id === val);
+                          if (matched) {
+                            setToko(matched.nama);
+                            setTokoId(matched.id);
+                          } else {
+                            setToko(val);
+                            setTokoId('');
+                          }
                         }
                       }}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
@@ -837,11 +1031,19 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                       <option value="__ADD_NEW__" className="text-indigo-600 font-bold bg-indigo-50">
                         + Tambah Toko Baru...
                       </option>
-                      {availableStores.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
+                      {masterToko.length > 0 ? (
+                        masterToko.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.nama}
+                          </option>
+                        ))
+                      ) : (
+                        availableStores.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
 
@@ -853,15 +1055,23 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     <select
                       required
                       id="select-order-pemasok"
-                      value={pemasok}
+                      value={pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === pemasok.toLowerCase())?.id || pemasok}
                       onChange={(e) => {
-                        if (e.target.value === '__ADD_NEW__') {
+                        const val = e.target.value;
+                        if (val === '__ADD_NEW__') {
                           setQuickAddType('pemasok');
                           setQuickAddNama('');
                           setQuickAddAlamat('');
                           setQuickAddError(null);
                         } else {
-                          setPemasok(e.target.value);
+                          const matched = masterPemasok.find((p) => p.id === val);
+                          if (matched) {
+                            setPemasok(matched.nama);
+                            setPemasokId(matched.id);
+                          } else {
+                            setPemasok(val);
+                            setPemasokId('');
+                          }
                         }
                       }}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
@@ -870,11 +1080,19 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                       <option value="__ADD_NEW__" className="text-indigo-600 font-bold bg-indigo-50">
                         + Tambah Pemasok Baru...
                       </option>
-                      {availablePemasok.map((p) => (
-                        <option key={p} value={p}>
-                          {p}
-                        </option>
-                      ))}
+                      {masterPemasok.length > 0 ? (
+                        masterPemasok.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.nama}
+                          </option>
+                        ))
+                      ) : (
+                        availablePemasok.map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
 
@@ -886,15 +1104,31 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     <select
                       required
                       id="select-order-dapur"
-                      value={tujuanDapur}
+                      value={
+                        tujuanDapurId ||
+                        masterDapur.find(
+                          (d) =>
+                            d.nama.toLowerCase() === tujuanDapur.toLowerCase() ||
+                            d.nama.toLowerCase() === tujuanDapur.replace(/^dapur\s+/i, '').trim().toLowerCase()
+                        )?.id ||
+                        tujuanDapur
+                      }
                       onChange={(e) => {
-                        if (e.target.value === '__ADD_NEW__') {
+                        const val = e.target.value;
+                        if (val === '__ADD_NEW__') {
                           setQuickAddType('dapur');
                           setQuickAddNama('');
                           setQuickAddAlamat('');
                           setQuickAddError(null);
                         } else {
-                          setTujuanDapur(e.target.value);
+                          const matched = masterDapur.find((d) => d.id === val);
+                          if (matched) {
+                            setTujuanDapur(matched.nama);
+                            setTujuanDapurId(matched.id);
+                          } else {
+                            setTujuanDapur(val);
+                            setTujuanDapurId('');
+                          }
                         }
                       }}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
@@ -903,11 +1137,19 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                       <option value="__ADD_NEW__" className="text-indigo-600 font-bold bg-indigo-50">
                         + Tambah Dapur Baru...
                       </option>
-                      {availableKitchens.map((k) => (
-                        <option key={k} value={k}>
-                          Dapur {k}
-                        </option>
-                      ))}
+                      {masterDapur.length > 0 ? (
+                        masterDapur.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            Dapur {d.nama} {d.alamat ? `(${d.alamat})` : ''}
+                          </option>
+                        ))
+                      ) : (
+                        availableKitchens.map((k) => (
+                          <option key={k} value={k}>
+                            Dapur {k}
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
                 </div>
@@ -938,10 +1180,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 />
               </div>
 
-              {/* CARD 4: TOTAL SUMMARY (Total Penjualan, Total Beli, Estimasi Profit) */}
+              {/* CARD 4: TOTAL SUMMARY (Total Penjualan, Total Beli, Estimasi Profit, Ke Koperasi) */}
               <OrderSummary
                 totalPenjualan={totalPenjualanSemua}
                 totalBeli={totalModalSemua}
+                totalLabaBersih={totalLabaBersihSemua}
+                totalKeKoperasi={totalKeKoperasiSemua}
               />
 
               {/* Tanggal & Catatan Opsional */}

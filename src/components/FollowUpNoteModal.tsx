@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   CircleCheck, 
   Store, 
@@ -13,6 +13,7 @@ import {
 import { NoteItem, Kitchen, Store as StoreType, MasterToko, MasterPemasok } from '../types';
 import { getTodayWIB } from '../lib/formatters';
 import { guessStoreForItem } from '../lib/storeMatcher';
+import { getItemSuggestions } from '../lib/suggestions';
 import { MoneyInput, formatIDR } from './MoneyInput';
 import { ProfitSummary } from './ProfitSummary';
 import { FormSection } from './FormSection';
@@ -42,6 +43,7 @@ export interface FollowUpNoteModalProps {
   masterPemasok?: MasterPemasok[];
   selectedDate: string;
   pastPriceHistory?: { namaBarang: string; hargaBeli: number; hargaJual: number }[];
+  existingOrders?: { namaBarang: string }[];
 }
 
 const COMMON_UNITS = ['Kg', 'Ikat', 'Gram', 'Pcs', 'Tray', 'Pack', 'Liter', 'Box', 'Karung', 'Ekor'];
@@ -58,6 +60,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
   masterPemasok = [],
   selectedDate,
   pastPriceHistory = [],
+  existingOrders = [],
 }) => {
   const [namaBarang, setNamaBarang] = useState('');
   const [qty, setQty] = useState<number | string>(1);
@@ -70,6 +73,24 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
   const [tanggal, setTanggal] = useState(selectedDate || getTodayWIB());
   const [catatanAwal, setCatatanAwal] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Memoized suggestion names
+  const existingNames = useMemo(() => {
+    const fromOrders = (existingOrders || []).map((o) => o.namaBarang);
+    const fromHistory = (pastPriceHistory || []).map((p) => p.namaBarang);
+    return Array.from(new Set([...fromOrders, ...fromHistory]));
+  }, [existingOrders, pastPriceHistory]);
+
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+  const [selectedSugIdx, setSelectedSugIdx] = useState(0);
   const [touched, setTouched] = useState({
     namaBarang: false,
     qty: false,
@@ -280,7 +301,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
           icon={<Utensils className="w-3.5 h-3.5" />}
         >
           <div className="space-y-3">
-            <div>
+            <div className="relative">
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Nama Barang <span className="text-rose-500">*</span>
               </label>
@@ -293,13 +314,97 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                   setNamaBarang(val);
                   const autoStore = guessStoreForItem(val, availableStores);
                   if (autoStore) setToko(autoStore);
+
+                  if (debounceTimerRef.current) {
+                    clearTimeout(debounceTimerRef.current);
+                  }
+
+                  if (val.trim().length >= 1) {
+                    debounceTimerRef.current = setTimeout(() => {
+                      const results = getItemSuggestions(val, existingNames, 8);
+                      setSuggestions(results);
+                      setSelectedSugIdx(0);
+                      setShowSuggestions(results.length > 0);
+                    }, 150);
+                  } else {
+                    setSuggestions([]);
+                    setShowSuggestions(false);
+                  }
                 }}
-                onBlur={() => setTouched((prev) => ({ ...prev, namaBarang: true }))}
-                placeholder="Contoh: Buncis, Ayam, Telur..."
+                onKeyDown={(e) => {
+                  if (showSuggestions && suggestions.length > 0) {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setSelectedSugIdx((prev) => (prev + 1) % suggestions.length);
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setSelectedSugIdx((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+                    } else if (e.key === 'Enter' || e.key === 'Tab') {
+                      e.preventDefault();
+                      const chosen = suggestions[selectedSugIdx];
+                      if (chosen) {
+                        setNamaBarang(chosen);
+                        const autoStore = guessStoreForItem(chosen, availableStores);
+                        if (autoStore) setToko(autoStore);
+                        setShowSuggestions(false);
+                      }
+                    } else if (e.key === 'Escape') {
+                      setShowSuggestions(false);
+                    }
+                  }
+                }}
+                onFocus={() => {
+                  if (namaBarang.trim().length >= 1) {
+                    const results = getItemSuggestions(namaBarang, existingNames, 8);
+                    setSuggestions(results);
+                    setShowSuggestions(results.length > 0);
+                  }
+                }}
+                onBlur={() => {
+                  // Slight delay so click on suggestion can register
+                  setTimeout(() => {
+                    setShowSuggestions(false);
+                    setTouched((prev) => ({ ...prev, namaBarang: true }));
+                  }, 200);
+                }}
+                placeholder="Nama barang..."
                 className={`w-full px-3.5 py-2.5 bg-white border rounded-xl text-xs sm:text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all ${
                   touched.namaBarang && !isItemValid ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300'
                 }`}
               />
+
+              {/* Autocomplete Popup */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden py-1 divide-y divide-slate-100 max-h-60 overflow-y-auto">
+                  <div className="sticky top-0 px-2.5 py-1 text-[9px] font-black text-slate-400 uppercase tracking-wider bg-slate-50 flex items-center justify-between z-10">
+                    <span>Saran Otomatis (Enter / Klik)</span>
+                    <span className="font-mono text-[8px] bg-slate-200 text-slate-700 px-1 rounded">↵ Enter</span>
+                  </div>
+                  {suggestions.map((sug, idx) => (
+                    <button
+                      key={sug}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setNamaBarang(sug);
+                        const autoStore = guessStoreForItem(sug, availableStores);
+                        if (autoStore) setToko(autoStore);
+                        setShowSuggestions(false);
+                      }}
+                      onMouseEnter={() => setSelectedSugIdx(idx)}
+                      className={`w-full px-3 py-1.5 text-left text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
+                        idx === selectedSugIdx
+                          ? 'bg-indigo-50 text-indigo-800'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{sug}</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Pilih</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {touched.namaBarang && !isItemValid && (
                 <p className="text-[10px] font-semibold text-rose-600 mt-1">Nama barang wajib diisi</p>
               )}

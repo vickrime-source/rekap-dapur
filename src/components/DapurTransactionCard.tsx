@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { 
   Trash2, 
   Plus, 
@@ -27,7 +27,7 @@ interface DapurTransactionCardProps {
   onAddItemToKitchen: (storeName: string) => void;
 }
 
-export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = ({
+export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = React.memo(({
   storeName,
   date,
   items,
@@ -39,13 +39,27 @@ export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = ({
   onExportInvoicePdf,
   onAddItemToKitchen,
 }) => {
-  // Calculate Totals for this Store
-  const totalJual = items.reduce((sum, item) => sum + parseIndonesianNumber(item.qty) * parseIndonesianNumber(item.hargaJual), 0);
-  const totalBeli = items.reduce((sum, item) => sum + parseIndonesianNumber(item.qty) * parseIndonesianNumber(item.hargaBeli), 0);
-  const totalProfit = totalJual - totalBeli;
-
-  // Determine Overall Status for this Store
-  const isAllDone = items.length > 0 && items.every((i) => i.status === 'selesai');
+  // Calculate Totals for this Store (Memoized in single pass)
+  const { totalJual, totalBeli, totalProfit, isAllDone } = useMemo(() => {
+    let jual = 0;
+    let beli = 0;
+    let allDone = items.length > 0;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const q = parseIndonesianNumber(item.qty);
+      jual += q * parseIndonesianNumber(item.hargaJual);
+      beli += q * parseIndonesianNumber(item.hargaBeli);
+      if (item.status !== 'selesai') {
+        allDone = false;
+      }
+    }
+    return {
+      totalJual: jual,
+      totalBeli: beli,
+      totalProfit: jual - beli,
+      isAllDone: allDone,
+    };
+  }, [items]);
 
   const handleToggleCardStatus = () => {
     const nextStatus = isAllDone ? 'pending' : 'selesai';
@@ -58,7 +72,7 @@ export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = ({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.98 }}
-      className="clay-card p-3 sm:p-4 space-y-3 font-sans text-slate-800 backdrop-blur-md border border-white/80"
+      className="clay-card p-3 sm:p-4 space-y-3 font-sans text-slate-800 bg-white/95 border border-white/80"
     >
       {/* 1. TOP HEADER - LAMPIRAN 1: Date + Store Name Badge + Status + Switch + Delete (NO Printer/Docx in top header) */}
       <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-indigo-100/60">
@@ -273,5 +287,5 @@ export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = ({
       </div>
     </motion.div>
   );
-};
+});
 

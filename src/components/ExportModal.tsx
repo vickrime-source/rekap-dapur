@@ -28,18 +28,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     ? orders.filter((item) => item.tanggal === selectedDate)
     : orders;
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const fileName = `Rekap_Dapur_${exportScope === 'selected_date' ? selectedDate : 'Semua'}.xlsx`;
-    exportToExcel(filteredOrders, fileName.replace('.xlsx', ''));
+    await exportToExcel(filteredOrders, fileName.replace('.xlsx', ''));
     onClose();
     if (onExportSuccess) {
       onExportSuccess(fileName);
     }
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     const fileName = `Rekap_Dapur_${exportScope === 'selected_date' ? selectedDate : 'Semua'}.csv`;
-    exportToCSV(filteredOrders, fileName.replace('.csv', ''));
+    await exportToCSV(filteredOrders, fileName.replace('.csv', ''));
     onClose();
     if (onExportSuccess) {
       onExportSuccess(fileName);

@@ -1,9 +1,5 @@
-import PizZip from 'pizzip';
-import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
 import { compressDocxImagesClient } from './clientDocxCompressor';
-import html2pdf from 'html2pdf.js';
-import { renderAsync } from 'docx-preview';
 import { OrderItem } from '../types';
 import {
   formatRupiah,
@@ -93,7 +89,7 @@ function formatDocxtemplaterErrors(err: any, storeName: string): string {
   return `TemplateError pada template "${storeName}": ${err?.message || err}`;
 }
 
-export function sanitizeDocxXml(zip: PizZip): void {
+export function sanitizeDocxXml(zip: any): void {
   const xmlFiles = Object.keys(zip.files).filter((fileName) =>
     fileName.startsWith('word/') && fileName.endsWith('.xml')
   );
@@ -336,6 +332,10 @@ export async function exportInvoiceDocxOnly(
   onProgress?.('Mengambil template invoice...');
   const arrayBuffer = await fetchDocxTemplateBuffer(storeName);
   onProgress?.('Mengisi template invoice...');
+  const [{ default: PizZip }, { default: Docxtemplater }] = await Promise.all([
+    import('pizzip'),
+    import('docxtemplater'),
+  ]);
   const zip = new PizZip(arrayBuffer);
   sanitizeDocxXml(zip);
   let docxBlob: Blob;
@@ -394,6 +394,7 @@ export async function renderDocxToPdfClientSide(
 
   try {
     const arrayBuffer = await docxBlob.arrayBuffer();
+    const { renderAsync } = await import('docx-preview');
     await renderAsync(arrayBuffer, container, undefined, {
       inWrapper: true,
       ignoreWidth: false,
@@ -479,7 +480,7 @@ export async function renderDocxToPdfClientSide(
       el.style.minHeight = 'auto';
     });
 
-    // 5. Tables: ensure 100% width and neat borders/padding without overflowing right edge
+    // 5. Tables: ensure 100% width, border-collapse: collapse, and neat borders/padding
     container.querySelectorAll('table').forEach((tbl) => {
       const el = tbl as HTMLElement;
       el.style.width = '100%';
@@ -488,10 +489,47 @@ export async function renderDocxToPdfClientSide(
       el.style.boxSizing = 'border-box';
       el.style.borderCollapse = 'collapse';
       el.style.margin = '10px 0';
+      el.style.border = '1px solid #000000';
     });
 
-    // 6. Cell text wrapping & alignment
-    container.querySelectorAll('td, th, p, span').forEach((node) => {
+    // 6. Table Cells: explicit 8px 12px padding, vertical-align middle, clean borders, and weight normalization
+    container.querySelectorAll('td, th').forEach((cellNode) => {
+      const cell = cellNode as HTMLElement;
+      cell.style.padding = '8px 12px';
+      cell.style.verticalAlign = 'middle';
+      cell.style.border = '1px solid #000000';
+      cell.style.boxSizing = 'border-box';
+      cell.style.wordBreak = 'break-word';
+      cell.style.overflowWrap = 'break-word';
+
+      const isHeader = cell.tagName.toLowerCase() === 'th' || cell.closest('thead') !== null;
+      const text = cell.textContent?.trim().toUpperCase() || '';
+
+      if (isHeader) {
+        cell.style.fontWeight = 'bold';
+        cell.style.textAlign = 'center';
+      } else {
+        // Explicit normal font-weight on data cells unless it is TOTAL or signature label
+        if (text === 'TOTAL' || text.startsWith('TOTAL')) {
+          cell.style.fontWeight = 'bold';
+        } else if (text === 'HORMAT KAMI' || text === 'TANDA TERIMA') {
+          cell.style.fontWeight = 'bold';
+        } else {
+          cell.style.fontWeight = 'normal';
+          // Prevent child spans/paras from inheriting stray bold from docx runs
+          cell.querySelectorAll('p, span, b, strong').forEach((child) => {
+            const c = child as HTMLElement;
+            const childText = c.textContent?.trim().toUpperCase() || '';
+            if (childText !== 'TOTAL' && childText !== 'HORMAT KAMI' && childText !== 'TANDA TERIMA') {
+              c.style.fontWeight = 'normal';
+            }
+          });
+        }
+      }
+    });
+
+    // 7. General text wrapping
+    container.querySelectorAll('p, span').forEach((node) => {
       const el = node as HTMLElement;
       el.style.wordBreak = 'break-word';
       el.style.overflowWrap = 'break-word';
@@ -533,6 +571,8 @@ export async function renderDocxToPdfClientSide(
       pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
     };
 
+    const html2pdfModule = await import('html2pdf.js');
+    const html2pdf = (html2pdfModule as any).default || html2pdfModule;
     const pdfBlob: Blob = await html2pdf().set(opt).from(targetElement).output('blob');
     const pdfUrl = URL.createObjectURL(pdfBlob);
 

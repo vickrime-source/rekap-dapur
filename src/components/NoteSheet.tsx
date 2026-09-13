@@ -72,6 +72,13 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -217,7 +224,7 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
     }
   };
 
-  // Update suggestions when user types namaBarang
+  // Update suggestions when user types namaBarang (Debounced 150ms)
   const handleItemChange = (val: string) => {
     setNamaBarang(val);
     // Auto-select toko berdasarkan nama barang (bisa diganti/pilih manual)
@@ -226,11 +233,17 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
       setToko(autoStore);
     }
 
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
     if (val.trim().length >= 1) {
-      const results = getItemSuggestions(val, existingItemNames, 5);
-      setSuggestions(results);
-      setSelectedSuggestionIdx(0);
-      setShowSuggestions(results.length > 0);
+      debounceTimerRef.current = setTimeout(() => {
+        const results = getItemSuggestions(val, existingItemNames, 8);
+        setSuggestions(results);
+        setSelectedSuggestionIdx(0);
+        setShowSuggestions(results.length > 0);
+      }, 150);
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -424,7 +437,7 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
                 onKeyDown={handleKeyDown}
                 onFocus={() => {
                   if (namaBarang.trim().length >= 1) {
-                    const results = getItemSuggestions(namaBarang, existingItemNames, 5);
+                    const results = getItemSuggestions(namaBarang, existingItemNames, 8);
                     setSuggestions(results);
                     setShowSuggestions(results.length > 0);
                   }
@@ -434,8 +447,8 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
 
               {/* Suggestion Dropdown Popover */}
               {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 overflow-hidden py-1 divide-y divide-slate-100">
-                  <div className="px-2.5 py-1 text-[9px] font-black text-slate-400 uppercase tracking-wider bg-slate-50 flex items-center justify-between">
+                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 overflow-hidden py-1 divide-y divide-slate-100 max-h-60 overflow-y-auto">
+                  <div className="sticky top-0 px-2.5 py-1 text-[9px] font-black text-slate-400 uppercase tracking-wider bg-slate-50 flex items-center justify-between z-10">
                     <span>Saran Otomatis (Tekan Enter / Klik)</span>
                     <span className="font-mono text-[8px] bg-slate-200 text-slate-700 px-1 rounded">↵ Enter</span>
                   </div>

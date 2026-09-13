@@ -87,6 +87,8 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
         totalQty: number;
         totalBeli: number;
         totalJual: number;
+        totalLabaBersih: number;
+        totalKeKoperasi: number;
         orderCount: number;
         batchKeys: Set<string>;
         pemasokSet: Set<string>;
@@ -96,8 +98,11 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
         const qty = parseIndonesianNumber(item.qty) || 0;
         const beli = parseIndonesianNumber(item.hargaBeli) || 0;
         const jual = parseIndonesianNumber(item.hargaJual) || 0;
+        const cb = parseIndonesianNumber(item.cashback) || 0;
         const itemBeli = qty * beli;
         const itemJual = qty * jual;
+        const labaBersihItem = cb > 0 ? (cb - beli) * qty : (jual - beli) * qty;
+        const keKoperasiItem = cb > 0 ? (jual - cb) * qty : 0;
 
         totalAllBeli += itemBeli;
         totalAllJual += itemJual;
@@ -108,6 +113,8 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
             totalQty: 0,
             totalBeli: 0,
             totalJual: 0,
+            totalLabaBersih: 0,
+            totalKeKoperasi: 0,
             orderCount: 0,
             batchKeys: new Set<string>(),
             pemasokSet: new Set<string>(),
@@ -116,6 +123,8 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
         map[tokoKey].totalQty += qty;
         map[tokoKey].totalBeli += itemBeli;
         map[tokoKey].totalJual += itemJual;
+        map[tokoKey].totalLabaBersih += labaBersihItem;
+        map[tokoKey].totalKeKoperasi += keKoperasiItem;
         map[tokoKey].orderCount += 1;
         if (item.pemasok && item.pemasok.trim() && item.pemasok.trim() !== '-') {
           map[tokoKey].pemasokSet.add(item.pemasok.trim());
@@ -125,7 +134,7 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
       }
 
       return Object.entries(map).map(([toko, val]) => {
-        const profit = val.totalJual - val.totalBeli;
+        const profit = val.totalLabaBersih;
         const mPercent = val.totalJual > 0 ? Math.round((profit / val.totalJual) * 100) : 0;
         return {
           toko,

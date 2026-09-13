@@ -1,8 +1,7 @@
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
 import { OrderItem } from '../types';
 import { formatRupiah, formatTanggalInvoice, resolveRecipientSppgName, parseIndonesianNumber } from './formatters';
 import { getStoreProfile, StoreProfile } from './storeProfiles';
+import { getStoreInvoiceConfig, StoreInvoiceStyleConfig } from './invoiceStyles';
 
 export interface HtmlInvoiceOptions {
   storeName: string;
@@ -17,10 +16,14 @@ export interface HtmlInvoiceOptions {
 }
 
 /**
- * Builds clean, responsive, print-perfect HTML string for the invoice
+ * Builds clean, responsive, print-perfect HTML string for the invoice.
+ * Incorporates explicit cell padding (8px 12px), vertical alignment,
+ * strict font-weight control (default normal, only headers and total bold),
+ * and store-specific typography, header colors, and swapped layout.
  */
 export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
   const profile = getStoreProfile(options.storeName);
+  const styleConfig = getStoreInvoiceConfig(options.storeName);
   const items = options.items;
 
   const totalJual = items.reduce((sum, item) => {
@@ -42,15 +45,71 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
       const subtotal = q * p;
       return `
       <tr>
-        <td style="border: 1px solid #000; padding: 6px 8px; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">${idx + 1}</td>
-        <td style="border: 1px solid #000; padding: 6px 8px; text-align: center; font-size: 11pt; font-family: Arial, sans-serif;">${q}</td>
-        <td style="border: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 11pt; font-weight: 500; font-family: Arial, sans-serif;">${item.namaBarang}</td>
-        <td style="border: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 11pt; white-space: nowrap; font-family: Arial, sans-serif;">${formatRupiah(p)}</td>
-        <td style="border: 1px solid #000; padding: 6px 8px; text-align: right; font-size: 11pt; white-space: nowrap; font-weight: 600; font-family: Arial, sans-serif;">${formatRupiah(subtotal)}</td>
+        <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: center; font-size: 10pt; font-weight: normal; font-family: ${styleConfig.fontFamily}; color: #000000;">${idx + 1}</td>
+        <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: center; font-size: 10pt; font-weight: normal; font-family: ${styleConfig.fontFamily}; color: #000000;">${q}</td>
+        <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: left; font-size: 10pt; font-weight: normal; font-family: ${styleConfig.fontFamily}; color: #000000;">${item.namaBarang}</td>
+        <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: right; font-size: 10pt; font-weight: normal; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(p)}</td>
+        <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: right; font-size: 10pt; font-weight: normal; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(subtotal)}</td>
       </tr>
     `;
     })
     .join('');
+
+  // Bank / Payment Info block
+  const bankInfoHtml = `
+    <div style="font-size: 9.5pt; color: #111111; line-height: 1.45; font-family: ${styleConfig.fontFamily};">
+      <div style="font-weight: bold; margin-bottom: 2px;">Informasi Pembayaran</div>
+      <div>Atas Nama : <strong>${profile.bankAccountName || profile.accountHolder || profile.signerName}</strong></div>
+      <div>Bank : <strong>${profile.bankName}</strong></div>
+      <div>No. Rekening : <strong style="font-size: 10pt; letter-spacing: 0.3px;">${profile.bankAccountNumber || profile.accountNumber}</strong></div>
+    </div>
+  `;
+
+  // Tanda Terima block
+  const tandaTerimaBlockHtml = `
+    <td style="width: 50%; text-align: center; vertical-align: top;">
+      <div style="font-size: 10pt; font-weight: bold; margin-bottom: 60px; font-family: ${styleConfig.fontFamily};">
+        Tanda Terima
+      </div>
+      <div style="font-size: 10pt; font-weight: bold; display: inline-block; min-width: 140px; font-family: ${styleConfig.fontFamily};">
+        (${recipientName})
+      </div>
+    </td>
+  `;
+
+  // Hormat Kami block (with stamp & signature)
+  const hormatKamiBlockHtml = `
+    <td style="width: 50%; text-align: center; vertical-align: top; position: relative;">
+      <div style="font-size: 10pt; font-weight: bold; margin-bottom: 6px; font-family: ${styleConfig.fontFamily};">
+        Hormat Kami
+      </div>
+
+      <!-- Container for Stamp & Signature (Single image if combined available, otherwise overlay) -->
+      ${
+        profile.stampSignatureCombinedBase64
+          ? `<div style="height: 80px; margin: 0 auto; width: 220px; display: flex; align-items: center; justify-content: center; text-align: center;">
+              <img src="${profile.stampSignatureCombinedBase64}" alt="Stempel & Tanda Tangan" style="max-height: 80px; max-width: 190px; object-fit: contain; display: block; margin: 0 auto;" />
+             </div>`
+          : `<div style="position: relative; height: 75px; margin: 0 auto; width: 220px; display: flex; align-items: center; justify-content: center; text-align: center;">
+              ${
+                profile.stampBase64
+                  ? `<img src="${profile.stampBase64}" alt="Stamp" style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; margin: auto; height: 75px; max-width: 125px; object-fit: contain; opacity: 0.85; z-index: 1; pointer-events: none;" />`
+                  : ''
+              }
+              ${
+                profile.signatureBase64
+                  ? `<img src="${profile.signatureBase64}" alt="Signature" style="position: relative; height: 65px; max-width: 155px; object-fit: contain; z-index: 2; display: block; margin: 0 auto;" />`
+                  : `<div style="height: 65px;"></div>`
+              }
+             </div>`
+      }
+
+      <div style="font-size: 10pt; font-weight: bold; margin-top: 6px; font-family: ${styleConfig.fontFamily};">
+        ${profile.signerName}
+      </div>
+      ${profile.signerContact ? `<div style="font-size: 8.5pt; font-weight: normal; color: #444444; font-family: ${styleConfig.fontFamily};">${profile.signerContact}</div>` : ''}
+    </td>
+  `;
 
   return `
     <div class="invoice-container" style="
@@ -60,11 +119,43 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
       box-sizing: border-box;
       background: #ffffff;
       color: #000000;
-      font-family: Arial, Helvetica, sans-serif;
+      font-family: ${styleConfig.fontFamily};
       line-height: 1.35;
       position: relative;
       margin: 0 auto;
     ">
+      <style>
+        .invoice-container table {
+          border-collapse: collapse !important;
+        }
+        .invoice-table-main {
+          width: 100%;
+          border-collapse: collapse !important;
+          margin-top: 10px;
+          margin-bottom: 8px;
+          border: 1px solid #000000 !important;
+        }
+        .invoice-table-main th {
+          border: 1px solid #000000 !important;
+          padding: 8px 12px !important;
+          vertical-align: middle !important;
+          font-weight: bold !important;
+          text-align: center !important;
+        }
+        .invoice-table-main td {
+          border: 1px solid #000000 !important;
+          padding: 8px 12px !important;
+          vertical-align: middle !important;
+          font-weight: normal;
+        }
+        .invoice-table-main td.is-bold {
+          font-weight: bold !important;
+        }
+        .invoice-table-main td.is-normal {
+          font-weight: normal !important;
+        }
+      </style>
+
       <!-- HEADER SECTION -->
       ${
         profile.logoBase64
@@ -77,46 +168,46 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
         <tr>
           <!-- Store Profile (Left Column) -->
           <td style="vertical-align: top; width: 55%; padding-right: 15px;">
-            <div style="font-size: 11.5pt; font-weight: 800; text-transform: uppercase; color: #000000; font-family: Arial, sans-serif; margin-bottom: 3px; letter-spacing: -0.1px;">
+            <div style="font-size: 11.5pt; font-weight: bold; text-transform: uppercase; color: #000000; font-family: ${styleConfig.fontFamily}; margin-bottom: 3px; letter-spacing: -0.1px;">
               ${profile.name}
             </div>
-            <div style="font-size: 9pt; color: #111111; line-height: 1.35; white-space: pre-line; font-family: Arial, sans-serif;">
+            <div style="font-size: 9pt; color: #111111; line-height: 1.35; white-space: pre-line; font-weight: normal; font-family: ${styleConfig.fontFamily};">
               ${profile.address}
             </div>
-            <div style="font-size: 8.5pt; color: #222222; margin-top: 3px; font-weight: 600; font-family: Arial, sans-serif;">
+            <div style="font-size: 8.5pt; color: #222222; margin-top: 3px; font-weight: bold; font-family: ${styleConfig.fontFamily};">
               ${profile.contact}
             </div>
           </td>
 
           <!-- Date & Recipient Info (Right Column, Aligned with Company Text on Left) -->
           <td style="vertical-align: top; width: 45%; text-align: left; padding-left: 20px;">
-            <div style="font-size: 10pt; margin-bottom: 10px; font-family: Arial, sans-serif;">
-              <strong>Tanggal :</strong> ${invoiceDate}
+            <div style="font-size: 10pt; margin-bottom: 10px; font-family: ${styleConfig.fontFamily}; font-weight: normal;">
+              <strong style="font-weight: bold;">Tanggal :</strong> ${invoiceDate}
             </div>
-            <div style="font-size: 9.5pt; line-height: 1.4; font-family: Arial, sans-serif;">
-              <div style="font-weight: 700; margin-bottom: 2px;">Kepada Yth.</div>
-              <div style="font-weight: 700; font-size: 10pt; color: #000000;">${recipientName}</div>
-              <div style="color: #222222;">-</div>
+            <div style="font-size: 9.5pt; line-height: 1.4; font-family: ${styleConfig.fontFamily};">
+              <div style="font-weight: bold; margin-bottom: 2px;">Kepada Yth.</div>
+              <div style="font-weight: bold; font-size: 10pt; color: #000000;">${recipientName}</div>
+              <div style="color: #222222; font-weight: normal;">-</div>
             </div>
           </td>
         </tr>
       </table>
 
       <!-- INVOICE ITEMS TABLE -->
-      <table style="
+      <table class="invoice-table-main" style="
         width: 100%;
         border-collapse: collapse;
         margin-top: 10px;
         margin-bottom: 8px;
-        border: 1.5px solid #000000;
+        border: 1px solid #000000;
       ">
         <thead>
-          <tr style="background-color: #d9e2f3; color: #000000;">
-            <th style="border: 1px solid #000; padding: 7px 6px; font-size: 10pt; font-weight: 800; width: 36px; text-align: center; font-family: Arial, sans-serif;">NO</th>
-            <th style="border: 1px solid #000; padding: 7px 6px; font-size: 10pt; font-weight: 800; width: 85px; text-align: center; font-family: Arial, sans-serif;">BANYAKNYA</th>
-            <th style="border: 1px solid #000; padding: 7px 10px; font-size: 10pt; font-weight: 800; text-align: center; font-family: Arial, sans-serif;">NAMA ITEM</th>
-            <th style="border: 1px solid #000; padding: 7px 8px; font-size: 10pt; font-weight: 800; width: 115px; text-align: center; font-family: Arial, sans-serif;">HARGA</th>
-            <th style="border: 1px solid #000; padding: 7px 8px; font-size: 10pt; font-weight: 800; width: 125px; text-align: center; font-family: Arial, sans-serif;">JUMLAH</th>
+          <tr style="background-color: ${styleConfig.headerBg}; color: ${styleConfig.headerText};">
+            <th style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; width: 45px; text-align: center; font-family: ${styleConfig.fontFamily};">NO</th>
+            <th style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; width: 105px; text-align: center; font-family: ${styleConfig.fontFamily};">BANYAKNYA</th>
+            <th style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; text-align: center; font-family: ${styleConfig.fontFamily};">NAMA ITEM</th>
+            <th style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; width: 125px; text-align: center; font-family: ${styleConfig.fontFamily};">HARGA</th>
+            <th style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; width: 135px; text-align: center; font-family: ${styleConfig.fontFamily};">JUMLAH</th>
           </tr>
         </thead>
         <tbody>
@@ -124,92 +215,68 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="3" style="border: 1px solid #000; border-top: 1.5px solid #000; background: #ffffff;"></td>
-            <td style="border: 1px solid #000; border-top: 1.5px solid #000; padding: 5px 8px; font-size: 10.5pt; font-weight: 800; text-align: center; letter-spacing: 0.5px; font-family: Arial, sans-serif;">TOTAL</td>
-            <td style="border: 1px solid #000; border-top: 1.5px solid #000; padding: 5px 8px; font-size: 10.5pt; font-weight: 800; text-align: right; white-space: nowrap; font-family: Arial, sans-serif;">${formatRupiah(totalJual)}</td>
+            <td colspan="3" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-weight: normal; background: #ffffff;"></td>
+            <td class="is-bold" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; text-align: center; letter-spacing: 0.5px; font-family: ${styleConfig.fontFamily}; color: #000000;">TOTAL</td>
+            <td class="is-bold" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; text-align: right; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(totalJual)}</td>
           </tr>
           <tr>
-            <td colspan="3" style="border: 1px solid #000; background: #ffffff;"></td>
-            <td style="border: 1px solid #000; padding: 5px 8px; font-size: 10.5pt; font-weight: 800; text-align: center; letter-spacing: 0.5px; font-family: Arial, sans-serif;">BAYAR</td>
-            <td style="border: 1px solid #000; padding: 5px 8px; font-size: 10.5pt; font-weight: 800; text-align: right; white-space: nowrap; font-family: Arial, sans-serif;">${formatRupiah(bayar)}</td>
+            <td colspan="3" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-weight: normal; background: #ffffff;"></td>
+            <td class="is-normal" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: normal; text-align: center; letter-spacing: 0.5px; font-family: ${styleConfig.fontFamily}; color: #000000;">BAYAR</td>
+            <td class="is-normal" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: normal; text-align: right; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(bayar)}</td>
           </tr>
           <tr>
-            <td colspan="3" style="border: 1px solid #000; background: #ffffff;"></td>
-            <td style="border: 1px solid #000; padding: 5px 8px; font-size: 10.5pt; font-weight: 800; text-align: center; letter-spacing: 0.5px; font-family: Arial, sans-serif;">SISA</td>
-            <td style="border: 1px solid #000; padding: 5px 8px; font-size: 10.5pt; font-weight: 800; text-align: right; white-space: nowrap; font-family: Arial, sans-serif;">${formatRupiah(sisa)}</td>
+            <td colspan="3" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-weight: normal; background: #ffffff;"></td>
+            <td class="is-normal" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: normal; text-align: center; letter-spacing: 0.5px; font-family: ${styleConfig.fontFamily}; color: #000000;">SISA</td>
+            <td class="is-normal" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: normal; text-align: right; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(sisa)}</td>
           </tr>
         </tfoot>
       </table>
 
       <!-- FOOTER INFO & SIGNATURE SECTION -->
-      <table style="width: 100%; border-collapse: collapse; margin-top: 14px;">
-        <tr>
-          <!-- Bank / Payment Info -->
-          <td style="vertical-align: top; width: 55%; padding-right: 15px;">
-            <div style="font-size: 9.5pt; color: #111111; line-height: 1.45; font-family: Arial, sans-serif;">
-              <div style="font-weight: 700; margin-bottom: 2px;">Informasi Pembayaran</div>
-              <div>Atas Nama : <strong>${profile.bankAccountName || profile.accountHolder || profile.signerName}</strong></div>
-              <div>Bank : <strong>${profile.bankName}</strong></div>
-              <div>No. Rekening : <strong style="font-size: 10pt; letter-spacing: 0.3px;">${profile.bankAccountNumber || profile.accountNumber}</strong></div>
-            </div>
-          </td>
+      ${
+        !styleConfig.layoutSwap
+          ? `
+          <!-- Baseline Layout (HTG & PROHE): Bank info di KIRI, Tanda Tangan di KANAN -->
+          <table style="width: 100%; border-collapse: collapse; margin-top: 14px;">
+            <tr>
+              <td style="vertical-align: top; width: 55%; padding-right: 15px;">
+                ${bankInfoHtml}
+              </td>
+              <td style="vertical-align: top; width: 45%;"></td>
+            </tr>
+          </table>
 
-          <!-- Empty space / Balance -->
-          <td style="vertical-align: top; width: 45%;"></td>
-        </tr>
-      </table>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 22px;">
+            <tr>
+              ${tandaTerimaBlockHtml}
+              ${hormatKamiBlockHtml}
+            </tr>
+          </table>
+          `
+          : `
+          <!-- Swapped Layout (LB & LA): Bank info di KANAN, Tanda Tangan 'Hormat Kami' di KIRI -->
+          <table style="width: 100%; border-collapse: collapse; margin-top: 14px;">
+            <tr>
+              <td style="vertical-align: top; width: 45%;"></td>
+              <td style="vertical-align: top; width: 55%; padding-left: 20px; text-align: left;">
+                ${bankInfoHtml}
+              </td>
+            </tr>
+          </table>
 
-      <!-- SIGNATURE BLOCKS -->
-      <table style="width: 100%; border-collapse: collapse; margin-top: 22px;">
-        <tr>
-          <!-- Tanda Terima -->
-          <td style="width: 50%; text-align: center; vertical-align: top;">
-            <div style="font-size: 10pt; font-weight: 600; margin-bottom: 60px; font-family: Arial, sans-serif;">
-              Tanda Terima
-            </div>
-            <div style="font-size: 10pt; font-weight: 700; display: inline-block; min-width: 140px; font-family: Arial, sans-serif;">
-              (${recipientName})
-            </div>
-          </td>
-
-          <!-- Hormat Kami with Stamp and Signature -->
-          <td style="width: 50%; text-align: center; vertical-align: top; position: relative;">
-            <div style="font-size: 10pt; font-weight: 600; margin-bottom: 6px; font-family: Arial, sans-serif;">
-              Hormat Kami
-            </div>
-
-            <!-- Container for Stamp & Signature (Single image if combined available, otherwise overlay) -->
-            ${
-              profile.stampSignatureCombinedBase64
-                ? `<div style="height: 80px; margin: 0 auto; width: 220px; display: flex; align-items: center; justify-content: center; text-align: center;">
-                    <img src="${profile.stampSignatureCombinedBase64}" alt="Stempel & Tanda Tangan" style="max-height: 80px; max-width: 190px; object-fit: contain; display: block; margin: 0 auto;" />
-                   </div>`
-                : `<div style="position: relative; height: 75px; margin: 0 auto; width: 220px; display: flex; align-items: center; justify-content: center; text-align: center;">
-                    ${
-                      profile.stampBase64
-                        ? `<img src="${profile.stampBase64}" alt="Stamp" style="position: absolute; left: 0; right: 0; top: 0; bottom: 0; margin: auto; height: 75px; max-width: 125px; object-fit: contain; opacity: 0.85; z-index: 1; pointer-events: none;" />`
-                        : ''
-                    }
-                    ${
-                      profile.signatureBase64
-                        ? `<img src="${profile.signatureBase64}" alt="Signature" style="position: relative; height: 65px; max-width: 155px; object-fit: contain; z-index: 2; display: block; margin: 0 auto;" />`
-                        : `<div style="height: 65px;"></div>`
-                    }
-                   </div>`
-            }
-
-            <div style="font-size: 10pt; font-weight: 700; margin-top: 6px; font-family: Arial, sans-serif;">
-              ${profile.signerName}
-            </div>
-            ${profile.signerContact ? `<div style="font-size: 8.5pt; color: #444444; font-family: Arial, sans-serif;">${profile.signerContact}</div>` : ''}
-          </td>
-        </tr>
-      </table>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 22px;">
+            <tr>
+              ${hormatKamiBlockHtml}
+              ${tandaTerimaBlockHtml}
+            </tr>
+          </table>
+          `
+      }
 
       <!-- FOOTER NOTE (e.g. PROHE POLICY) -->
       ${
         profile.footerNote
-          ? `<div style="margin-top: 20px; font-size: 8.5pt; font-style: italic; color: #555555; border-top: 1px dashed #cccccc; padding-top: 6px; font-family: Arial, sans-serif;">
+          ? `<div style="margin-top: 20px; font-size: 8.5pt; font-style: italic; color: #555555; border-top: 1px dashed #cccccc; padding-top: 6px; font-family: ${styleConfig.fontFamily}; font-weight: normal;">
                * ${profile.footerNote}
              </div>`
           : ''
@@ -264,6 +331,12 @@ export async function exportHtmlInvoicePdf(
     await new Promise((resolve) => setTimeout(resolve, 150));
 
     onProgress?.('Membuat berkas PDF tajam...');
+
+    const [html2canvasModule, { jsPDF }] = await Promise.all([
+      import('html2canvas'),
+      import('jspdf'),
+    ]);
+    const html2canvas = (html2canvasModule.default || html2canvasModule) as any;
 
     const canvas = await html2canvas(container, {
       scale: 2,

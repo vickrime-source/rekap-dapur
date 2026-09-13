@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { 
   Printer, 
   MoreVertical, 
@@ -28,6 +28,245 @@ interface OrderGroup {
   items: OrderItem[];
 }
 
+interface OrderRowProps {
+  item: OrderItem;
+  itemIdx: number;
+  rowSpan: number;
+  group: OrderGroup;
+  isActiveMenu: boolean;
+  onToggleActiveMenu: (id: string, rect: DOMRect, group: OrderGroup) => void;
+  onGroupPaymentChange: (groupItems: OrderItem[], status: PaymentStatus) => void;
+  onGroupDeliveryChange: (groupItems: OrderItem[], status: DeliveryStatus) => void;
+  onOpenInvoiceModal: (items: OrderItem[], kitchenName: string, storeName: string) => void;
+  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+}
+
+const OrderRow: React.FC<OrderRowProps> = React.memo(({
+  item,
+  itemIdx,
+  rowSpan,
+  group,
+  isActiveMenu,
+  onToggleActiveMenu,
+  onGroupPaymentChange,
+  onGroupDeliveryChange,
+  onOpenInvoiceModal,
+  onExportInvoicePdf,
+}) => {
+  const isFirst = itemIdx === 0;
+  const isLastInGroup = itemIdx === rowSpan - 1;
+
+  return (
+    <tr
+      key={item.id}
+      className={`hover:bg-slate-50/90 transition-colors group ${
+        isLastInGroup ? 'border-b-2 border-slate-200' : 'border-b border-slate-100'
+      }`}
+    >
+      {/* 1. NO (MERGED PER GROUP) */}
+      {isFirst && (
+        <td
+          rowSpan={rowSpan}
+          className="py-1 px-1 text-center font-mono text-[9px] font-bold text-slate-400 align-middle border-r border-slate-100 bg-slate-50/30"
+        >
+          {group.groupIndex}
+        </td>
+      )}
+
+      {/* 2. DAPUR (MERGED PER GROUP) */}
+      {isFirst && (
+        <td
+          rowSpan={rowSpan}
+          className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100 bg-slate-50/30"
+        >
+          <span className="inline-block bg-indigo-50 text-indigo-900 font-black px-1.5 py-0.5 rounded text-[9px] border border-indigo-200">
+            {group.tujuanDapur}
+          </span>
+        </td>
+      )}
+
+      {/* 3. ITEM (PER ROW ITEM) */}
+      <td className="py-1 px-1.5 align-middle">
+        <div className="font-bold text-slate-900 text-[9.5px] leading-tight">
+          {item.namaBarang}
+        </div>
+        <div className="text-[8px] text-slate-500 font-mono font-medium">
+          {item.pemasok}
+        </div>
+      </td>
+
+      {/* 4. DATE (MERGED PER GROUP WITH DAY ON TOP) */}
+      {isFirst && (
+        <td
+          rowSpan={rowSpan}
+          className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100 bg-slate-50/30"
+        >
+          <div className="flex flex-col items-center justify-center gap-0.5 leading-none">
+            <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1 py-0.5 rounded border border-slate-200/80">
+              {formatTanggalDisatuin(group.tanggal)}
+            </span>
+            {(group.createdAt || group.items[0]?.createdAt) && formatJam(group.createdAt || group.items[0]?.createdAt) ? (
+              <span className="text-[8px] font-mono text-slate-500 font-medium tracking-tight">
+                {formatJam(group.createdAt || group.items[0]?.createdAt)}
+              </span>
+            ) : null}
+          </div>
+        </td>
+      )}
+
+      {/* 5. QTY (PER ROW ITEM) */}
+      <td className="py-1 px-1 text-center font-black font-nominal text-[9.5px] text-slate-900 align-middle border-r border-slate-100">
+        {item.qty}
+      </td>
+
+      {/* 6. TOKO (MERGED PER GROUP) */}
+      {isFirst && (
+        <td
+          rowSpan={rowSpan}
+          className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100"
+        >
+          <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] border ${getTokoBadgeStyle(group.toko)}`}>
+            {group.toko}
+          </span>
+        </td>
+      )}
+
+      {/* 7. PAYMENT (MERGED PER GROUP WITH 1-CLICK TOGGLE) */}
+      {isFirst && (
+        <td
+          rowSpan={rowSpan}
+          className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              const nextStatus: PaymentStatus = group.payStatus === 'PAID' ? 'UNPAID' : 'PAID';
+              onGroupPaymentChange(group.items, nextStatus);
+            }}
+            className={`text-[8px] font-black px-1.5 py-0.5 rounded border cursor-pointer transition-all active:scale-95 ${
+              group.payStatus === 'PAID'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+            }`}
+            title="Klik untuk ubah Payment (PAID / UNPAID)"
+          >
+            {group.payStatus === 'PAID' ? 'PAID' : 'UNPAID'}
+          </button>
+        </td>
+      )}
+
+      {/* 8. DILEVERY (MERGED PER GROUP WITH 1-CLICK TOGGLE) */}
+      {isFirst && (
+        <td
+          rowSpan={rowSpan}
+          className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              const nextStatus: DeliveryStatus = group.delStatus === 'DONE' ? 'PENDING' : 'DONE';
+              onGroupDeliveryChange(group.items, nextStatus);
+            }}
+            className={`text-[8px] font-black px-1.5 py-0.5 rounded border cursor-pointer transition-all active:scale-95 ${
+              group.delStatus === 'DONE'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+            }`}
+            title="Klik untuk ubah Delivery (DONE / PENDING)"
+          >
+            {group.delStatus === 'DONE' ? 'DONE' : 'PENDING'}
+          </button>
+        </td>
+      )}
+
+      {/* 9. H. JUAL (PER ROW ITEM) */}
+      <td className="py-1 px-1.5 text-right whitespace-nowrap align-middle">
+        <div className="font-bold text-slate-900 font-nominal text-[9px]">
+          {formatRupiah(
+            (parseIndonesianNumber(item.qty) || 0) * (parseIndonesianNumber(item.hargaJual) || 0)
+          )}
+        </div>
+        <div className="text-[7.5px] text-slate-400 font-nominal">
+          @{formatRupiah(parseIndonesianNumber(item.hargaJual) || 0)}
+        </div>
+      </td>
+
+      {/* 10. H. BELI (PER ROW ITEM) */}
+      <td className="py-1 px-1.5 text-right whitespace-nowrap align-middle">
+        <div className="font-semibold text-slate-600 font-nominal text-[9px]">
+          {formatRupiah(
+            (parseIndonesianNumber(item.qty) || 0) * (parseIndonesianNumber(item.hargaBeli) || 0)
+          )}
+        </div>
+        <div className="text-[7.5px] text-slate-400 font-nominal">
+          @{formatRupiah(parseIndonesianNumber(item.hargaBeli) || 0)}
+        </div>
+      </td>
+
+      {/* 11. CASHBACK / KE KOPERASI (PER ROW ITEM) */}
+      {(() => {
+        const qtyNum = parseIndonesianNumber(item.qty) || 0;
+        const hjNum = parseIndonesianNumber(item.hargaJual) || 0;
+        const cbNum = parseIndonesianNumber(item.cashback) || 0;
+        const keKoperasi = cbNum > 0 ? (hjNum - cbNum) * qtyNum : 0;
+
+        return (
+          <td className="py-1 px-1.5 whitespace-nowrap align-middle text-right">
+            {keKoperasi > 0 ? (
+              <span className="inline-block font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 text-[8.5px] font-nominal">
+                +{formatRupiah(keKoperasi)}
+              </span>
+            ) : (
+              <span className="text-slate-400 font-medium text-[9.5px] block text-center">-</span>
+            )}
+          </td>
+        );
+      })()}
+
+      {/* 12. AKSI (MERGED PER GROUP) */}
+      {isFirst && (
+        <td
+          rowSpan={rowSpan}
+          className="py-1 px-0.5 text-center relative align-middle border-l border-slate-100"
+        >
+          <div className="flex items-center justify-center space-x-0.5">
+            <button
+              onClick={() => {
+                if (onExportInvoicePdf) {
+                  onExportInvoicePdf(group.items, group.tujuanDapur, group.toko, group.tanggal);
+                } else {
+                  onOpenInvoiceModal(group.items, group.tujuanDapur, group.toko);
+                }
+              }}
+              className="p-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold shadow-2xs transition-all active:scale-95 border border-amber-500/80 cursor-pointer"
+              title={`1-Click Export Invoice PDF Dapur ${group.tujuanDapur}`}
+            >
+              <Printer className="w-3.5 h-3.5 stroke-[2.5]" />
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                onToggleActiveMenu(group.id, rect, group);
+              }}
+              className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all cursor-pointer ${
+                isActiveMenu
+                  ? 'bg-indigo-50 text-indigo-600 border border-indigo-200 ring-2 ring-indigo-500/20 shadow-2xs'
+                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-transparent active:scale-95'
+              }`}
+              title="Menu Aksi"
+            >
+              <MoreVertical className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </td>
+      )}
+    </tr>
+  );
+});
+
 interface OrdersTableViewProps {
   orders: OrderItem[];
   isLoading?: boolean;
@@ -43,7 +282,7 @@ interface OrdersTableViewProps {
   onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
 }
 
-export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
+export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
   orders,
   isLoading = false,
   onUpdatePaymentStatus,
@@ -164,21 +403,25 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
     return orderGroups.slice(startIndex, startIndex + pageSize);
   }, [orderGroups, currentPage, pageSize]);
 
-  const handleGroupPaymentChange = (groupItems: OrderItem[], newStatus: PaymentStatus) => {
+  const handleToggleActiveMenu = useCallback((id: string, rect: DOMRect, group: OrderGroup) => {
+    setActiveMenu((prev) => (prev?.id === id ? null : { id, rect, group }));
+  }, []);
+
+  const handleGroupPaymentChange = useCallback((groupItems: OrderItem[], newStatus: PaymentStatus) => {
     if (onUpdateGroupPaymentStatus) {
       onUpdateGroupPaymentStatus(groupItems, newStatus);
     } else {
       groupItems.forEach((it) => onUpdatePaymentStatus(it.id, newStatus));
     }
-  };
+  }, [onUpdateGroupPaymentStatus, onUpdatePaymentStatus]);
 
-  const handleGroupDeliveryChange = (groupItems: OrderItem[], newStatus: DeliveryStatus) => {
+  const handleGroupDeliveryChange = useCallback((groupItems: OrderItem[], newStatus: DeliveryStatus) => {
     if (onUpdateGroupDeliveryStatus) {
       onUpdateGroupDeliveryStatus(groupItems, newStatus);
     } else {
       groupItems.forEach((it) => onUpdateDeliveryStatus(it.id, newStatus));
     }
-  };
+  }, [onUpdateGroupDeliveryStatus, onUpdateDeliveryStatus]);
 
   const hasAnyOrders = orders.length > 0;
 
@@ -261,7 +504,11 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
               <th className="py-2 px-1.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[80px]">
                 H. BELI
               </th>
-              {/* 11. AKSI */}
+              {/* 11. CASHBACK */}
+              <th className="py-2 px-1.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[75px]">
+                CASHBACK
+              </th>
+              {/* 12. AKSI */}
               <th className="py-2 px-1 text-center w-12 bg-slate-100 sticky top-0">
                 AKSI
               </th>
@@ -270,204 +517,21 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
           <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
             {paginatedGroups.map((group) => {
               const rowSpan = group.items.length;
-              return group.items.map((item, itemIdx) => {
-                const isFirst = itemIdx === 0;
-                const isLastInGroup = itemIdx === rowSpan - 1;
-
-                return (
-                  <tr
-                    key={item.id}
-                    className={`hover:bg-slate-50/90 transition-colors group ${
-                      isLastInGroup ? 'border-b-2 border-slate-200' : 'border-b border-slate-100'
-                    }`}
-                  >
-                    {/* 1. NO (MERGED PER GROUP) */}
-                    {isFirst && (
-                      <td
-                        rowSpan={rowSpan}
-                        className="py-1 px-1 text-center font-mono text-[9px] font-bold text-slate-400 align-middle border-r border-slate-100 bg-slate-50/30"
-                      >
-                        {group.groupIndex}
-                      </td>
-                    )}
-
-                    {/* 2. DAPUR (MERGED PER GROUP) */}
-                    {isFirst && (
-                      <td
-                        rowSpan={rowSpan}
-                        className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100 bg-slate-50/30"
-                      >
-                        <span className="inline-block bg-indigo-50 text-indigo-900 font-black px-1.5 py-0.5 rounded text-[9px] border border-indigo-200">
-                          {group.tujuanDapur}
-                        </span>
-                      </td>
-                    )}
-
-                    {/* 3. ITEM (PER ROW ITEM) */}
-                    <td className="py-1 px-1.5 align-middle">
-                      <div className="font-bold text-slate-900 text-[9.5px] leading-tight">
-                        {item.namaBarang}
-                      </div>
-                      <div className="text-[8px] text-slate-500 font-mono font-medium">
-                        {item.pemasok}
-                      </div>
-                    </td>
-
-                    {/* 4. DATE (MERGED PER GROUP WITH DAY ON TOP) */}
-                    {isFirst && (
-                      <td
-                        rowSpan={rowSpan}
-                        className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100 bg-slate-50/30"
-                      >
-                        <div className="flex flex-col items-center justify-center gap-0.5 leading-none">
-                          <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1 py-0.5 rounded border border-slate-200/80">
-                            {formatTanggalDisatuin(group.tanggal)}
-                          </span>
-                          {(group.createdAt || group.items[0]?.createdAt) && formatJam(group.createdAt || group.items[0]?.createdAt) ? (
-                            <span className="text-[8px] font-mono text-slate-500 font-medium tracking-tight">
-                              {formatJam(group.createdAt || group.items[0]?.createdAt)}
-                            </span>
-                          ) : null}
-                        </div>
-                      </td>
-                    )}
-
-                    {/* 5. QTY (PER ROW ITEM) */}
-                    <td className="py-1 px-1 text-center font-black font-nominal text-[9.5px] text-slate-900 align-middle border-r border-slate-100">
-                      {item.qty}
-                    </td>
-
-                    {/* 6. TOKO (MERGED PER GROUP) */}
-                    {isFirst && (
-                      <td
-                        rowSpan={rowSpan}
-                        className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100"
-                      >
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] border ${getTokoBadgeStyle(group.toko)}`}>
-                          {group.toko}
-                        </span>
-                      </td>
-                    )}
-
-                    {/* 7. PAYMENT (MERGED PER GROUP WITH 1-CLICK TOGGLE) */}
-                    {isFirst && (
-                      <td
-                        rowSpan={rowSpan}
-                        className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const nextStatus: PaymentStatus = group.payStatus === 'PAID' ? 'UNPAID' : 'PAID';
-                            handleGroupPaymentChange(group.items, nextStatus);
-                          }}
-                          className={`text-[8px] font-black px-1.5 py-0.5 rounded border cursor-pointer transition-all active:scale-95 ${
-                            group.payStatus === 'PAID'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                              : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-                          }`}
-                          title="Klik untuk ubah Payment (PAID / UNPAID)"
-                        >
-                          {group.payStatus === 'PAID' ? 'PAID' : 'UNPAID'}
-                        </button>
-                      </td>
-                    )}
-
-                    {/* 8. DILEVERY (MERGED PER GROUP WITH 1-CLICK TOGGLE) */}
-                    {isFirst && (
-                      <td
-                        rowSpan={rowSpan}
-                        className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const nextStatus: DeliveryStatus = group.delStatus === 'DONE' ? 'PENDING' : 'DONE';
-                            handleGroupDeliveryChange(group.items, nextStatus);
-                          }}
-                          className={`text-[8px] font-black px-1.5 py-0.5 rounded border cursor-pointer transition-all active:scale-95 ${
-                            group.delStatus === 'DONE'
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                              : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-                          }`}
-                          title="Klik untuk ubah Delivery (DONE / PENDING)"
-                        >
-                          {group.delStatus === 'DONE' ? 'DONE' : 'PENDING'}
-                        </button>
-                      </td>
-                    )}
-
-                    {/* 9. H. JUAL (PER ROW ITEM) */}
-                    <td className="py-1 px-1.5 text-right whitespace-nowrap align-middle">
-                      <div className="font-bold text-slate-900 font-nominal text-[9px]">
-                        {formatRupiah(
-                          (parseIndonesianNumber(item.qty) || 0) * (parseIndonesianNumber(item.hargaJual) || 0)
-                        )}
-                      </div>
-                      <div className="text-[7.5px] text-slate-400 font-nominal">
-                        @{formatRupiah(parseIndonesianNumber(item.hargaJual) || 0)}
-                      </div>
-                    </td>
-
-                    {/* 10. H. BELI (PER ROW ITEM) */}
-                    <td className="py-1 px-1.5 text-right whitespace-nowrap align-middle">
-                      <div className="font-semibold text-slate-600 font-nominal text-[9px]">
-                        {formatRupiah(
-                          (parseIndonesianNumber(item.qty) || 0) * (parseIndonesianNumber(item.hargaBeli) || 0)
-                        )}
-                      </div>
-                      <div className="text-[7.5px] text-slate-400 font-nominal">
-                        @{formatRupiah(parseIndonesianNumber(item.hargaBeli) || 0)}
-                      </div>
-                    </td>
-
-                    {/* 11. AKSI (MERGED PER GROUP) */}
-                    {isFirst && (
-                      <td
-                        rowSpan={rowSpan}
-                        className="py-1 px-0.5 text-center relative align-middle border-l border-slate-100"
-                      >
-                        <div className="flex items-center justify-center space-x-0.5">
-                          {/* 
-                            1-Click Instant Invoice PDF Download
-                          */}
-                          <button
-                            onClick={() => {
-                              if (onExportInvoicePdf) {
-                                onExportInvoicePdf(group.items, group.tujuanDapur, group.toko, group.tanggal);
-                              } else {
-                                onOpenInvoiceModal(group.items, group.tujuanDapur, group.toko);
-                              }
-                            }}
-                            className="p-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold shadow-2xs transition-all active:scale-95 border border-amber-500/80 cursor-pointer"
-                            title={`1-Click Export Invoice PDF Dapur ${group.tujuanDapur}`}
-                          >
-                            <Printer className="w-3.5 h-3.5 stroke-[2.5]" />
-                          </button>
-
-                          {/* 3-dots Menu for Edit / Duplicate / Delete (Floating Portal) */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setActiveMenu(activeMenu?.id === group.id ? null : { id: group.id, rect, group });
-                            }}
-                            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all cursor-pointer ${
-                              activeMenu?.id === group.id
-                                ? 'bg-indigo-50 text-indigo-600 border border-indigo-200 ring-2 ring-indigo-500/20 shadow-2xs'
-                                : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-transparent active:scale-95'
-                            }`}
-                            title="Menu Aksi"
-                          >
-                            <MoreVertical className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              });
+              return group.items.map((item, itemIdx) => (
+                <OrderRow
+                  key={item.id}
+                  item={item}
+                  itemIdx={itemIdx}
+                  rowSpan={rowSpan}
+                  group={group}
+                  isActiveMenu={activeMenu?.id === group.id}
+                  onToggleActiveMenu={handleToggleActiveMenu}
+                  onGroupPaymentChange={handleGroupPaymentChange}
+                  onGroupDeliveryChange={handleGroupDeliveryChange}
+                  onOpenInvoiceModal={onOpenInvoiceModal}
+                  onExportInvoicePdf={onExportInvoicePdf}
+                />
+              ));
             })}
           </tbody>
         </table>
@@ -507,4 +571,4 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({
     />
   </div>
 );
-};
+});

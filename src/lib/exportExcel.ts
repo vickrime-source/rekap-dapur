@@ -1,12 +1,13 @@
-import * as XLSX from 'xlsx';
 import { OrderItem } from '../types';
 import { formatRupiah, formatTanggal } from './formatters';
 
-export function exportToExcel(orders: OrderItem[], filenamePrefix = 'Rekap_Dapur_Tracker') {
+export async function exportToExcel(orders: OrderItem[], filenamePrefix = 'Rekap_Dapur_Tracker') {
   if (!orders || orders.length === 0) {
     alert('Tidak ada data pesanan untuk diekspor');
     return;
   }
+
+  const XLSX = await import('xlsx');
 
   const exportData = orders.map((item, index) => {
     const totalBeli = item.qty * item.hargaBeli;
@@ -83,11 +84,13 @@ export function exportToExcel(orders: OrderItem[], filenamePrefix = 'Rekap_Dapur
   XLSX.writeFile(workbook, filename);
 }
 
-export function exportToCSV(orders: OrderItem[], filenamePrefix = 'Rekap_Dapur_Tracker') {
+export async function exportToCSV(orders: OrderItem[], filenamePrefix = 'Rekap_Dapur_Tracker') {
   if (!orders || orders.length === 0) {
     alert('Tidak ada data pesanan untuk diekspor');
     return;
   }
+
+  const XLSX = await import('xlsx');
 
   const exportData = orders.map((item, index) => {
     const totalBeli = item.qty * item.hargaBeli;

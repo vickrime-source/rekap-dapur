@@ -46,6 +46,14 @@ export function mapRawOrder(row: any): OrderItem {
   const delStatus = (row.status_pengiriman || row.deliveryStatus || 'PENDING').toString().toUpperCase();
   const orderStatus = (payStatus === 'PAID' && delStatus === 'DONE') ? 'selesai' : (row.status || 'pending');
 
+  const tokoNama = (typeof row.toko === 'object' && row.toko !== null) ? (row.toko.nama || '') : (row.toko || '');
+  const pemasokNama = (typeof row.pemasok === 'object' && row.pemasok !== null) ? (row.pemasok.nama || '') : (row.pemasok || '');
+  const dapurNama = (typeof row.dapur === 'object' && row.dapur !== null) ? (row.dapur.nama || '') : (row.dapur || row.tujuanDapur || row.tujuan_dapur || '');
+
+  const tokoId = row.toko_id || row.tokoId || (typeof row.toko === 'object' && row.toko !== null ? row.toko.id : undefined);
+  const pemasokId = row.pemasok_id || row.pemasokId || (typeof row.pemasok === 'object' && row.pemasok !== null ? row.pemasok.id : undefined);
+  const dapurId = row.dapur_id || row.dapurId || (typeof row.dapur === 'object' && row.dapur !== null ? row.dapur.id : undefined);
+
   return {
     id: String(row.id || `ord-${Date.now()}-${Math.floor(Math.random() * 1000)}`),
     namaBarang: row.item || row.namaBarang || row.nama_barang || '',
@@ -53,21 +61,22 @@ export function mapRawOrder(row: any): OrderItem {
     satuan: row.satuan || 'Kg',
     hargaBeli: Number(row.harga_beli !== undefined ? row.harga_beli : row.hargaBeli) || 0,
     hargaJual: Number(row.harga_jual !== undefined ? row.harga_jual : row.hargaJual) || 0,
-    toko: row.toko || '',
-    toko_id: row.toko_id || row.tokoId,
-    tokoId: row.toko_id || row.tokoId,
-    tujuanDapur: row.dapur || row.tujuanDapur || row.tujuan_dapur || '',
-    dapur_id: row.dapur_id || row.dapurId,
-    dapurId: row.dapur_id || row.dapurId,
-    pemasok: row.pemasok || '',
-    pemasok_id: row.pemasok_id || row.pemasokId,
-    pemasokId: row.pemasok_id || row.pemasokId,
+    toko: tokoNama,
+    toko_id: tokoId,
+    tokoId: tokoId,
+    tujuanDapur: dapurNama,
+    dapur_id: dapurId,
+    dapurId: dapurId,
+    pemasok: pemasokNama,
+    pemasok_id: pemasokId,
+    pemasokId: pemasokId,
     status: orderStatus as 'pending' | 'selesai',
     paymentStatus: ['PAID', 'UNPAID'].includes(payStatus) ? (payStatus as 'PAID' | 'UNPAID') : 'UNPAID',
     deliveryStatus: ['DONE', 'PENDING'].includes(delStatus) ? (delStatus as 'DONE' | 'PENDING') : 'PENDING',
     tanggal: row.tanggal ? String(row.tanggal).split('T')[0] : new Date().toISOString().split('T')[0],
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
     catatan: row.catatan || '',
+    cashback: row.cashback !== undefined && row.cashback !== null ? Number(row.cashback) : 0,
   };
 }
 
@@ -77,41 +86,46 @@ export function buildPesananPayload(item: Partial<OrderItem>) {
 
   return {
     ...(item.id ? { id: item.id } : {}),
+    toko_id: item.toko_id || item.tokoId || null,
+    pemasok_id: item.pemasok_id || item.pemasokId || null,
+    dapur_id: item.dapur_id || item.dapurId || null,
     dapur: item.tujuanDapur || '',
-    ...(item.dapur_id || item.dapurId ? { dapur_id: item.dapur_id || item.dapurId } : {}),
     item: item.namaBarang || '',
     tanggal: item.tanggal || new Date().toISOString().split('T')[0],
     qty: Number(item.qty) || 1,
     satuan: item.satuan || 'Kg',
     toko: item.toko || '',
-    ...(item.toko_id || item.tokoId ? { toko_id: item.toko_id || item.tokoId } : {}),
     pemasok: item.pemasok || '',
-    ...(item.pemasok_id || item.pemasokId ? { pemasok_id: item.pemasok_id || item.pemasokId } : {}),
     status_pembayaran: ['PAID', 'UNPAID'].includes(payStatus) ? payStatus : 'UNPAID',
     status_pengiriman: ['DONE', 'PENDING'].includes(delStatus) ? delStatus : 'PENDING',
     status: (payStatus === 'PAID' && delStatus === 'DONE') ? 'selesai' : (item.status || 'pending'),
     harga_jual: Number(item.hargaJual) || 0,
     harga_beli: Number(item.hargaBeli) || 0,
+    cashback: Number(item.cashback) || 0,
     catatan: item.catatan || '',
   };
 }
 
 export function mapRawInvoice(row: any): InvoiceRecord {
   const items = Array.isArray(row.items) ? row.items.map(mapRawOrder) : [];
+  const tokoNama = (typeof row.toko === 'object' && row.toko !== null) ? (row.toko.nama || '') : (row.toko || '');
+  const pemasokNama = (typeof row.pemasok === 'object' && row.pemasok !== null) ? (row.pemasok.nama || '') : (row.pemasok || '');
+  const dapurNama = (typeof row.dapur === 'object' && row.dapur !== null) ? (row.dapur.nama || '') : (row.dapur || row.tujuanDapur || '');
+
   return {
     id: String(row.id || `inv-${Date.now()}`),
     invoiceNumber: row.invoice_number || row.invoiceNumber || '',
     tanggalPrint: row.tanggal_print || row.tanggalPrint || new Date().toLocaleDateString('id-ID'),
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
-    tujuanDapur: row.dapur || row.tujuanDapur || '',
-    dapur_id: row.dapur_id || row.dapurId,
-    dapurId: row.dapur_id || row.dapurId,
-    toko: row.toko || '',
-    toko_id: row.toko_id || row.tokoId,
-    tokoId: row.toko_id || row.tokoId,
-    pemasok: row.pemasok || '',
-    pemasok_id: row.pemasok_id || row.pemasokId,
-    pemasokId: row.pemasok_id || row.pemasokId,
+    tujuanDapur: dapurNama,
+    dapur_id: row.dapur_id || row.dapurId || (typeof row.dapur === 'object' ? row.dapur?.id : undefined),
+    dapurId: row.dapur_id || row.dapurId || (typeof row.dapur === 'object' ? row.dapur?.id : undefined),
+    toko: tokoNama,
+    toko_id: row.toko_id || row.tokoId || (typeof row.toko === 'object' ? row.toko?.id : undefined),
+    tokoId: row.toko_id || row.tokoId || (typeof row.toko === 'object' ? row.toko?.id : undefined),
+    pemasok: pemasokNama,
+    pemasok_id: row.pemasok_id || row.pemasokId || (typeof row.pemasok === 'object' ? row.pemasok?.id : undefined),
+    pemasokId: row.pemasok_id || row.pemasokId || (typeof row.pemasok === 'object' ? row.pemasok?.id : undefined),
     items: items,
     totalBeli: Number(row.harga_beli !== undefined ? row.harga_beli : row.totalBeli) || 0,
     totalJual: Number(row.total !== undefined ? row.total : row.totalJual) || 0,
@@ -126,13 +140,13 @@ export function buildTransaksiPayload(record: Partial<InvoiceRecord>) {
     invoice_number: record.invoiceNumber || `INV-${Date.now()}`,
     tanggal: record.createdAt ? record.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
     tanggal_print: record.tanggalPrint || new Date().toLocaleDateString('id-ID'),
+    pemasok_id: record.pemasok_id || record.pemasokId || null,
     pemasok: record.pemasok || '',
-    ...(record.pemasok_id || record.pemasokId ? { pemasok_id: record.pemasok_id || record.pemasokId } : {}),
-    barang: (record.items || []).map((i) => `${i.namaBarang} (${i.qty})`).join(', '),
+    toko_id: record.toko_id || record.tokoId || null,
     toko: record.toko || '',
-    ...(record.toko_id || record.tokoId ? { toko_id: record.toko_id || record.tokoId } : {}),
+    dapur_id: record.dapur_id || record.dapurId || null,
     dapur: record.tujuanDapur || '',
-    ...(record.dapur_id || record.dapurId ? { dapur_id: record.dapur_id || record.dapurId } : {}),
+    barang: (record.items || []).map((i) => `${i.namaBarang} (${i.qty})`).join(', '),
     qty: (record.items || []).reduce((s, i) => s + (Number(i.qty) || 0), 0),
     harga_beli: Number(record.totalBeli) || 0,
     total: Number(record.totalJual) || 0,

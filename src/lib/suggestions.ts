@@ -1,101 +1,85 @@
+import { ITEM_SUGGESTIONS } from '../data/itemSuggestions';
+
+export { ITEM_SUGGESTIONS };
+
 /**
  * Autocomplete / Suggestion Engine for grocery and kitchen inventory items.
  */
-
-export const DEFAULT_ITEM_SUGGESTIONS: string[] = [
-  'Ikan',
-  'Ikan Lele',
-  'Ikan Gurame',
-  'Ikan Nila',
-  'Ikan Kembung',
-  'Ikan Tongkol',
-  'Ikan Patin',
-  'Ikan Bandeng',
-  'Apel',
-  'Apel Fuji',
-  'Apel Malang',
-  'Alpukat',
-  'Ayam Potong',
-  'Ayam Fillet',
-  'Ayam Kampung',
-  'Ayam Broiler',
-  'Bayam',
-  'Beras',
-  'Beras Pandan Wangi',
-  'Beras Setra Ramos',
-  'Bawang Merah',
-  'Bawang Putih',
-  'Bawang Bombay',
-  'Cabai Rawit',
-  'Cabai Merah',
-  'Cabai Hijau',
-  'Cabai Keriting',
-  'Daging Sapi',
-  'Daging Kambing',
-  'Daging Ayam',
-  'Telur Ayam',
-  'Telur Bebek',
-  'Telur Puyuh',
-  'Tomat',
-  'Terong',
-  'Tahu Putih',
-  'Tahu Kuning',
-  'Tempe',
-  'Wortel',
-  'Kentang',
-  'Kobis / Kol',
-  'Sawi Putih',
-  'Sawi Hijau',
-  'Kangkung',
-  'Buncis',
-  'Kacang Panjang',
-  'Labu Siam',
-  'Minyak Goreng',
-  'Gula Pasir',
-  'Garam Halus',
-  'Kecap Manis',
-  'Saus Tiram',
-  'Tepung Terigu',
-  'Tepung Beras',
-  'Tepung Tapioka',
-  'Yali 80',
-  'Semangka',
-  'Melon',
-  'Jeruk Manis',
-  'Pisang',
-  'Pepaya',
-  'Susu UHT',
-  'Susu Kental Manis',
-  'Keju Cheddar',
-  'Mentega',
-];
+export const DEFAULT_ITEM_SUGGESTIONS: string[] = ITEM_SUGGESTIONS;
 
 /**
  * Returns matching suggestions based on user keystrokes.
- * Case-insensitive, matches prefix or substring.
+ * - Case-insensitive matching.
+ * - Matches if substring exists anywhere in the item name (beginning, middle, or end).
+ * - Priority sorting:
+ *   1. Exact match
+ *   2. Starts with query at the beginning of the item name
+ *   3. Starts with query at the beginning of any word (e.g., "Ikan" in "Kaki Naga Ikan" for query "ik")
+ *   4. Substring match in the middle of a word (e.g., "ik" in "Keripik Tempe")
+ * - Within the same tier, items are sorted by earlier match index, shorter length, and alphabetical order.
  */
 export function getItemSuggestions(
   query: string,
   customItems: string[] = [],
-  maxResults: number = 6
+  maxResults: number = 8
 ): string[] {
   const clean = query.trim().toLowerCase();
   if (!clean) return [];
 
-  const combined = Array.from(new Set([...customItems, ...DEFAULT_ITEM_SUGGESTIONS]));
+  // Combine custom existing orders/items with master ITEM_SUGGESTIONS, removing duplicates
+  const combined = Array.from(new Set([...customItems, ...ITEM_SUGGESTIONS]));
 
-  // Prefix matches first, then contains matches
-  const prefixMatches: string[] = [];
-  const otherMatches: string[] = [];
-
-  for (const item of combined) {
-    const lower = item.toLowerCase();
-    if (lower.startsWith(clean)) {
-      prefixMatches.push(item);
-    } else if (lower.includes(clean)) {
-      otherMatches.push(item);
-    }
+  interface MatchItem {
+    item: string;
+    tier: number;
+    matchIndex: number;
+    length: number;
   }
 
-  return [...prefixMatches, ...otherMatches].slice(0, maxResults);
+  const matches: MatchItem[] = [];
+
+  for (const item of combined) {
+    if (!item) continue;
+    const lower = item.toLowerCase();
+    const matchIndex = lower.indexOf(clean);
+
+    if (matchIndex === -1) {
+      continue;
+    }
+
+    let tier = 4; // Default: match di tengah kata
+
+    if (lower === clean) {
+      tier = 1; // Cocok persis
+    } else if (matchIndex === 0) {
+      tier = 2; // Match di awal item
+    } else {
+      // Cek apakah match di awal salah satu kata (setelah spasi, dash, slash, atau tanda kurung)
+      const words = lower.split(/[\s\-_/()]+/);
+      const isStartOfWord = words.some((w) => w.startsWith(clean));
+      if (isStartOfWord) {
+        tier = 3; // Match di awal kata berikutnya
+      } else {
+        tier = 4; // Match di tengah kata
+      }
+    }
+
+    matches.push({
+      item,
+      tier,
+      matchIndex,
+      length: item.length,
+    });
+  }
+
+  // Urutkan: Tier terkecil dulu (awal kata), lalu matchIndex lebih awal, lalu item lebih ringkas, lalu alfabetis
+  matches.sort((a, b) => {
+    if (a.tier !== b.tier) return a.tier - b.tier;
+    if (a.matchIndex !== b.matchIndex) return a.matchIndex - b.matchIndex;
+    if (a.length !== b.length) return a.length - b.length;
+    return a.item.localeCompare(b.item);
+  });
+
+  return matches.slice(0, maxResults).map((m) => m.item);
 }
+

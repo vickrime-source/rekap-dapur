@@ -9,6 +9,7 @@ export interface StoreExpenseBreakdown {
   totalBeli: number;
   totalJual: number;
   profit: number;
+  totalKeKoperasi?: number;
   orderCount: number;
   percentageOfTotalBeli: number;
   transactionCount?: number;
@@ -23,6 +24,8 @@ export interface PeriodSummaryStats {
   totalPendapatan: number;
   totalPengeluaran: number;
   profitBersih: number;
+  totalKeKoperasi?: number;
+  totalLabaBersih?: number;
   storeBreakdowns: StoreExpenseBreakdown[];
 }
 
@@ -49,6 +52,7 @@ export interface OrderItem {
   createdAt?: string;    // ISO timestamp string
   created_at?: string;
   catatan?: string;
+  cashback?: number;   // Nilai cashback per barang (opsional: hargaBeli <= cashback <= hargaJual)
   rowIndex?: number;    // Baris indeks aktual di Google Sheets (sheet "pesanan")
 }
 

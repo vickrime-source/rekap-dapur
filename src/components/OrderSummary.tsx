@@ -4,20 +4,25 @@ import { formatIDR } from './MoneyInput';
 export interface OrderSummaryProps {
   totalPenjualan: number;
   totalBeli: number;
+  totalLabaBersih?: number;
+  totalKeKoperasi?: number;
   className?: string;
 }
 
 export const OrderSummary: React.FC<OrderSummaryProps> = ({
   totalPenjualan,
   totalBeli,
+  totalLabaBersih,
+  totalKeKoperasi,
   className = '',
 }) => {
   const safeJual = Math.max(0, totalPenjualan || 0);
   const safeBeli = Math.max(0, totalBeli || 0);
-  const profit = safeJual - safeBeli;
+  const hasCashback = totalKeKoperasi !== undefined && totalKeKoperasi > 0;
+  const profit = totalLabaBersih !== undefined ? totalLabaBersih : (safeJual - safeBeli);
   const margin = safeJual > 0 ? Math.round((profit / safeJual) * 10000) / 100 : 0;
   const isPositif = profit > 0;
-  const isRugi = profit < 0 && safeBeli > 0 && safeJual > 0;
+  const isRugi = profit < 0 && safeBeli > 0;
 
   return (
     <div

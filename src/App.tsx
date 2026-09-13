@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { 
   OrderItem, 
@@ -379,31 +379,45 @@ export default function App() {
     };
   }, [activeTab]);
 
+  // Memoized unique item names from existing orders for auto-suggest
+  const existingItemNames = useMemo(
+    () => Array.from(new Set(orders.map((o) => o.namaBarang))),
+    [orders]
+  );
+
+  const ordersRef = useRef(orders);
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
+
   // Handlers for Order CRUD
-  const handleToggleStatus = (id: string) => {
+  const handleToggleStatus = useCallback((id: string) => {
     setOrders((prev) =>
       prev.map((o) =>
         o.id === id ? { ...o, status: o.status === 'pending' ? 'selesai' : 'pending' } : o
       )
     );
-  };
+  }, []);
 
-  const handleUpdatePaymentStatus = async (id: string, paymentStatus: PaymentStatus) => {
-    const targetOrder = orders.find((o) => o.id === id);
-    if (!targetOrder) return;
-    const delStatus = targetOrder.deliveryStatus || (targetOrder.status === 'selesai' ? 'DONE' : 'PENDING');
-    const newStatus = paymentStatus === 'PAID' && delStatus === 'DONE' ? 'selesai' : 'pending';
+  const handleUpdatePaymentStatus = useCallback(async (id: string, paymentStatus: PaymentStatus) => {
+    let targetOrder: OrderItem | undefined;
+    let newStatus: 'pending' | 'selesai' = 'pending';
 
-    setOrders((prev) =>
-      prev.map((o) => {
+    setOrders((prev) => {
+      targetOrder = prev.find((o) => o.id === id);
+      if (!targetOrder) return prev;
+      const delStatus = targetOrder.deliveryStatus || (targetOrder.status === 'selesai' ? 'DONE' : 'PENDING');
+      newStatus = paymentStatus === 'PAID' && delStatus === 'DONE' ? 'selesai' : 'pending';
+
+      return prev.map((o) => {
         if (o.id !== id) return o;
         return {
           ...o,
           paymentStatus,
           status: newStatus,
         };
-      })
-    );
+      });
+    });
 
     // Sync to Supabase
     const res = await updateOrderInDb(id, {
@@ -416,24 +430,27 @@ export default function App() {
     } else {
       showToast(`Status pembayaran berhasil diperbarui (${paymentStatus})`, 'success');
     }
-  };
+  }, []);
 
-  const handleUpdateDeliveryStatus = async (id: string, deliveryStatus: DeliveryStatus) => {
-    const targetOrder = orders.find((o) => o.id === id);
-    if (!targetOrder) return;
-    const payStatus = targetOrder.paymentStatus || (targetOrder.status === 'selesai' ? 'PAID' : 'UNPAID');
-    const newStatus = payStatus === 'PAID' && deliveryStatus === 'DONE' ? 'selesai' : 'pending';
+  const handleUpdateDeliveryStatus = useCallback(async (id: string, deliveryStatus: DeliveryStatus) => {
+    let targetOrder: OrderItem | undefined;
+    let newStatus: 'pending' | 'selesai' = 'pending';
 
-    setOrders((prev) =>
-      prev.map((o) => {
+    setOrders((prev) => {
+      targetOrder = prev.find((o) => o.id === id);
+      if (!targetOrder) return prev;
+      const payStatus = targetOrder.paymentStatus || (targetOrder.status === 'selesai' ? 'PAID' : 'UNPAID');
+      newStatus = payStatus === 'PAID' && deliveryStatus === 'DONE' ? 'selesai' : 'pending';
+
+      return prev.map((o) => {
         if (o.id !== id) return o;
         return {
           ...o,
           deliveryStatus,
           status: newStatus,
         };
-      })
-    );
+      });
+    });
 
     // Sync to Supabase
     const res = await updateOrderInDb(id, {
@@ -446,9 +463,9 @@ export default function App() {
     } else {
       showToast(`Status pengiriman berhasil diperbarui (${deliveryStatus})`, 'success');
     }
-  };
+  }, []);
 
-  const handleUpdateGroupPaymentStatus = async (groupItems: OrderItem[], paymentStatus: PaymentStatus) => {
+  const handleUpdateGroupPaymentStatus = useCallback(async (groupItems: OrderItem[], paymentStatus: PaymentStatus) => {
     if (!groupItems || groupItems.length === 0) return;
     const targetIds = groupItems.map((it) => it.id);
     const targetIdsSet = new Set(targetIds);
@@ -477,9 +494,9 @@ export default function App() {
     } else {
       showToast(`Status pembayaran grup berhasil diperbarui (${paymentStatus})`, 'success');
     }
-  };
+  }, []);
 
-  const handleUpdateGroupDeliveryStatus = async (groupItems: OrderItem[], deliveryStatus: DeliveryStatus) => {
+  const handleUpdateGroupDeliveryStatus = useCallback(async (groupItems: OrderItem[], deliveryStatus: DeliveryStatus) => {
     if (!groupItems || groupItems.length === 0) return;
     const targetIds = groupItems.map((it) => it.id);
     const targetIdsSet = new Set(targetIds);
@@ -508,9 +525,9 @@ export default function App() {
     } else {
       showToast(`Status pengiriman grup berhasil diperbarui (${deliveryStatus})`, 'success');
     }
-  };
+  }, []);
 
-  const handleDuplicateOrder = async (item: OrderItem) => {
+  const handleDuplicateOrder = useCallback(async (item: OrderItem) => {
     const duplicated: OrderItem = {
       ...item,
       id: `ord-dup-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -529,9 +546,9 @@ export default function App() {
       setDbError(res.error || 'Gagal menyimpan pesanan');
       showToast(`Pesanan tersimpan di HP. Gagal simpan ke database: ${res.error}`, 'info');
     }
-  };
+  }, []);
 
-  const handleToggleBatchStatus = (targetName: string, date: string, targetStatus: 'pending' | 'selesai') => {
+  const handleToggleBatchStatus = useCallback((targetName: string, date: string, targetStatus: 'pending' | 'selesai') => {
     setOrders((prev) =>
       prev.map((o) =>
         (o.toko === targetName || o.tujuanDapur === targetName) && o.tanggal === date
@@ -539,7 +556,7 @@ export default function App() {
           : o
       )
     );
-  };
+  }, []);
 
   const handleSaveOrder = async (
     orderData: Omit<OrderItem, 'id' | 'createdAt'> | Array<Omit<OrderItem, 'id' | 'createdAt'>>,
@@ -547,9 +564,24 @@ export default function App() {
   ) => {
     if (editId && !Array.isArray(orderData)) {
       const oldOrder = orders.find((o) => o.id === editId);
+      const curToko = (orderData as any).toko || oldOrder?.toko || '';
+      const curPemasok = (orderData as any).pemasok || oldOrder?.pemasok || '';
+      const curDapur = (orderData as any).tujuanDapur || oldOrder?.tujuanDapur || '';
+      const cleanD = curDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
+
+      const fTokoId = (orderData as any).toko_id || (orderData as any).tokoId || masterToko.find((t) => t.nama.toLowerCase() === curToko.trim().toLowerCase())?.id || oldOrder?.toko_id || '';
+      const fPemasokId = (orderData as any).pemasok_id || (orderData as any).pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === curPemasok.trim().toLowerCase())?.id || oldOrder?.pemasok_id || '';
+      const fDapurId = (orderData as any).dapur_id || (orderData as any).dapurId || masterDapur.find((d) => d.nama.toLowerCase() === curDapur.trim().toLowerCase() || d.nama.toLowerCase() === cleanD)?.id || oldOrder?.dapur_id || '';
+
       const updatedOrder: OrderItem = {
         ...(oldOrder || {}),
         ...orderData,
+        toko_id: fTokoId,
+        tokoId: fTokoId,
+        pemasok_id: fPemasokId,
+        pemasokId: fPemasokId,
+        dapur_id: fDapurId,
+        dapurId: fDapurId,
         id: editId,
         createdAt: oldOrder?.createdAt || getNowWIBISOString(),
       } as OrderItem;
@@ -575,11 +607,28 @@ export default function App() {
     const itemsToAdd = Array.isArray(orderData) ? orderData : [orderData];
     const createdDate = getNowWIBISOString();
 
-    const newOrdersAdded: OrderItem[] = itemsToAdd.map((item, idx) => ({
-      ...item,
-      id: `ord-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
-      createdAt: createdDate,
-    }));
+    const newOrdersAdded: OrderItem[] = itemsToAdd.map((item, idx) => {
+      const curToko = (item as any).toko || '';
+      const curPemasok = (item as any).pemasok || '';
+      const curDapur = (item as any).tujuanDapur || '';
+      const cleanD = curDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
+
+      const fTokoId = (item as any).toko_id || (item as any).tokoId || masterToko.find((t) => t.nama.toLowerCase() === curToko.trim().toLowerCase())?.id || '';
+      const fPemasokId = (item as any).pemasok_id || (item as any).pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === curPemasok.trim().toLowerCase())?.id || '';
+      const fDapurId = (item as any).dapur_id || (item as any).dapurId || masterDapur.find((d) => d.nama.toLowerCase() === curDapur.trim().toLowerCase() || d.nama.toLowerCase() === cleanD)?.id || '';
+
+      return {
+        ...item,
+        toko_id: fTokoId,
+        tokoId: fTokoId,
+        pemasok_id: fPemasokId,
+        pemasokId: fPemasokId,
+        dapur_id: fDapurId,
+        dapurId: fDapurId,
+        id: `ord-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
+        createdAt: createdDate,
+      };
+    });
 
     setOrders((prev) => [...newOrdersAdded, ...prev]);
     setSelectedDate(getTodayWIB());
@@ -609,12 +658,15 @@ export default function App() {
         tanggalPrint: firstItem.tanggal,
         createdAt: createdDate,
         tujuanDapur: firstItem.tujuanDapur,
+        dapur_id: firstItem.dapur_id || (firstItem as any).dapurId,
         toko: firstItem.toko,
+        toko_id: firstItem.toko_id || (firstItem as any).tokoId,
         items: newOrdersAdded,
         totalBeli,
         totalJual,
         totalProfit: totalJual - totalBeli,
         pemasok: firstItem.pemasok,
+        pemasok_id: firstItem.pemasok_id || (firstItem as any).pemasokId,
         status: firstItem.paymentStatus || 'UNPAID',
       };
       setInvoices((prev) => [newInvoiceRec, ...prev]);
@@ -658,6 +710,66 @@ export default function App() {
               return;
             }
             setOrders((prev) => prev.filter((o) => o.id !== id));
+
+            // SINKRONISASI KE LOG TRANSAKSI:
+            // Cek apakah ada pesanan lain yang tersisa di kelompok/batch transaksi ini
+            const remainingOrdersInBatch = orders.filter(
+              (o) =>
+                o.id !== id &&
+                o.tanggal === targetOrder.tanggal &&
+                o.toko === targetOrder.toko &&
+                o.tujuanDapur === targetOrder.tujuanDapur &&
+                (o.pemasok || '') === (targetOrder.pemasok || '')
+            );
+
+            // Cari invoice terkait
+            const matchingInvoices = invoices.filter((inv) => {
+              if (inv.id === id) return true;
+              if (inv.items && Array.isArray(inv.items) && inv.items.some((it) => it.id === id)) return true;
+              const invDate = inv.tanggalPrint || inv.tanggal || inv.createdAt?.split('T')[0] || '';
+              const invToko = inv.toko || inv.items?.[0]?.toko || '';
+              const invDapur = inv.tujuanDapur || inv.items?.[0]?.tujuanDapur || '';
+              const invPemasok = inv.pemasok || inv.items?.[0]?.pemasok || '';
+
+              return (
+                invDate === targetOrder.tanggal &&
+                invToko === targetOrder.toko &&
+                (!targetOrder.tujuanDapur || invDapur === targetOrder.tujuanDapur) &&
+                (!targetOrder.pemasok || invPemasok === targetOrder.pemasok)
+              );
+            });
+
+            if (remainingOrdersInBatch.length === 0) {
+              // Jika ini order terakhir dalam transaksi, hapus seluruh transaksi terkait dari DB & state
+              if (matchingInvoices.length > 0) {
+                const invoiceIdsToDelete = matchingInvoices.map((inv) => inv.id).filter(Boolean);
+                for (const invId of invoiceIdsToDelete) {
+                  await deleteTransactionFromDb(invId);
+                }
+                const delIdsSet = new Set(invoiceIdsToDelete);
+                setInvoices((prev) => prev.filter((inv) => !delIdsSet.has(inv.id)));
+              }
+            } else {
+              // Jika masih ada item lain, perbarui item array di invoice
+              setInvoices((prev) =>
+                prev.map((inv) => {
+                  if (inv.items && Array.isArray(inv.items) && inv.items.some((it) => it.id === id)) {
+                    const filteredItems = inv.items.filter((it) => it.id !== id);
+                    const newTotalBeli = filteredItems.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.hargaBeli) || 0), 0);
+                    const newTotalJual = filteredItems.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.hargaJual || it.hargaBeli) || 0), 0);
+                    return {
+                      ...inv,
+                      items: filteredItems,
+                      totalBeli: newTotalBeli,
+                      totalJual: newTotalJual,
+                      totalProfit: newTotalJual - newTotalBeli,
+                    };
+                  }
+                  return inv;
+                })
+              );
+            }
+
             showToast(`Pesanan "${targetOrder.namaBarang}" berhasil dihapus`, 'delete');
           } else if (targetInvoice) {
             const resInv = await deleteTransactionFromDb(targetInvoice.id);
@@ -691,7 +803,7 @@ export default function App() {
     setConfirmState({
       isOpen: true,
       title: 'Hapus Seluruh Pesanan Transaksi',
-      message: `Yakin hapus seluruh pesanan (${items.length} item) untuk ${desc}? Data akan dihapus permanen.`,
+      message: `Yakin hapus seluruh pesanan (${items.length} item) untuk ${desc}? Log transaksi terkait juga akan dihapus.`,
       onConfirm: async () => {
         setIsLoadingDb(true);
         setConfirmState((prev) => (prev ? { ...prev, isLoading: true } : null));
@@ -706,7 +818,41 @@ export default function App() {
 
           const itemIds = new Set(ids);
           setOrders((prev) => prev.filter((o) => !itemIds.has(o.id)));
-          showToast(`${items.length} pesanan berhasil dihapus`, 'delete');
+
+          // SINKRONISASI KE LOG TRANSAKSI:
+          // Cari dan hapus seluruh invoice/transaksi yang berelasi dengan batch ini
+          const batchTanggal = first.tanggal;
+          const batchToko = first.toko || '';
+          const batchDapur = first.tujuanDapur || '';
+          const batchPemasok = first.pemasok || '';
+
+          const matchingInvoices = invoices.filter((inv) => {
+            if (itemIds.has(inv.id)) return true;
+            if (inv.items && Array.isArray(inv.items) && inv.items.some((it) => itemIds.has(it.id))) return true;
+
+            const invDate = inv.tanggalPrint || inv.tanggal || inv.createdAt?.split('T')[0] || '';
+            const invToko = inv.toko || inv.items?.[0]?.toko || '';
+            const invDapur = inv.tujuanDapur || inv.items?.[0]?.tujuanDapur || '';
+            const invPemasok = inv.pemasok || inv.items?.[0]?.pemasok || '';
+
+            return (
+              invDate === batchTanggal &&
+              invToko === batchToko &&
+              (!batchDapur || invDapur === batchDapur) &&
+              (!batchPemasok || invPemasok === batchPemasok)
+            );
+          });
+
+          if (matchingInvoices.length > 0) {
+            const invoiceIdsToDelete = matchingInvoices.map((inv) => inv.id).filter(Boolean);
+            for (const invId of invoiceIdsToDelete) {
+              await deleteTransactionFromDb(invId);
+            }
+            const delIdsSet = new Set(invoiceIdsToDelete);
+            setInvoices((prev) => prev.filter((inv) => !delIdsSet.has(inv.id)));
+          }
+
+          showToast(`${items.length} pesanan & transaksi terkait berhasil dihapus`, 'delete');
         } catch (err: any) {
           console.error('Error handleDeleteBatchOrders:', err);
           showToast(`Gagal menghapus pesanan: ${err?.message || err}`, 'error');
@@ -739,6 +885,25 @@ export default function App() {
               showToast(`Gagal: ${res.error}`, 'error');
               return;
             }
+
+            const itemIds = new Set(ids);
+            // Hapus juga transaksi/invoice terkait dari state & database
+            const matchingInvoices = invoices.filter((inv) => {
+              if (itemIds.has(inv.id)) return true;
+              const invDate = inv.tanggalPrint || inv.tanggal;
+              const invToko = inv.toko;
+              const invDapur = inv.tujuanDapur;
+              return (
+                invDate === date &&
+                (invToko === targetName || invDapur === targetName)
+              );
+            });
+
+            for (const inv of matchingInvoices) {
+              if (inv.id) await deleteTransactionFromDb(inv.id);
+            }
+            const delIds = new Set(matchingInvoices.map((inv) => inv.id));
+            setInvoices((prev) => prev.filter((inv) => !delIds.has(inv.id)));
           }
 
           setOrders((prev) =>
@@ -758,17 +923,17 @@ export default function App() {
     });
   };
 
-  const handleOpenEditOrder = (item: OrderItem) => {
+  const handleOpenEditOrder = useCallback((item: OrderItem) => {
     setEditingOrder(item);
     setPrefilledKitchen(item.tujuanDapur);
     setIsOrderModalOpen(true);
-  };
+  }, []);
 
-  const handleOpenAddModal = (kitchenName?: string) => {
+  const handleOpenAddModal = useCallback((kitchenName?: string) => {
     setEditingOrder(null);
     setPrefilledKitchen(kitchenName);
     setIsOrderModalOpen(true);
-  };
+  }, []);
 
   // Highlight Follow Up Handlers: Buka Modal Follow Up untuk mengisi harga jual & beli
   const handleOpenFollowUpNote = (note: NoteItem) => {
@@ -793,6 +958,11 @@ export default function App() {
     const targetNote = notes.find((n) => n.id === data.noteId);
     const targetTanggal = data.tanggal || selectedDate || getTodayWIB();
 
+    const cleanD = data.tujuanDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
+    const fTokoId = masterToko.find((t) => t.nama.toLowerCase() === data.toko.trim().toLowerCase())?.id || '';
+    const fPemasokId = masterPemasok.find((p) => p.nama.toLowerCase() === data.pemasok.trim().toLowerCase())?.id || '';
+    const fDapurId = masterDapur.find((d) => d.nama.toLowerCase() === data.tujuanDapur.trim().toLowerCase() || d.nama.toLowerCase() === cleanD)?.id || '';
+
     const newOrderFromNote: OrderItem = {
       id: `ord-from-note-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       namaBarang: data.namaBarang,
@@ -801,8 +971,14 @@ export default function App() {
       hargaBeli: data.hargaBeli,
       hargaJual: data.hargaJual,
       toko: data.toko,
+      toko_id: fTokoId,
+      tokoId: fTokoId,
       tujuanDapur: data.tujuanDapur,
+      dapur_id: fDapurId,
+      dapurId: fDapurId,
       pemasok: data.pemasok,
+      pemasok_id: fPemasokId,
+      pemasokId: fPemasokId,
       status: 'pending',
       paymentStatus: 'UNPAID',
       deliveryStatus: 'PENDING',
@@ -954,7 +1130,7 @@ export default function App() {
   };
 
   // Mobile Notification Engine: checks every 30s for scheduled daily report reminder
-  React.useEffect(() => {
+  useEffect(() => {
     const checkNotificationSchedule = () => {
       const settings = getNotificationSettings();
       if (!settings.enabled || !settings.dailyReportReminder) return;
@@ -972,12 +1148,24 @@ export default function App() {
         settings.dailyReminderTime === currentTimeStr &&
         settings.lastDailyNotifiedDate !== todayStr
       ) {
-        const todayOrders = orders.filter((o) => o.tanggal === todayStr);
-        const totalOmset = todayOrders.reduce((sum, o) => sum + Number(o.qty || 0) * Number(o.hargaJual || o.hargaBeli || 0), 0);
-        const totalBeli = todayOrders.reduce((sum, o) => sum + Number(o.qty || 0) * Number(o.hargaBeli || 0), 0);
+        const currentOrders = ordersRef.current;
+        let count = 0;
+        let totalOmset = 0;
+        let totalBeli = 0;
+        for (let i = 0; i < currentOrders.length; i++) {
+          const o = currentOrders[i];
+          if (o.tanggal === todayStr) {
+            count++;
+            const qty = Number(o.qty || 0);
+            const hb = Number(o.hargaBeli || 0);
+            const hj = Number(o.hargaJual || hb || 0);
+            totalOmset += qty * hj;
+            totalBeli += qty * hb;
+          }
+        }
         const totalLaba = totalOmset - totalBeli;
 
-        sendDailyReportNotification(todayOrders.length, totalOmset, totalLaba);
+        sendDailyReportNotification(count, totalOmset, totalLaba);
         saveNotificationSettings({
           ...settings,
           lastDailyNotifiedDate: todayStr,
@@ -987,7 +1175,7 @@ export default function App() {
 
     const interval = setInterval(checkNotificationSchedule, 30000);
     return () => clearInterval(interval);
-  }, [orders]);
+  }, []);
 
   // 1-Click Instant Invoice PDF Download (Requirement #3)
   // No recipient form/preview popup: auto fills recipient with Dapur name, '-' for phone/address,
@@ -1631,7 +1819,7 @@ export default function App() {
         pemasokList={pemasokList}
         masterToko={masterToko}
         masterPemasok={masterPemasok}
-        existingItemNames={Array.from(new Set(orders.map((o) => o.namaBarang)))}
+        existingItemNames={existingItemNames}
         autoStartVoice={autoStartVoiceNote}
       />
 

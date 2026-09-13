@@ -59,7 +59,7 @@ interface HeaderBannerProps {
   isVoiceActive?: boolean;
 }
 
-export const HeaderBanner: React.FC<HeaderBannerProps> = ({
+export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
   orders = [],
   selectedDate,
   notes = [],
@@ -82,8 +82,8 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
   onStopVoiceHold,
   isVoiceActive = false,
 }) => {
-  // Default to 'hari_ini' if uncontrolled
-  const [internalPeriod, setInternalPeriod] = useState<DashboardPeriod>('hari_ini');
+  // Default to 'mingguan' if uncontrolled
+  const [internalPeriod, setInternalPeriod] = useState<DashboardPeriod>('mingguan');
   const activePeriod = periodProp ?? internalPeriod;
   const handleSetPeriod = (newP: DashboardPeriod) => {
     if (onPeriodChange) {
@@ -114,31 +114,33 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
     return orders;
   }, [orders, activePeriod, selectedDate, weekRange]);
 
-  // Status helper for accurate pending count synchronized with table grouping
-  const isItemPending = (item: OrderItem) => {
-    const isPaid = item.paymentStatus === 'PAID' || (item.status === 'selesai' && !item.paymentStatus);
-    const isDone = item.deliveryStatus === 'DONE' || (item.status === 'selesai' && !item.deliveryStatus);
-    return !isPaid || !isDone || item.status === 'pending';
-  };
-
-  // Dynamic calculations
-  const totalOrders = filteredOrders.length;
-  const totalPending = filteredOrders.filter(isItemPending).length;
-
-  // Total Laba Bersih: (Harga Jual - Harga Beli) x Qty
-  const totalLaba = useMemo(() => {
-    return filteredOrders.reduce((sum, item) => {
+  // Dynamic memoized calculations for orders, pending count, and net profit
+  const { totalOrders, totalPending, totalLaba } = useMemo(() => {
+    let pendingCount = 0;
+    let laba = 0;
+    for (let i = 0; i < filteredOrders.length; i++) {
+      const item = filteredOrders[i];
+      const isPaid = item.paymentStatus === 'PAID' || (item.status === 'selesai' && !item.paymentStatus);
+      const isDone = item.deliveryStatus === 'DONE' || (item.status === 'selesai' && !item.deliveryStatus);
+      if (!isPaid || !isDone || item.status === 'pending') {
+        pendingCount++;
+      }
       const qty = parseIndonesianNumber(item.qty) || 0;
       const beli = parseIndonesianNumber(item.hargaBeli) || 0;
       const jual = parseIndonesianNumber(item.hargaJual) || 0;
-      return sum + ((jual - beli) * qty);
-    }, 0);
+      laba += ((jual - beli) * qty);
+    }
+    return {
+      totalOrders: filteredOrders.length,
+      totalPending: pendingCount,
+      totalLaba: laba,
+    };
   }, [filteredOrders]);
 
   return (
     <header className="no-print px-3 pt-3 pb-2 max-w-5xl mx-auto w-full font-sans">
       {/* Claymorphism Semi-Glass Main Container */}
-      <div className="bg-white/90 backdrop-blur-xl border border-white/90 p-3 sm:p-4 rounded-3xl shadow-[0_8px_24px_rgba(166,180,200,0.25)] space-y-3">
+      <div className="bg-white/95 border border-white/90 p-3 sm:p-4 rounded-3xl shadow-[0_8px_24px_rgba(166,180,200,0.25)] space-y-3">
         
         {/* Top Header Bar with Brand & Actions */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 border-b border-slate-200/80 pb-2.5">
@@ -460,4 +462,4 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
       </div>
     </header>
   );
-};
+});
