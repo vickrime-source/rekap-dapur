@@ -279,6 +279,27 @@ export async function saveOrderToDb(order: OrderItem): Promise<{ success: boolea
   }
 }
 
+export async function saveOrdersBatchToDb(orders: OrderItem[]): Promise<{ success: boolean; error?: string; count?: number }> {
+  try {
+    if (!orders || orders.length === 0) return { success: true, count: 0 };
+    const payloads = orders.map(buildPesananPayload);
+    const res = await fetch('/api/pesanan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: payloads }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      return { success: false, error: json.error || 'Gagal menyimpan batch pesanan ke Supabase' };
+    }
+    invalidateCache('pesanan');
+    invalidateCache('summary');
+    return { success: true, count: json.count || orders.length };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Error saat menyimpan batch pesanan' };
+  }
+}
+
 export async function updateOrderInDb(id: string, updates: Partial<OrderItem>): Promise<{ success: boolean; error?: string }> {
   try {
     const payload = buildPesananPayload(updates);

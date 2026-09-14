@@ -1362,12 +1362,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {activeTab === 'install' && (
               <div className="space-y-6 text-center py-6 max-w-sm mx-auto">
                 <div className="flex flex-col items-center space-y-3">
-                  <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-xl shadow-indigo-500/25">
-                    <Receipt className="w-10 h-10" />
+                  <div className="w-20 h-20 rounded-3xl bg-white border border-slate-200 p-2 flex items-center justify-center shadow-xl shadow-slate-200/50">
+                    <img src="/icons/htg-192.png" alt="HTG Accounting" className="w-full h-full object-contain" />
                   </div>
                   <div>
                     <h3 className="text-lg font-black text-slate-900">
-                      Rekap Dapur
+                      HTG Accounting
                     </h3>
                     <p className="text-xs text-slate-500 font-medium mt-0.5">
                       Tambahkan ke Layar Utama HP untuk pengalaman seperti aplikasi native.

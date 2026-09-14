@@ -7,7 +7,7 @@ interface SplashScreenProps {
 }
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
-  const [statusText, setStatusText] = useState('Menyiapkan Rekap Dapur...');
+  const [statusText, setStatusText] = useState('Menyiapkan HTG Accounting...');
   const [progress, setProgress] = useState(15);
 
   useEffect(() => {
@@ -57,16 +57,16 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
           <motion.div
             animate={{ scale: [1, 1.25, 1], opacity: [0.4, 0.8, 0.4] }}
             transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
-            className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 blur-md opacity-60"
+            className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-emerald-500 via-indigo-500 to-amber-500 blur-md opacity-60"
           />
 
           <motion.div
             initial={{ scale: 0.5, rotate: -15 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-            className="relative bg-slate-900/90 p-5 rounded-3xl border border-white/20 shadow-2xl backdrop-blur-xl flex items-center justify-center text-indigo-400"
+            className="relative bg-white p-4 rounded-3xl border border-white/40 shadow-2xl backdrop-blur-xl flex items-center justify-center"
           >
-            <Receipt className="w-14 h-14" />
+            <img src="/icons/htg-192.png" alt="HTG" className="w-16 h-16 object-contain" />
           </motion.div>
         </div>
 
@@ -78,7 +78,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
           className="space-y-1"
         >
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-            <span>Rekap Dapur</span>
+            <span>HTG Accounting</span>
           </h1>
           <p className="text-xs text-slate-400 font-medium">
             Sistem Ringkasan Pesanan Supplier &amp; Dapur Harian

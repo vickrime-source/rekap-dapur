@@ -267,7 +267,7 @@
 
   /* Clean max-width and center alignment for Modals */
   .tablet-landscape-modal {
-    max-width: 680px !important;
+    max-width: 860px !important;
     margin-left: auto !important;
     margin-right: auto !important;
     border-radius: 1.5rem !important;

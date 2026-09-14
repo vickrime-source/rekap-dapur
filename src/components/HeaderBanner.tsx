@@ -147,12 +147,12 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
           {/* Brand & Logo */}
           <div className="flex items-center justify-between sm:justify-start gap-2.5 min-w-0">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-md shadow-indigo-600/30 flex-shrink-0">
-                <Receipt className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-2xl bg-white border border-slate-200/80 p-1 flex items-center justify-center shadow-md shadow-slate-200/50 flex-shrink-0">
+                <img src="/icons/htg-192.png" alt="HTG" className="w-full h-full object-contain" />
               </div>
               <div className="min-w-0 flex items-center gap-2">
                 <h1 className="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-none flex items-center gap-1.5 whitespace-nowrap">
-                  <span>Rekap Dapur</span>
+                  <span>HTG Accounting</span>
                 </h1>
               </div>
             </div>

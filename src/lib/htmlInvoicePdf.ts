@@ -285,19 +285,8 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
   `;
 }
 
-async function loadHtml2Canvas(): Promise<any> {
-  try {
-    const mod = await import('html2canvas-pro');
-    return mod.default || (mod as any).html2canvas || mod;
-  } catch (err) {
-    console.warn('html2canvas-pro failed to load, falling back to html2canvas:', err);
-    const mod = await import('html2canvas');
-    return mod.default || mod;
-  }
-}
-
 /**
- * Exports the HTML Invoice to crisp, high-resolution PDF file using html2canvas-pro & jsPDF.
+ * Exports the HTML Invoice to crisp, high-resolution PDF file using html2canvas & jsPDF.
  * Guaranteed never to be blank and completely hidden from screen!
  */
 export async function exportHtmlInvoicePdf(
@@ -343,10 +332,11 @@ export async function exportHtmlInvoicePdf(
 
     onProgress?.('Membuat berkas PDF tajam...');
 
-    const [html2canvas, { jsPDF }] = await Promise.all([
-      loadHtml2Canvas(),
+    const [html2canvasModule, { jsPDF }] = await Promise.all([
+      import('html2canvas'),
       import('jspdf'),
     ]);
+    const html2canvas = (html2canvasModule.default || html2canvasModule) as any;
 
     const canvas = await html2canvas(container, {
       scale: 2,
@@ -415,8 +405,7 @@ export async function exportHtmlInvoicePdf(
 }
 
 /**
- * Exports the HTML Invoice directly to a high-resolution PNG image file using html2canvas-pro.
- * Natively parses modern CSS color formats (oklch, color-mix, etc).
+ * Exports the HTML Invoice directly to a high-resolution PNG image file using html2canvas.
  * Generates an image file (.png) and triggers automatic download.
  */
 export async function exportHtmlInvoicePng(
@@ -429,45 +418,41 @@ export async function exportHtmlInvoicePng(
   const safeStore = options.storeName.replace(/[^a-zA-Z0-9_-]/g, '_');
   const fileName = `Invoice_${safeStore}_${cleanNumber}.png`;
 
-  const html2canvas = await loadHtml2Canvas();
+  const html2canvasModule = await import('html2canvas');
+  const html2canvas = (html2canvasModule.default || html2canvasModule) as any;
 
-  // If a live visible targetElement is provided, try capturing it directly
+  // If a live visible targetElement is provided, capture it directly
   if (options.targetElement) {
-    try {
-      onProgress?.('Mengambil tangkapan layar invoice...');
-      const canvas = await html2canvas(options.targetElement, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-      });
+    onProgress?.('Mengambil tangkapan layar invoice...');
+    const canvas = await html2canvas(options.targetElement, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+    });
 
-      return await new Promise((resolve, reject) => {
-        canvas.toBlob((blob: Blob | null) => {
-          if (!blob) {
-            reject(new Error('Gagal menghasilkan gambar PNG dari invoice'));
-            return;
-          }
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob: Blob | null) => {
+        if (!blob) {
+          reject(new Error('Gagal menghasilkan gambar PNG dari invoice'));
+          return;
+        }
 
-          const pngUrl = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = pngUrl;
-          link.download = fileName;
-          document.body.appendChild(link);
-          link.click();
-          setTimeout(() => {
-            document.body.removeChild(link);
-          }, 500);
+        const pngUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = pngUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+        }, 500);
 
-          onProgress?.('Selesai!');
-          resolve({ pngBlob: blob, pngUrl, fileName });
-        }, 'image/png');
-      });
-    } catch (targetErr) {
-      console.warn('Direct targetElement capture failed, falling back to standalone A4 HTML container:', targetErr);
-      // Fall through to standalone high-res container
-    }
+        onProgress?.('Selesai!');
+        resolve({ pngBlob: blob, pngUrl, fileName });
+      }, 'image/png');
+    });
   }
 
   // Fallback: build standalone high-res container

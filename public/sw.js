@@ -1,10 +1,13 @@
-// Service Worker for Rekap Dapur
-const CACHE_NAME = 'rekap-dapur-v1';
+// Service Worker for HTG Accounting
+const CACHE_NAME = 'htg-accounting-v1';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icon.svg',
+  '/icons/htg-192.png',
+  '/icons/htg-512.png',
+  '/icons/htg-maskable-512.png',
+  '/icons/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (event) => {

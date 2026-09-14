@@ -40,6 +40,7 @@ import { generateInvoiceNumber, parseIndonesianNumber, getTodayWIB, getNowWIBISO
 import { 
   fetchOrdersFromDb,
   saveOrderToDb,
+  saveOrdersBatchToDb,
   updateOrderInDb,
   batchUpdateStatusInDb,
   deleteOrderFromDb,
@@ -638,14 +639,11 @@ export default function App() {
     let successCount = 0;
     let lastError = '';
 
-    for (let idx = 0; idx < newOrdersAdded.length; idx++) {
-      const newOrderItem = newOrdersAdded[idx];
-      const res = await saveOrderToDb(newOrderItem);
-      if (res.success) {
-        successCount++;
-      } else {
-        lastError = res.error || 'Gagal menyimpan pesanan';
-      }
+    const batchRes = await saveOrdersBatchToDb(newOrdersAdded);
+    if (batchRes.success) {
+      successCount = newOrdersAdded.length;
+    } else {
+      lastError = batchRes.error || 'Gagal menyimpan pesanan ke database';
     }
 
     // Save transaction if orders were added

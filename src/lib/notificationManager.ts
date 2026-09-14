@@ -87,9 +87,9 @@ export async function sendRealNotification(
 
   const notificationOptions: NotificationOptions = {
     body: options.body || '',
-    icon: options.icon || '/favicon.ico',
-    badge: options.badge || '/favicon.ico',
-    tag: options.tag || `rekap-dapur-${Date.now()}`,
+    icon: options.icon || '/icons/htg-192.png',
+    badge: options.badge || '/icons/htg-192.png',
+    tag: options.tag || `htg-${Date.now()}`,
     vibrate: options.vibrate || [200, 100, 200],
     requireInteraction: false,
     ...options,
@@ -124,7 +124,7 @@ export async function sendRealNotification(
 
 // Send real immediate test notification
 export async function sendTestNotification(): Promise<boolean> {
-  return await sendRealNotification('🔔 Notifikasi Rekap Dapur Aktif!', {
+  return await sendRealNotification('🔔 Notifikasi HTG Accounting Aktif!', {
     body: 'Sistem pengingat laporan harian dan catatan notes kini siap muncul langsung di HP Anda.',
     tag: 'test-notification',
   });

@@ -10,7 +10,9 @@ import {
   Mic,
   AlertCircle,
   Clock,
-  CheckCircle
+  CheckCircle,
+  Search,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -98,6 +100,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [tanggal, setTanggal] = useState(selectedDate || getTodayWIB());
   const [catatan, setCatatan] = useState('');
 
+  // Autocomplete UI states for Dapur and Pemasok
+  const [isDapurOpen, setIsDapurOpen] = useState(false);
+  const [isPemasokOpen, setIsPemasokOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const dapurInputRef = useRef<HTMLInputElement>(null);
+  const pemasokInputRef = useRef<HTMLInputElement>(null);
+
   // Quick Add Master State
   const [quickAddType, setQuickAddType] = useState<'toko' | 'pemasok' | 'dapur' | null>(null);
   const [quickAddNama, setQuickAddNama] = useState('');
@@ -120,6 +129,25 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const availableStores = masterToko.length > 0 ? masterToko.map((t) => t.nama) : stores.map((s) => s.nama);
   const availableKitchens = masterDapur.length > 0 ? masterDapur.map((d) => d.nama) : kitchens.map((k) => k.nama);
   const availablePemasok = masterPemasok.length > 0 ? masterPemasok.map((p) => p.nama) : pemasokList;
+
+  // Filtered lists for Autocomplete
+  const filteredKitchenSuggestions = useMemo(() => {
+    const q = tujuanDapur.trim().toLowerCase().replace(/^dapur\s+/i, '');
+    const pool = masterDapur.length > 0 ? masterDapur : kitchens.map((k) => ({ id: k.id, nama: k.nama, alamat: k.lokasi || '' }));
+    if (!q) return pool;
+    return pool.filter((d) => {
+      const namaClean = d.nama.toLowerCase().replace(/^dapur\s+/i, '');
+      const alamatClean = (d.alamat || '').toLowerCase();
+      return namaClean.includes(q) || alamatClean.includes(q);
+    });
+  }, [tujuanDapur, masterDapur, kitchens]);
+
+  const filteredPemasokSuggestions = useMemo(() => {
+    const q = pemasok.trim().toLowerCase();
+    const pool = masterPemasok.length > 0 ? masterPemasok : pemasokList.map((p, idx) => ({ id: `p-${idx}`, nama: p }));
+    if (!q) return pool;
+    return pool.filter((p) => p.nama.toLowerCase().includes(q));
+  }, [pemasok, masterPemasok, pemasokList]);
 
   // Memoized existing item names for fast auto-suggest (prevent recalculation on keystrokes)
   const existingNames = useMemo(
@@ -219,6 +247,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     setVoiceNotice(null);
     setVoiceError(null);
     setIsListening(false);
+    setIsDapurOpen(false);
+    setIsPemasokOpen(false);
 
     return () => {
       stopVoiceRecognition();
@@ -532,19 +562,23 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         Number(r.hargaJual) >= 0
     );
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
-    if (!toko.trim()) {
+    const cleanToko = toko.trim();
+    const cleanDapur = tujuanDapur.trim();
+    const cleanPemasok = pemasok.trim();
+
+    if (!cleanToko) {
       alert('Mohon pilih Toko terlebih dahulu.');
       return;
     }
-    if (!tujuanDapur.trim()) {
-      alert('Mohon pilih Dapur terlebih dahulu.');
+    if (!cleanDapur) {
+      alert('Mohon isi atau pilih Dapur terlebih dahulu.');
       return;
     }
-    if (!pemasok.trim()) {
-      alert('Mohon pilih Pemasok terlebih dahulu.');
+    if (!cleanPemasok) {
+      alert('Mohon isi atau pilih Pemasok terlebih dahulu.');
       return;
     }
 
@@ -571,26 +605,59 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       }
     }
 
-    const calculatedStatus =
-      deliveryStatus === 'DONE' && paymentStatus === 'PAID' ? 'selesai' : 'pending';
+    setIsSubmitting(true);
 
-    const cleanDapurName = tujuanDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
+    // Auto-create Master Dapur if not found in database (case-insensitive & trimmed)
+    let finalDapurId = tujuanDapurId;
+    let finalDapurName = cleanDapur;
+    const cleanDapurCheck = cleanDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
+    const matchedDapur = masterDapur.find(
+      (d) => d.nama.trim().toLowerCase() === cleanDapur.toLowerCase() ||
+             d.nama.trim().toLowerCase() === cleanDapurCheck ||
+             d.nama.trim().toLowerCase().replace(/^dapur\s+/i, '') === cleanDapurCheck
+    );
+
+    if (matchedDapur) {
+      finalDapurId = matchedDapur.id;
+      finalDapurName = matchedDapur.nama;
+    } else {
+      // Dapur baru: otomatis simpan ke Master Supabase
+      const newDapurName = cleanDapur.replace(/^dapur\s+/i, '').trim();
+      const saveRes = await saveMasterDapurToDb(newDapurName);
+      if (saveRes.success && saveRes.data?.id) {
+        finalDapurId = saveRes.data.id;
+        finalDapurName = saveRes.data.nama || newDapurName;
+      }
+      if (onRefreshMaster) await onRefreshMaster();
+    }
+
+    // Auto-create Master Pemasok if not found in database (case-insensitive & trimmed)
+    let finalPemasokId = pemasokId;
+    let finalPemasokName = cleanPemasok;
+    const matchedPemasok = masterPemasok.find(
+      (p) => p.nama.trim().toLowerCase() === cleanPemasok.toLowerCase()
+    );
+
+    if (matchedPemasok) {
+      finalPemasokId = matchedPemasok.id;
+      finalPemasokName = matchedPemasok.nama;
+    } else {
+      // Pemasok baru: otomatis simpan ke Master Supabase
+      const saveRes = await saveMasterPemasokToDb(cleanPemasok);
+      if (saveRes.success && saveRes.data?.id) {
+        finalPemasokId = saveRes.data.id;
+        finalPemasokName = saveRes.data.nama || cleanPemasok;
+      }
+      if (onRefreshMaster) await onRefreshMaster();
+    }
+
     const finalTokoId =
       tokoId ||
-      masterToko.find((t) => t.nama.toLowerCase() === toko.trim().toLowerCase())?.id ||
+      masterToko.find((t) => t.nama.trim().toLowerCase() === cleanToko.toLowerCase())?.id ||
       '';
-    const finalPemasokId =
-      pemasokId ||
-      masterPemasok.find((p) => p.nama.toLowerCase() === pemasok.trim().toLowerCase())?.id ||
-      '';
-    const finalDapurId =
-      tujuanDapurId ||
-      masterDapur.find(
-        (d) =>
-          d.nama.toLowerCase() === tujuanDapur.trim().toLowerCase() ||
-          d.nama.toLowerCase() === cleanDapurName
-      )?.id ||
-      '';
+
+    const calculatedStatus =
+      deliveryStatus === 'DONE' && paymentStatus === 'PAID' ? 'selesai' : 'pending';
 
     if (initialData) {
       const firstRow = itemRows[0];
@@ -602,13 +669,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           hargaBeli: Math.max(0, Number(firstRow.hargaBeli) || 0),
           hargaJual: Math.max(0, Number(firstRow.hargaJual) || 0),
           cashback: Number(firstRow.cashback) > 0 ? Number(firstRow.cashback) : 0,
-          toko,
+          toko: cleanToko,
           toko_id: finalTokoId,
           tokoId: finalTokoId,
-          tujuanDapur,
+          tujuanDapur: finalDapurName,
           dapur_id: finalDapurId,
           dapurId: finalDapurId,
-          pemasok,
+          pemasok: finalPemasokName,
           pemasok_id: finalPemasokId,
           pemasokId: finalPemasokId,
           status: calculatedStatus,
@@ -627,13 +694,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         hargaBeli: Math.max(0, Number(row.hargaBeli) || 0),
         hargaJual: Math.max(0, Number(row.hargaJual) || 0),
         cashback: Number(row.cashback) > 0 ? Number(row.cashback) : 0,
-        toko,
+        toko: cleanToko,
         toko_id: finalTokoId,
         tokoId: finalTokoId,
-        tujuanDapur,
+        tujuanDapur: finalDapurName,
         dapur_id: finalDapurId,
         dapurId: finalDapurId,
-        pemasok,
+        pemasok: finalPemasokName,
         pemasok_id: finalPemasokId,
         pemasokId: finalPemasokId,
         status: calculatedStatus,
@@ -645,6 +712,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       onSave(payload);
     }
 
+    setIsSubmitting(false);
     onClose();
   };
 
@@ -1047,110 +1115,178 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     </select>
                   </div>
 
-                  {/* Pemasok */}
-                  <div>
+                  {/* Pemasok Autocomplete */}
+                  <div className="relative">
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                       Pemasok
                     </label>
-                    <select
-                      required
-                      id="select-order-pemasok"
-                      value={pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === pemasok.toLowerCase())?.id || pemasok}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '__ADD_NEW__') {
-                          setQuickAddType('pemasok');
-                          setQuickAddNama('');
-                          setQuickAddAlamat('');
-                          setQuickAddError(null);
-                        } else {
-                          const matched = masterPemasok.find((p) => p.id === val);
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        id="input-order-pemasok"
+                        ref={pemasokInputRef}
+                        value={pemasok}
+                        placeholder="Cari / ketik nama pemasok..."
+                        autoComplete="off"
+                        onFocus={() => setIsPemasokOpen(true)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPemasok(val);
+                          setIsPemasokOpen(true);
+                          const matched = masterPemasok.find((p) => p.nama.trim().toLowerCase() === val.trim().toLowerCase());
                           if (matched) {
-                            setPemasok(matched.nama);
                             setPemasokId(matched.id);
                           } else {
-                            setPemasok(val);
                             setPemasokId('');
                           }
-                        }
-                      }}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
-                    >
-                      <option value="">-- Pilih Pemasok --</option>
-                      <option value="__ADD_NEW__" className="text-indigo-600 font-bold bg-indigo-50">
-                        + Tambah Pemasok Baru...
-                      </option>
-                      {masterPemasok.length > 0 ? (
-                        masterPemasok.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.nama}
-                          </option>
-                        ))
-                      ) : (
-                        availablePemasok.map((p) => (
-                          <option key={p} value={p}>
-                            {p}
-                          </option>
-                        ))
-                      )}
-                    </select>
+                        }}
+                        className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all placeholder:text-slate-400 placeholder:font-normal"
+                      />
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <button
+                        type="button"
+                        onClick={() => setIsPemasokOpen(!isPemasokOpen)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        title="Buka daftar pemasok"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {isPemasokOpen && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-30" 
+                          onClick={() => setIsPemasokOpen(false)} 
+                        />
+                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-40 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                          {filteredPemasokSuggestions.length > 0 ? (
+                            filteredPemasokSuggestions.map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => {
+                                  setPemasok(p.nama);
+                                  setPemasokId(p.id);
+                                  setIsPemasokOpen(false);
+                                }}
+                                className="w-full text-left px-3.5 py-2.5 hover:bg-indigo-50 transition-colors flex items-center justify-between group cursor-pointer"
+                              >
+                                <span className="text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-indigo-900">
+                                  {p.nama}
+                                </span>
+                                {pemasok.trim().toLowerCase() === p.nama.trim().toLowerCase() && (
+                                  <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Terpilih</span>
+                                )}
+                              </button>
+                            ))
+                          ) : (
+                            <div className="p-3 text-center">
+                              <p className="text-xs text-slate-500 mb-1">
+                                Belum ada pemasok "<span className="font-semibold text-slate-700">{pemasok}</span>"
+                              </p>
+                              <span className="inline-block text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                                + Otomatis disimpan ke Master saat pesanan dibuat
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
 
-                  {/* Dapur (Full Width pada Desktop) */}
-                  <div className="sm:col-span-2">
+                  {/* Dapur Autocomplete (Full Width pada Desktop) */}
+                  <div className="sm:col-span-2 relative">
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                       Dapur
                     </label>
-                    <select
-                      required
-                      id="select-order-dapur"
-                      value={
-                        tujuanDapurId ||
-                        masterDapur.find(
-                          (d) =>
-                            d.nama.toLowerCase() === tujuanDapur.toLowerCase() ||
-                            d.nama.toLowerCase() === tujuanDapur.replace(/^dapur\s+/i, '').trim().toLowerCase()
-                        )?.id ||
-                        tujuanDapur
-                      }
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '__ADD_NEW__') {
-                          setQuickAddType('dapur');
-                          setQuickAddNama('');
-                          setQuickAddAlamat('');
-                          setQuickAddError(null);
-                        } else {
-                          const matched = masterDapur.find((d) => d.id === val);
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        id="input-order-dapur"
+                        ref={dapurInputRef}
+                        value={tujuanDapur}
+                        placeholder="Cari / ketik nama dapur (contoh: Rejoagung 1)..."
+                        autoComplete="off"
+                        onFocus={() => setIsDapurOpen(true)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setTujuanDapur(val);
+                          setIsDapurOpen(true);
+                          const cleanVal = val.trim().toLowerCase().replace(/^dapur\s+/i, '');
+                          const matched = masterDapur.find(
+                            (d) => d.nama.trim().toLowerCase() === val.trim().toLowerCase() ||
+                                   d.nama.trim().toLowerCase().replace(/^dapur\s+/i, '') === cleanVal
+                          );
                           if (matched) {
-                            setTujuanDapur(matched.nama);
                             setTujuanDapurId(matched.id);
                           } else {
-                            setTujuanDapur(val);
                             setTujuanDapurId('');
                           }
-                        }
-                      }}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
-                    >
-                      <option value="">-- Pilih Dapur --</option>
-                      <option value="__ADD_NEW__" className="text-indigo-600 font-bold bg-indigo-50">
-                        + Tambah Dapur Baru...
-                      </option>
-                      {masterDapur.length > 0 ? (
-                        masterDapur.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            Dapur {d.nama} {d.alamat ? `(${d.alamat})` : ''}
-                          </option>
-                        ))
-                      ) : (
-                        availableKitchens.map((k) => (
-                          <option key={k} value={k}>
-                            Dapur {k}
-                          </option>
-                        ))
-                      )}
-                    </select>
+                        }}
+                        className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all placeholder:text-slate-400 placeholder:font-normal"
+                      />
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <button
+                        type="button"
+                        onClick={() => setIsDapurOpen(!isDapurOpen)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        title="Buka daftar dapur"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {isDapurOpen && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-30" 
+                          onClick={() => setIsDapurOpen(false)} 
+                        />
+                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-40 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                          {filteredKitchenSuggestions.length > 0 ? (
+                            filteredKitchenSuggestions.map((d) => (
+                              <button
+                                key={d.id}
+                                type="button"
+                                onClick={() => {
+                                  setTujuanDapur(d.nama);
+                                  setTujuanDapurId(d.id);
+                                  setIsDapurOpen(false);
+                                }}
+                                className="w-full text-left px-3.5 py-2.5 hover:bg-indigo-50 transition-colors flex items-center justify-between group cursor-pointer"
+                              >
+                                <div>
+                                  <span className="text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-indigo-900">
+                                    Dapur {d.nama.replace(/^dapur\s+/i, '')}
+                                  </span>
+                                  {d.alamat && (
+                                    <span className="text-[11px] text-slate-400 block mt-0.5">
+                                      {d.alamat}
+                                    </span>
+                                  )}
+                                </div>
+                                {(tujuanDapur.trim().toLowerCase() === d.nama.trim().toLowerCase() ||
+                                  tujuanDapur.trim().toLowerCase().replace(/^dapur\s+/i, '') === d.nama.trim().toLowerCase().replace(/^dapur\s+/i, '')) && (
+                                  <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Terpilih</span>
+                                )}
+                              </button>
+                            ))
+                          ) : (
+                            <div className="p-3 text-center">
+                              <p className="text-xs text-slate-500 mb-1">
+                                Belum ada dapur "<span className="font-semibold text-slate-700">{tujuanDapur}</span>"
+                              </p>
+                              <span className="inline-block text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                                + Otomatis disimpan ke Master saat pesanan dibuat
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1256,11 +1392,17 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               <button
                 type="button"
                 id="btn-simpan-pesanan"
-                disabled={!isFormValid}
+                disabled={!isFormValid || isSubmitting}
                 onClick={() => handleSubmit()}
                 className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-900 hover:bg-indigo-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black shadow-md shadow-indigo-900/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <span>{initialData ? 'Simpan Perubahan' : 'Simpan Pesanan'}</span>
+                <span>
+                  {isSubmitting
+                    ? 'Menyimpan...'
+                    : initialData
+                    ? 'Simpan Perubahan'
+                    : 'Simpan Pesanan'}
+                </span>
               </button>
             </div>
           </motion.div>

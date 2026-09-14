@@ -80,7 +80,12 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('all');
   const [selectedKitchenFilter, setSelectedKitchenFilter] = useState<string>('all');
-  const [timeFilter, setTimeFilter] = useState<TimeFilterOption>('all_time');
+  const [timeFilter, setTimeFilter] = useState<TimeFilterOption>(() => {
+    if (period === 'mingguan' || period === 'hari_ini' || period === 'bulan_ini' || period === 'all_time') {
+      return period;
+    }
+    return 'mingguan';
+  });
 
   const weekRange = useMemo(() => getWeekRange(selectedDate), [selectedDate]);
 
@@ -214,7 +219,13 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
             </div>
             <select
               value={timeFilter}
-              onChange={(e) => setTimeFilter(e.target.value as TimeFilterOption)}
+              onChange={(e) => {
+                const val = e.target.value as TimeFilterOption;
+                setTimeFilter(val);
+                if (onPeriodChange && (val === 'mingguan' || val === 'hari_ini' || val === 'bulan_ini' || val === 'all_time')) {
+                  onPeriodChange(val);
+                }
+              }}
               className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs"
               aria-label="Filter Waktu Pesanan"
             >

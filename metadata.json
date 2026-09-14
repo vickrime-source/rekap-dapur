@@ -1,6 +1,6 @@
 {
-  "name": "Rekap Dapur",
-  "description": "Aplikasi Manajemen Pesanan Supplier & Rekap Dapur Harian",
+  "name": "HTG Accounting",
+  "description": "Aplikasi HTG Accounting - Manajemen Pesanan Supplier & Rekap Dapur",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
