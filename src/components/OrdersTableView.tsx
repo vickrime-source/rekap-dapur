@@ -110,7 +110,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
             </span>
             {(group.createdAt || group.items[0]?.createdAt) && formatJam(group.createdAt || group.items[0]?.createdAt) ? (
               <span className="text-[8px] font-mono text-slate-500 font-medium tracking-tight">
-                {formatJam(group.createdAt || group.items[0]?.createdAt)} WIB
+                {formatJam(group.createdAt || group.items[0]?.createdAt)}
               </span>
             ) : null}
           </div>

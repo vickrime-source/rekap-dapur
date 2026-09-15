@@ -305,7 +305,7 @@ export async function createOrdersInDb(ordersData: any[] | any) {
       ...(item.id ? { id: String(item.id) } : {}),
       dapur: item.dapur || item.tujuanDapur || '',
       item: item.item || item.namaBarang || '',
-      tanggal: item.tanggal ? String(item.tanggal).split('T')[0] : new Date().toISOString().split('T')[0],
+      tanggal: item.tanggal || new Date().toISOString().split('T')[0],
       qty: Number(item.qty) || 1,
       satuan: item.satuan || 'Kg',
       toko: item.toko || '',
@@ -545,7 +545,7 @@ export async function createTransactionInDb(tx: any) {
   const record: any = {
     ...(tx.id ? { id: String(tx.id) } : {}),
     invoice_number: tx.invoice_number || tx.invoiceNumber || `INV-${Date.now()}`,
-    tanggal: tx.tanggal ? String(tx.tanggal).split('T')[0] : (Array.isArray(tx.items) && tx.items[0]?.tanggal ? String(tx.items[0].tanggal).split('T')[0] : new Date().toISOString().split('T')[0]),
+    tanggal: tx.tanggal || new Date().toISOString().split('T')[0],
     tanggal_print: tx.tanggal_print || tx.tanggalPrint || new Date().toLocaleDateString('id-ID'),
     pemasok: tx.pemasok || '',
     barang: tx.barang || (Array.isArray(tx.items) ? tx.items.map((i: any) => `${i.namaBarang || i.item} (${i.qty})`).join(', ') : ''),

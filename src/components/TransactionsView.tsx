@@ -263,8 +263,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     const todayStr = getTodayWIB();
     return orders.filter((item) => {
       if (customRange) {
-        const itemDate = item.tanggal ? String(item.tanggal).split('T')[0] : '';
-        return Boolean(itemDate && itemDate >= customRange.startDate && itemDate <= customRange.endDate);
+        const itemDate = item.tanggal || (item.createdAt ? item.createdAt.split('T')[0] : '');
+        return itemDate >= customRange.startDate && itemDate <= customRange.endDate;
       }
       if (activePeriod === 'hari_ini') {
         return isOrderToday(item, todayStr);
@@ -377,7 +377,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     const groups: Record<string, OrderItem[]> = {};
 
     orders.forEach((o) => {
-      const tanggal = o.tanggal ? String(o.tanggal).split('T')[0] : '';
+      const tanggal = o.tanggal || o.createdAt?.split('T')[0] || '';
       const dapur = o.tujuanDapur || 'Siliragung';
       const toko = o.toko || '';
       const pemasok = o.pemasok || '-';
@@ -439,7 +439,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     // Invoices integration (if any stand-alone invoices exist)
     if (invoices && invoices.length > 0) {
       invoices.forEach((inv) => {
-        const invDate = inv.tanggal || (inv.tanggalPrint && /^\d{4}-\d{2}-\d{2}$/.test(inv.tanggalPrint) ? inv.tanggalPrint : (inv.items?.[0]?.tanggal || ''));
+        const invDate = inv.tanggalPrint || inv.tanggal || inv.createdAt?.split('T')[0] || '';
         const invDapur = inv.tujuanDapur || inv.items?.[0]?.tujuanDapur || 'Siliragung';
         const invToko = inv.toko || inv.items?.[0]?.toko || '';
         const invPemasok = inv.pemasok || inv.PEMASOK || inv.items?.[0]?.pemasok || '-';
@@ -509,24 +509,24 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     return transactionBatches.filter((batch) => {
       // 1. Period filter (Hari Ini, Mingguan, Bulanan, All Time, atau Rentang Kustom)
       if (customRange) {
-        const batchDate = batch.tanggal ? String(batch.tanggal).split('T')[0] : '';
-        const isMatch = Boolean(batchDate && batchDate >= customRange.startDate && batchDate <= customRange.endDate) ||
-          Boolean(batch.items && batch.items.some(i => {
-            const d = i.tanggal ? String(i.tanggal).split('T')[0] : '';
-            return Boolean(d && d >= customRange.startDate && d <= customRange.endDate);
+        const batchDate = batch.tanggal || (batch.createdAt ? batch.createdAt.split('T')[0] : '');
+        const isMatch = (batchDate >= customRange.startDate && batchDate <= customRange.endDate) ||
+          (batch.items && batch.items.some(i => {
+            const d = i.tanggal || (i.createdAt ? i.createdAt.split('T')[0] : '');
+            return d >= customRange.startDate && d <= customRange.endDate;
           }));
         if (!isMatch) return false;
       } else if (activePeriod === 'hari_ini') {
         const isMatch = (batch.items && batch.items.length > 0 && batch.items.some(i => isOrderToday(i, todayStr))) ||
-          isOrderToday({ tanggal: batch.tanggal }, todayStr);
+          isOrderToday({ tanggal: batch.tanggal, createdAt: batch.createdAt }, todayStr);
         if (!isMatch) return false;
       } else if (activePeriod === 'mingguan') {
         const isMatch = (batch.items && batch.items.length > 0 && batch.items.some(i => isOrderThisWeek(i, weekRange))) ||
-          isOrderThisWeek({ tanggal: batch.tanggal }, weekRange);
+          isOrderThisWeek({ tanggal: batch.tanggal, createdAt: batch.createdAt }, weekRange);
         if (!isMatch) return false;
       } else if (activePeriod === 'bulan_ini') {
         const isMatch = (batch.items && batch.items.length > 0 && batch.items.some(i => isOrderThisMonth(i, selectedMonth))) ||
-          isOrderThisMonth({ tanggal: batch.tanggal }, selectedMonth);
+          isOrderThisMonth({ tanggal: batch.tanggal, createdAt: batch.createdAt }, selectedMonth);
         if (!isMatch) return false;
       }
 
@@ -908,16 +908,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                   {/* Baris Atas: Tanggal, Dapur, Pemasok, Toko, Action Buttons */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80">
-                          {formatTanggalDisatuin(batch.tanggal)}
-                        </span>
-                        {batch.createdAt && formatJam(batch.createdAt) ? (
-                          <span className="font-mono text-slate-500 text-[7.5px]">
-                            {formatJam(batch.createdAt)} WIB
-                          </span>
-                        ) : null}
-                      </div>
+                      <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80">
+                        {formatTanggalDisatuin(batch.tanggal)}
+                      </span>
                       <span className="bg-indigo-50 text-indigo-900 font-black px-1.5 py-0.5 rounded text-[9.5px] border border-indigo-200">
                         Dapur {batch.tujuanDapur}
                       </span>
@@ -1165,16 +1158,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
                             {/* 2. TANGGAL */}
                             <td className="py-2.5 px-2 whitespace-nowrap align-middle">
-                              <div className="flex flex-col gap-0.5">
-                                <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80 inline-block w-fit">
-                                  {formatTanggalDisatuin(batch.tanggal)}
-                                </span>
-                                {batch.createdAt && formatJam(batch.createdAt) ? (
-                                  <span className="font-mono text-slate-500 text-[8px]">
-                                    {formatJam(batch.createdAt)} WIB
-                                  </span>
-                                ) : null}
-                              </div>
+                              <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80">
+                                {formatTanggalDisatuin(batch.tanggal)}
+                              </span>
                             </td>
 
                             {/* 3. PEMASOK */}

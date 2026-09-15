@@ -639,7 +639,6 @@ export default function App() {
 
       return {
         ...item,
-        tanggal: item.tanggal ? String(item.tanggal).split('T')[0] : getTodayWIB(),
         toko_id: fTokoId,
         tokoId: fTokoId,
         pemasok_id: fPemasokId,
@@ -652,9 +651,7 @@ export default function App() {
     });
 
     setOrders((prev) => [...newOrdersAdded, ...prev]);
-    if (newOrdersAdded[0]?.tanggal) {
-      setSelectedDate(newOrdersAdded[0].tanggal);
-    }
+    setSelectedDate(getTodayWIB());
 
     setIsLoadingDb(true);
     let successCount = 0;
@@ -675,7 +672,6 @@ export default function App() {
       const newInvoiceRec: InvoiceRecord = {
         id: `tx-${Date.now()}`,
         invoiceNumber: `TRX-${Date.now().toString().slice(-6)}`,
-        tanggal: firstItem.tanggal,
         tanggalPrint: firstItem.tanggal,
         createdAt: createdDate,
         tujuanDapur: firstItem.tujuanDapur,
@@ -747,7 +743,7 @@ export default function App() {
             const matchingInvoices = invoices.filter((inv) => {
               if (inv.id === id) return true;
               if (inv.items && Array.isArray(inv.items) && inv.items.some((it) => it.id === id)) return true;
-              const invDate = inv.tanggal || (inv.tanggalPrint && /^\d{4}-\d{2}-\d{2}$/.test(inv.tanggalPrint) ? inv.tanggalPrint : (inv.items?.[0]?.tanggal || ''));
+              const invDate = inv.tanggalPrint || inv.tanggal || inv.createdAt?.split('T')[0] || '';
               const invToko = inv.toko || inv.items?.[0]?.toko || '';
               const invDapur = inv.tujuanDapur || inv.items?.[0]?.tujuanDapur || '';
               const invPemasok = inv.pemasok || inv.items?.[0]?.pemasok || '';
@@ -851,7 +847,7 @@ export default function App() {
             if (itemIds.has(inv.id)) return true;
             if (inv.items && Array.isArray(inv.items) && inv.items.some((it) => itemIds.has(it.id))) return true;
 
-            const invDate = inv.tanggal || (inv.tanggalPrint && /^\d{4}-\d{2}-\d{2}$/.test(inv.tanggalPrint) ? inv.tanggalPrint : (inv.items?.[0]?.tanggal || ''));
+            const invDate = inv.tanggalPrint || inv.tanggal || inv.createdAt?.split('T')[0] || '';
             const invToko = inv.toko || inv.items?.[0]?.toko || '';
             const invDapur = inv.tujuanDapur || inv.items?.[0]?.tujuanDapur || '';
             const invPemasok = inv.pemasok || inv.items?.[0]?.pemasok || '';
@@ -911,7 +907,7 @@ export default function App() {
             // Hapus juga transaksi/invoice terkait dari state & database
             const matchingInvoices = invoices.filter((inv) => {
               if (itemIds.has(inv.id)) return true;
-              const invDate = inv.tanggal || (inv.tanggalPrint && /^\d{4}-\d{2}-\d{2}$/.test(inv.tanggalPrint) ? inv.tanggalPrint : (inv.items?.[0]?.tanggal || ''));
+              const invDate = inv.tanggalPrint || inv.tanggal;
               const invToko = inv.toko;
               const invDapur = inv.tujuanDapur;
               return (
@@ -1542,7 +1538,7 @@ export default function App() {
           setInvoices((prev) =>
             prev.filter((inv) => {
               if (inv.id === batch.id) return false;
-              const invDate = inv.tanggal || (inv.tanggalPrint && /^\d{4}-\d{2}-\d{2}$/.test(inv.tanggalPrint) ? inv.tanggalPrint : (inv.items?.[0]?.tanggal || ''));
+              const invDate = inv.tanggalPrint || inv.tanggal;
               if (
                 invDate === batch.tanggal &&
                 (inv.toko || '') === (batch.toko || '') &&

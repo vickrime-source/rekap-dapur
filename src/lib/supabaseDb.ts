@@ -83,7 +83,6 @@ export function mapRawOrder(row: any): OrderItem {
 export function buildPesananPayload(item: Partial<OrderItem>) {
   const payStatus = (item.paymentStatus || (item.status === 'selesai' ? 'PAID' : 'UNPAID')).toUpperCase();
   const delStatus = (item.deliveryStatus || (item.status === 'selesai' ? 'DONE' : 'PENDING')).toUpperCase();
-  const nowIso = new Date().toISOString();
 
   return {
     ...(item.id ? { id: item.id } : {}),
@@ -92,7 +91,7 @@ export function buildPesananPayload(item: Partial<OrderItem>) {
     dapur_id: item.dapur_id || item.dapurId || null,
     dapur: item.tujuanDapur || '',
     item: item.namaBarang || '',
-    tanggal: item.tanggal ? String(item.tanggal).split('T')[0] : nowIso.split('T')[0],
+    tanggal: item.tanggal || new Date().toISOString().split('T')[0],
     qty: Number(item.qty) || 1,
     satuan: item.satuan || 'Kg',
     toko: item.toko || '',
@@ -104,8 +103,6 @@ export function buildPesananPayload(item: Partial<OrderItem>) {
     harga_beli: Number(item.hargaBeli) || 0,
     cashback: Number(item.cashback) || 0,
     catatan: item.catatan || '',
-    created_at: item.createdAt || item.created_at || nowIso,
-    updated_at: nowIso,
   };
 }
 
@@ -114,17 +111,12 @@ export function mapRawInvoice(row: any): InvoiceRecord {
   const tokoNama = (typeof row.toko === 'object' && row.toko !== null) ? (row.toko.nama || '') : (row.toko || '');
   const pemasokNama = (typeof row.pemasok === 'object' && row.pemasok !== null) ? (row.pemasok.nama || '') : (row.pemasok || '');
   const dapurNama = (typeof row.dapur === 'object' && row.dapur !== null) ? (row.dapur.nama || '') : (row.dapur || row.tujuanDapur || '');
-  const businessTanggal = row.tanggal
-    ? String(row.tanggal).split('T')[0]
-    : (items[0]?.tanggal || (row.created_at ? String(row.created_at).split('T')[0] : new Date().toISOString().split('T')[0]));
 
   return {
     id: String(row.id || `inv-${Date.now()}`),
     invoiceNumber: row.invoice_number || row.invoiceNumber || '',
-    tanggal: businessTanggal,
     tanggalPrint: row.tanggal_print || row.tanggalPrint || new Date().toLocaleDateString('id-ID'),
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
-    created_at: row.created_at || row.createdAt || new Date().toISOString(),
     tujuanDapur: dapurNama,
     dapur_id: row.dapur_id || row.dapurId || (typeof row.dapur === 'object' ? row.dapur?.id : undefined),
     dapurId: row.dapur_id || row.dapurId || (typeof row.dapur === 'object' ? row.dapur?.id : undefined),
@@ -145,15 +137,10 @@ export function mapRawInvoice(row: any): InvoiceRecord {
 
 export function buildTransaksiPayload(record: Partial<InvoiceRecord>) {
   const itemsCatatan = (record.items || []).map((i) => i.catatan).filter(Boolean).join('; ');
-  const nowIso = new Date().toISOString();
-  const txTanggal = record.tanggal
-    ? String(record.tanggal).split('T')[0]
-    : (record.items?.[0]?.tanggal ? String(record.items[0].tanggal).split('T')[0] : nowIso.split('T')[0]);
-
   return {
     ...(record.id ? { id: record.id } : {}),
     invoice_number: record.invoiceNumber || `INV-${Date.now()}`,
-    tanggal: txTanggal,
+    tanggal: record.createdAt ? record.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
     tanggal_print: record.tanggalPrint || new Date().toLocaleDateString('id-ID'),
     pemasok_id: record.pemasok_id || record.pemasokId || null,
     pemasok: record.pemasok || '',
@@ -169,8 +156,6 @@ export function buildTransaksiPayload(record: Partial<InvoiceRecord>) {
     status_pembayaran: record.status || 'PAID',
     catatan: record.catatan || itemsCatatan || '',
     items: record.items || [],
-    created_at: record.createdAt || record.created_at || nowIso,
-    updated_at: nowIso,
   };
 }
 

@@ -242,32 +242,20 @@ export function formatJam(timeVal: any): string {
   if (!timeVal) return '';
   const str = String(timeVal).trim();
   
-  // If already in simple HH:mm or HH:mm:ss format WITHOUT ISO/T/Z date part
-  const timeMatch = str.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if (timeMatch) {
+  // If already in HH:mm or HH:mm:ss format
+  const timeMatch = str.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (timeMatch && !str.includes('T') && !str.includes('-')) {
     const hh = timeMatch[1].padStart(2, '0');
     const mm = timeMatch[2];
     return `${hh}:${mm}`;
   }
 
-  // If ISO string or valid timestamp (e.g. from created_at), convert accurately to WIB (Asia/Jakarta: UTC+7)
+  // If ISO string or valid date string
   const date = new Date(str);
   if (!isNaN(date.getTime())) {
-    try {
-      const formatter = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Asia/Jakarta',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
-      return formatter.format(date);
-    } catch {
-      const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
-      const wib = new Date(utc + (7 * 3600000));
-      const hh = String(wib.getHours()).padStart(2, '0');
-      const mm = String(wib.getMinutes()).padStart(2, '0');
-      return `${hh}:${mm}`;
-    }
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
   }
 
   return str.length > 8 ? str.slice(0, 5) : str;
@@ -527,19 +515,8 @@ export function isOrderThisMonth(o: any, targetDateStr?: string): boolean {
     );
   };
 
-  // Prioritas mutlak: gunakan kolom tanggal bisnis (tanggal / DATE)
-  const txDate = o.tanggal || o.DATE;
-  if (txDate) {
-    return checkMonth(parseDateSafe(txDate));
-  }
-
-  // Fallback HANYA jika tanggal bisnis tidak ada sama sekali
-  if (o.tanggalPrint && /^\d{4}-\d{2}-\d{2}$/.test(String(o.tanggalPrint).trim())) {
-    return checkMonth(parseDateSafe(o.tanggalPrint));
-  }
-  if (o.createdAt) {
-    return checkMonth(parseDateSafe(o.createdAt));
-  }
+  if (o.tanggal && checkMonth(parseDateSafe(o.tanggal))) return true;
+  if (o.createdAt && checkMonth(parseDateSafe(o.createdAt))) return true;
 
   return false;
 }
@@ -550,26 +527,15 @@ export function formatTanggal(dateStr: string, includeDayName = true): string {
 }
 
 export function formatTanggalRealtime(customDate?: string | Date): string {
-  if (!customDate) return '';
-  const dateObj = typeof customDate === 'string' ? new Date(customDate) : customDate;
-  if (isNaN(dateObj.getTime())) return String(customDate);
-
-  try {
-    return dateObj.toLocaleDateString('id-ID', {
-      timeZone: 'Asia/Jakarta',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }) + ' WIB';
-  } catch {
-    return dateObj.toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  }
+  const dateObj = customDate ? (typeof customDate === 'string' ? new Date(customDate) : customDate) : new Date();
+  const validDate = isNaN(dateObj.getTime()) ? new Date() : dateObj;
+  return validDate.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 }
 
 export function generateInvoiceNumber(suffix?: string): string {
@@ -680,19 +646,10 @@ export function isOrderThisWeek(o: any, weekRange?: WeekRange): boolean {
   if (!o) return false;
   const targetWeek = weekRange || getWeekRange();
 
-  // 1. Prioritas mutlak: tanggal bisnis (tanggal / DATE)
-  const txDate = o.tanggal || o.DATE;
-  if (txDate) {
-    return isDateInWeek(txDate, targetWeek);
-  }
-
-  // 2. Fallback HANYA jika tanggal bisnis tidak ada sama sekali
-  if (o.tanggalPrint && /^\d{4}-\d{2}-\d{2}$/.test(String(o.tanggalPrint).trim())) {
-    return isDateInWeek(o.tanggalPrint, targetWeek);
-  }
-  if (o.createdAt) {
-    return isDateInWeek(o.createdAt, targetWeek);
-  }
+  if (o.tanggal && isDateInWeek(o.tanggal, targetWeek)) return true;
+  if (o.DATE && isDateInWeek(o.DATE, targetWeek)) return true;
+  if (o.createdAt && isDateInWeek(o.createdAt, targetWeek)) return true;
+  if (o.tanggalPrint && isDateInWeek(o.tanggalPrint, targetWeek)) return true;
 
   return false;
 }
