@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   X, 
   CheckCircle, 
@@ -14,13 +14,17 @@ import {
   Check, 
   AlertCircle,
   Store,
-  Truck
+  Truck,
+  Search,
+  ChevronDown
 } from 'lucide-react';
-import { Kitchen, NoteItem, Store as StoreType, MasterToko, MasterPemasok } from '../types';
+import { Kitchen, NoteItem, Store as StoreType, MasterToko, MasterPemasok, MasterDapur, MasterSatuan } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { getItemSuggestions } from '../lib/suggestions';
 import { parseVoiceInput } from '../lib/voiceParser';
 import { guessStoreForItem } from '../lib/storeMatcher';
+import { SatuanAutocomplete } from './SatuanAutocomplete';
+import { saveMasterSatuanToDb } from '../lib/supabaseDb';
 
 interface NoteSheetProps {
   isOpen: boolean;
@@ -31,6 +35,10 @@ interface NoteSheetProps {
   pemasokList?: string[];
   masterToko?: MasterToko[];
   masterPemasok?: MasterPemasok[];
+  masterDapur?: MasterDapur[];
+  masterSatuan?: MasterSatuan[];
+  onAddMasterSatuan?: (nama: string) => Promise<{ success: boolean; error?: string }>;
+  onRefreshMaster?: () => Promise<void> | void;
   existingItemNames?: string[];
   autoStartVoice?: boolean;
 }
@@ -46,6 +54,10 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
   pemasokList = [],
   masterToko = [],
   masterPemasok = [],
+  masterDapur = [],
+  masterSatuan = [],
+  onAddMasterSatuan,
+  onRefreshMaster,
   existingItemNames = [],
   autoStartVoice = false,
 }) => {
@@ -60,9 +72,31 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
   const [selectedSuggestionIdx, setSelectedSuggestionIdx] = useState<number>(0);
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
 
+  const [isDapurOpen, setIsDapurOpen] = useState<boolean>(false);
+  const [isPemasokOpen, setIsPemasokOpen] = useState<boolean>(false);
+
   // Available masters
   const availableStores = masterToko.length > 0 ? masterToko.map((t) => t.nama) : stores.map((s) => s.nama);
   const availablePemasok = masterPemasok.length > 0 ? masterPemasok.map((p) => p.nama) : pemasokList;
+
+  // Filtered lists for Autocomplete
+  const filteredKitchenSuggestions = useMemo(() => {
+    const q = tujuanDapur.trim().toLowerCase().replace(/^dapur\s+/i, '');
+    const pool = masterDapur.length > 0 ? masterDapur : kitchens.map((k) => ({ id: k.id, nama: k.nama, alamat: k.lokasi || '' }));
+    if (!q) return pool;
+    return pool.filter((d) => {
+      const namaClean = d.nama.toLowerCase().replace(/^dapur\s+/i, '');
+      const alamatClean = (d.alamat || '').toLowerCase();
+      return namaClean.includes(q) || alamatClean.includes(q);
+    });
+  }, [tujuanDapur, masterDapur, kitchens]);
+
+  const filteredPemasokSuggestions = useMemo(() => {
+    const q = pemasok.trim().toLowerCase();
+    const pool = masterPemasok.length > 0 ? masterPemasok : availablePemasok.map((p, idx) => ({ id: `p-${idx}`, nama: p }));
+    if (!q) return pool;
+    return pool.filter((p) => p.nama.toLowerCase().includes(q));
+  }, [pemasok, masterPemasok, availablePemasok]);
 
   // Voice Recognition States
   const [isListening, setIsListening] = useState<boolean>(false);
@@ -354,27 +388,80 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
             
             {/* Dapur, Toko & Pemasok Grid */}
             <div className="space-y-2.5">
-              {/* Dapur Dropdown */}
-              <div>
+              {/* Dapur Searchable Autocomplete */}
+              <div className="relative">
                 <label className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
                   <Utensils className="w-3 h-3 text-indigo-600" />
                   <span>PILIH DAPUR</span>
                 </label>
-                <select
-                  value={tujuanDapur}
-                  onChange={(e) => setTujuanDapur(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-black text-slate-800 focus:outline-none focus:bg-white focus:border-indigo-500 transition-all cursor-pointer"
-                >
-                  <option value="">-- Pilih Dapur --</option>
-                  {kitchens.map((k) => (
-                    <option key={k.id} value={k.nama}>
-                      Dapur {k.nama}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={tujuanDapur}
+                    placeholder="Cari / ketik nama dapur..."
+                    autoComplete="off"
+                    onFocus={() => setIsDapurOpen(true)}
+                    onChange={(e) => {
+                      setTujuanDapur(e.target.value);
+                      setIsDapurOpen(true);
+                    }}
+                    className="w-full pl-8 pr-7 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-black text-slate-800 focus:outline-none focus:bg-white focus:border-indigo-500 transition-all placeholder:text-slate-400 placeholder:font-normal"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <button
+                    type="button"
+                    onClick={() => setIsDapurOpen(!isDapurOpen)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title="Buka daftar dapur"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {isDapurOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setIsDapurOpen(false)} />
+                    <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-40 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                      {filteredKitchenSuggestions.length > 0 ? (
+                        filteredKitchenSuggestions.map((d) => (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => {
+                              setTujuanDapur(d.nama);
+                              setIsDapurOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-indigo-50 transition-colors flex items-center justify-between group cursor-pointer"
+                          >
+                            <div>
+                              <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-900">
+                                Dapur {d.nama.replace(/^dapur\s+/i, '')}
+                              </span>
+                              {d.alamat && (
+                                <span className="text-[10px] text-slate-400 block mt-0.5">{d.alamat}</span>
+                              )}
+                            </div>
+                            {tujuanDapur.trim().toLowerCase().replace(/^dapur\s+/i, '') === d.nama.trim().toLowerCase().replace(/^dapur\s+/i, '') && (
+                              <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Terpilih</span>
+                            )}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="p-2.5 text-center">
+                          <p className="text-xs text-slate-500 mb-1">
+                            Belum ada dapur "<span className="font-semibold text-slate-700">{tujuanDapur}</span>"
+                          </p>
+                          <span className="inline-block text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg">
+                            + Tetap bisa dipakai & disimpan
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
 
-              {/* Toko & Pemasok Dropdowns (Sama seperti Form Pesanan Baru) */}
+              {/* Toko & Pemasok Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {/* Toko */}
                 <div>
@@ -399,24 +486,72 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
                   </select>
                 </div>
 
-                {/* Pemasok */}
-                <div>
+                {/* Pemasok Searchable Autocomplete */}
+                <div className="relative">
                   <label className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
                     <Truck className="w-3 h-3 text-blue-600" />
                     <span>PEMASOK</span>
                   </label>
-                  <select
-                    value={pemasok}
-                    onChange={(e) => setPemasok(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-black text-slate-800 focus:outline-none focus:bg-white focus:border-blue-500 transition-all cursor-pointer"
-                  >
-                    <option value="">-- Pilih Pemasok --</option>
-                    {availablePemasok.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={pemasok}
+                      placeholder="Cari / ketik pemasok..."
+                      autoComplete="off"
+                      onFocus={() => setIsPemasokOpen(true)}
+                      onChange={(e) => {
+                        setPemasok(e.target.value);
+                        setIsPemasokOpen(true);
+                      }}
+                      className="w-full pl-8 pr-7 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-black text-slate-800 focus:outline-none focus:bg-white focus:border-blue-500 transition-all placeholder:text-slate-400 placeholder:font-normal"
+                    />
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <button
+                      type="button"
+                      onClick={() => setIsPemasokOpen(!isPemasokOpen)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      title="Buka daftar pemasok"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {isPemasokOpen && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setIsPemasokOpen(false)} />
+                      <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-40 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                        {filteredPemasokSuggestions.length > 0 ? (
+                          filteredPemasokSuggestions.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                setPemasok(p.nama);
+                                setIsPemasokOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-indigo-50 transition-colors flex items-center justify-between group cursor-pointer"
+                            >
+                              <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-900">
+                                {p.nama}
+                              </span>
+                              {pemasok.trim().toLowerCase() === p.nama.trim().toLowerCase() && (
+                                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Terpilih</span>
+                              )}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="p-2.5 text-center">
+                            <p className="text-xs text-slate-500 mb-1">
+                              Belum ada pemasok "<span className="font-semibold text-slate-700">{pemasok}</span>"
+                            </p>
+                            <span className="inline-block text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg">
+                              + Tetap bisa dipakai & disimpan
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -515,17 +650,17 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
                   <label className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
                     <span>SATUAN</span>
                   </label>
-                  <select
+                  <SatuanAutocomplete
                     value={satuan}
-                    onChange={(e) => setSatuan(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
-                  >
-                    {COMMON_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setSatuan}
+                    masterSatuan={masterSatuan}
+                    onAddMasterSatuan={async (nama) => {
+                      if (onAddMasterSatuan) return await onAddMasterSatuan(nama);
+                      const res = await saveMasterSatuanToDb(nama);
+                      if (res.success && onRefreshMaster) await onRefreshMaster();
+                      return { success: res.success, error: res.error };
+                    }}
+                  />
                 </div>
               </div>
             </div>

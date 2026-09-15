@@ -22,22 +22,25 @@ import {
   MasterToko, 
   MasterPemasok, 
   MasterDapur,
+  MasterSatuan,
   PaymentStatus,
   DeliveryStatus
 } from '../types';
-import { getTodayWIB } from '../lib/formatters';
+import { getTodayWIB, formatTanggalWeb } from '../lib/formatters';
 import { getItemSuggestions } from '../lib/suggestions';
 import { parseVoiceInput } from '../lib/voiceParser';
 import { guessStoreForItem } from '../lib/storeMatcher';
 import { 
   saveMasterTokoToDb, 
   saveMasterPemasokToDb, 
-  saveMasterDapurToDb 
+  saveMasterDapurToDb,
+  saveMasterSatuanToDb 
 } from '../lib/supabaseDb';
 import { MoneyInput, formatIDR } from './MoneyInput';
 import { ProfitPreview } from './ProfitPreview';
 import { OrderSummary } from './OrderSummary';
 import { StatusSegment } from './StatusSegment';
+import { SatuanAutocomplete } from './SatuanAutocomplete';
 
 interface OrderModalProps {
   isOpen: boolean;
@@ -54,6 +57,8 @@ interface OrderModalProps {
   masterToko?: MasterToko[];
   masterPemasok?: MasterPemasok[];
   masterDapur?: MasterDapur[];
+  masterSatuan?: MasterSatuan[];
+  onAddMasterSatuan?: (nama: string) => Promise<{ success: boolean; error?: string }>;
   onRefreshMaster?: () => Promise<void>;
   selectedDate: string;
   existingOrders?: OrderItem[];
@@ -67,6 +72,8 @@ interface ItemRow {
   hargaBeli: number;
   hargaJual: number;
   cashback?: number;
+  pemasok?: string;
+  pemasok_id?: string;
 }
 
 const COMMON_UNITS = ['Kg', 'Gram', 'Pcs', 'Ikat', 'Tray', 'Pack', 'Liter', 'Box', 'Karung', 'Ekor'];
@@ -83,6 +90,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   masterToko = [],
   masterPemasok = [],
   masterDapur = [],
+  masterSatuan = [],
+  onAddMasterSatuan,
   onRefreshMaster,
   selectedDate,
   existingOrders = [],
@@ -99,6 +108,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatus>('PENDING');
   const [tanggal, setTanggal] = useState(selectedDate || getTodayWIB());
   const [catatan, setCatatan] = useState('');
+
+  // Tracking open/data switch to prevent form resets on master data updates
+  const prevIsOpenRef = useRef(false);
+  const prevInitialDataIdRef = useRef<string | null | undefined>(undefined);
 
   // Autocomplete UI states for Dapur and Pemasok
   const [isDapurOpen, setIsDapurOpen] = useState(false);
@@ -124,6 +137,17 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
+
+  const handleAddMasterSatuanInternal = async (nama: string) => {
+    if (onAddMasterSatuan) {
+      return await onAddMasterSatuan(nama);
+    }
+    const res = await saveMasterSatuanToDb(nama);
+    if (res.success && onRefreshMaster) {
+      await onRefreshMaster();
+    }
+    return { success: res.success, error: res.error };
+  };
 
   // Computed master lists
   const availableStores = masterToko.length > 0 ? masterToko.map((t) => t.nama) : stores.map((s) => s.nama);
@@ -162,9 +186,24 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     };
   }, []);
 
-  // Initialize or reset form state
+  // Initialize or reset form state only when modal opens or initialData/prefill target changes
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      prevIsOpenRef.current = false;
+      return;
+    }
+
+    const currentDataId = initialData?.id || (initialData ? 'has-initial-data' : null);
+    const isFirstOpen = !prevIsOpenRef.current;
+    const isDataChanged = prevInitialDataIdRef.current !== currentDataId;
+
+    prevIsOpenRef.current = true;
+    prevInitialDataIdRef.current = currentDataId;
+
+    // Only re-initialize values if modal was just opened OR the target record changed
+    if (!isFirstOpen && !isDataChanged) {
+      return;
+    }
 
     if (initialData) {
       setItemRows([
@@ -915,18 +954,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                       Satuan
                     </label>
-                    <select
+                    <SatuanAutocomplete
                       id="select-satuan-barang"
                       value={currentItem.satuan || 'Kg'}
-                      onChange={(e) => updateCurrentItem('satuan', e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
-                    >
-                      {COMMON_UNITS.map((u) => (
-                        <option key={u} value={u}>
-                          {u}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(newSatuan) => updateCurrentItem('satuan', newSatuan)}
+                      masterSatuan={masterSatuan}
+                      onAddMasterSatuan={handleAddMasterSatuanInternal}
+                    />
                   </div>
                 </div>
 
@@ -1327,16 +1361,23 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               {/* Tanggal & Catatan Opsional */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Tanggal
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                      Tanggal
+                    </label>
+                    {tanggal && (
+                      <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                        {formatTanggalWeb(tanggal, true)}
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="date"
                     required
                     id="input-tanggal-order"
                     value={tanggal}
                     onChange={(e) => setTanggal(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
                   />
                 </div>
 

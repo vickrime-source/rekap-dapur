@@ -83,6 +83,7 @@ export function mapRawOrder(row: any): OrderItem {
 export function buildPesananPayload(item: Partial<OrderItem>) {
   const payStatus = (item.paymentStatus || (item.status === 'selesai' ? 'PAID' : 'UNPAID')).toUpperCase();
   const delStatus = (item.deliveryStatus || (item.status === 'selesai' ? 'DONE' : 'PENDING')).toUpperCase();
+  const nowIso = new Date().toISOString();
 
   return {
     ...(item.id ? { id: item.id } : {}),
@@ -91,7 +92,7 @@ export function buildPesananPayload(item: Partial<OrderItem>) {
     dapur_id: item.dapur_id || item.dapurId || null,
     dapur: item.tujuanDapur || '',
     item: item.namaBarang || '',
-    tanggal: item.tanggal || new Date().toISOString().split('T')[0],
+    tanggal: item.tanggal ? String(item.tanggal).split('T')[0] : nowIso.split('T')[0],
     qty: Number(item.qty) || 1,
     satuan: item.satuan || 'Kg',
     toko: item.toko || '',
@@ -103,6 +104,8 @@ export function buildPesananPayload(item: Partial<OrderItem>) {
     harga_beli: Number(item.hargaBeli) || 0,
     cashback: Number(item.cashback) || 0,
     catatan: item.catatan || '',
+    created_at: item.createdAt || item.created_at || nowIso,
+    updated_at: nowIso,
   };
 }
 
@@ -111,12 +114,17 @@ export function mapRawInvoice(row: any): InvoiceRecord {
   const tokoNama = (typeof row.toko === 'object' && row.toko !== null) ? (row.toko.nama || '') : (row.toko || '');
   const pemasokNama = (typeof row.pemasok === 'object' && row.pemasok !== null) ? (row.pemasok.nama || '') : (row.pemasok || '');
   const dapurNama = (typeof row.dapur === 'object' && row.dapur !== null) ? (row.dapur.nama || '') : (row.dapur || row.tujuanDapur || '');
+  const businessTanggal = row.tanggal
+    ? String(row.tanggal).split('T')[0]
+    : (items[0]?.tanggal || (row.created_at ? String(row.created_at).split('T')[0] : new Date().toISOString().split('T')[0]));
 
   return {
     id: String(row.id || `inv-${Date.now()}`),
     invoiceNumber: row.invoice_number || row.invoiceNumber || '',
+    tanggal: businessTanggal,
     tanggalPrint: row.tanggal_print || row.tanggalPrint || new Date().toLocaleDateString('id-ID'),
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
+    created_at: row.created_at || row.createdAt || new Date().toISOString(),
     tujuanDapur: dapurNama,
     dapur_id: row.dapur_id || row.dapurId || (typeof row.dapur === 'object' ? row.dapur?.id : undefined),
     dapurId: row.dapur_id || row.dapurId || (typeof row.dapur === 'object' ? row.dapur?.id : undefined),
@@ -130,15 +138,22 @@ export function mapRawInvoice(row: any): InvoiceRecord {
     totalBeli: Number(row.harga_beli !== undefined ? row.harga_beli : row.totalBeli) || 0,
     totalJual: Number(row.total !== undefined ? row.total : row.totalJual) || 0,
     totalProfit: Number(row.total_profit !== undefined ? row.total_profit : row.totalProfit) || 0,
+    catatan: row.catatan || row.keterangan || (items.map((i) => i.catatan).filter(Boolean).join('; ')) || '',
     status: row.status_pembayaran || row.status || 'PAID',
   };
 }
 
 export function buildTransaksiPayload(record: Partial<InvoiceRecord>) {
+  const itemsCatatan = (record.items || []).map((i) => i.catatan).filter(Boolean).join('; ');
+  const nowIso = new Date().toISOString();
+  const txTanggal = record.tanggal
+    ? String(record.tanggal).split('T')[0]
+    : (record.items?.[0]?.tanggal ? String(record.items[0].tanggal).split('T')[0] : nowIso.split('T')[0]);
+
   return {
     ...(record.id ? { id: record.id } : {}),
     invoice_number: record.invoiceNumber || `INV-${Date.now()}`,
-    tanggal: record.createdAt ? record.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
+    tanggal: txTanggal,
     tanggal_print: record.tanggalPrint || new Date().toLocaleDateString('id-ID'),
     pemasok_id: record.pemasok_id || record.pemasokId || null,
     pemasok: record.pemasok || '',
@@ -152,7 +167,10 @@ export function buildTransaksiPayload(record: Partial<InvoiceRecord>) {
     total: Number(record.totalJual) || 0,
     total_profit: Number(record.totalProfit) || 0,
     status_pembayaran: record.status || 'PAID',
+    catatan: record.catatan || itemsCatatan || '',
     items: record.items || [],
+    created_at: record.createdAt || record.created_at || nowIso,
+    updated_at: nowIso,
   };
 }
 
@@ -783,6 +801,56 @@ export async function deleteMasterDapurFromDb(id: string): Promise<{ success: bo
     const json = await res.json();
     if (!res.ok || !json.success) {
       return { success: false, error: json.error || 'Gagal menghapus dapur' };
+    }
+    return { success: true, message: json.message };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Koneksi error' };
+  }
+}
+
+export async function fetchMasterSatuanFromDb(): Promise<{ success: boolean; data: import('../types').MasterSatuan[]; error?: string }> {
+  try {
+    const res = await fetch(`/api/master?type=satuan&_t=${Date.now()}`, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      return { success: false, data: [], error: json.error || 'Gagal memuat data satuan' };
+    }
+    return { success: true, data: json.data || [] };
+  } catch (err: any) {
+    return { success: false, data: [], error: err?.message || 'Koneksi error' };
+  }
+}
+
+export async function saveMasterSatuanToDb(nama: string): Promise<{ success: boolean; data?: import('../types').MasterSatuan; error?: string }> {
+  try {
+    const res = await fetch('/api/master?type=satuan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nama: nama.trim() }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      return { success: false, error: json.error || 'Gagal menambahkan satuan' };
+    }
+    return { success: true, data: json.data };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Koneksi error' };
+  }
+}
+
+export async function deleteMasterSatuanFromDb(id: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  try {
+    const res = await fetch(`/api/master?type=satuan&id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      return { success: false, error: json.error || 'Gagal menghapus satuan' };
     }
     return { success: true, message: json.message };
   } catch (err: any) {

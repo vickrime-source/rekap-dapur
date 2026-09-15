@@ -23,6 +23,13 @@ export interface FallbackMasterDapur {
   updated_at?: string;
 }
 
+export interface FallbackMasterSatuan {
+  id: string;
+  nama: string;
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface FallbackOrder {
   id: string;
   dapur: string;
@@ -89,7 +96,24 @@ interface LocalDatabase {
   toko: FallbackMasterToko[];
   pemasok: FallbackMasterPemasok[];
   dapur: FallbackMasterDapur[];
+  satuan: FallbackMasterSatuan[];
 }
+
+const INITIAL_SATUAN_SEED: FallbackMasterSatuan[] = [
+  { id: 'satuan-kg', nama: 'Kg', created_at: new Date().toISOString() },
+  { id: 'satuan-gram', nama: 'Gram', created_at: new Date().toISOString() },
+  { id: 'satuan-pcs', nama: 'Pcs', created_at: new Date().toISOString() },
+  { id: 'satuan-ikat', nama: 'Ikat', created_at: new Date().toISOString() },
+  { id: 'satuan-tray', nama: 'Tray', created_at: new Date().toISOString() },
+  { id: 'satuan-pack', nama: 'Pack', created_at: new Date().toISOString() },
+  { id: 'satuan-liter', nama: 'Liter', created_at: new Date().toISOString() },
+  { id: 'satuan-box', nama: 'Box', created_at: new Date().toISOString() },
+  { id: 'satuan-karung', nama: 'Karung', created_at: new Date().toISOString() },
+  { id: 'satuan-ekor', nama: 'Ekor', created_at: new Date().toISOString() },
+  { id: 'satuan-krat', nama: 'Krat', created_at: new Date().toISOString() },
+  { id: 'satuan-dus', nama: 'Dus', created_at: new Date().toISOString() },
+  { id: 'satuan-bungkus', nama: 'Bungkus', created_at: new Date().toISOString() },
+];
 
 const INITIAL_TOKO_SEED: FallbackMasterToko[] = [
   { id: 'toko-lb', nama: 'LB / Luweng Boga', created_at: new Date().toISOString() },
@@ -181,6 +205,7 @@ function loadDb(): LocalDatabase {
       if (!inMemoryDb!.toko || inMemoryDb!.toko.length === 0) inMemoryDb!.toko = [...INITIAL_TOKO_SEED];
       if (!inMemoryDb!.pemasok || inMemoryDb!.pemasok.length === 0) inMemoryDb!.pemasok = [...INITIAL_PEMASOK_SEED];
       if (!inMemoryDb!.dapur || inMemoryDb!.dapur.length === 0) inMemoryDb!.dapur = [...INITIAL_DAPUR_SEED];
+      if (!inMemoryDb!.satuan || inMemoryDb!.satuan.length === 0) inMemoryDb!.satuan = [...INITIAL_SATUAN_SEED];
       return inMemoryDb!;
     }
   } catch (e) {
@@ -194,6 +219,7 @@ function loadDb(): LocalDatabase {
     toko: [...INITIAL_TOKO_SEED],
     pemasok: [...INITIAL_PEMASOK_SEED],
     dapur: [...INITIAL_DAPUR_SEED],
+    satuan: [...INITIAL_SATUAN_SEED],
   };
   return inMemoryDb;
 }
@@ -671,6 +697,43 @@ export function deleteMasterDapur(id: string): { success: boolean; message: stri
   db.dapur = db.dapur.filter(d => d.id !== id);
   saveDb();
   return { success: true, message: `Dapur "${item.nama}" berhasil dihapus.` };
+}
+
+export function getMasterSatuan(): FallbackMasterSatuan[] {
+  const db = loadDb();
+  return [...(db.satuan || [])].sort((a, b) => a.nama.localeCompare(b.nama));
+}
+
+export function createMasterSatuan(nama: string): FallbackMasterSatuan {
+  const db = loadDb();
+  const cleanName = (nama || '').trim();
+  if (!cleanName) throw new Error('Nama satuan tidak boleh kosong.');
+
+  const existing = (db.satuan || []).find(s => s.nama.toLowerCase() === cleanName.toLowerCase());
+  if (existing) return existing;
+
+  const newSatuan: FallbackMasterSatuan = {
+    id: `satuan-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    nama: cleanName,
+    created_at: new Date().toISOString(),
+  };
+
+  if (!db.satuan) db.satuan = [];
+  db.satuan.push(newSatuan);
+  saveDb();
+  return newSatuan;
+}
+
+export function deleteMasterSatuan(id: string): { success: boolean; message: string } {
+  const db = loadDb();
+  const item = (db.satuan || []).find(s => s.id === id || s.nama.toLowerCase() === id.toLowerCase());
+  if (!item) {
+    throw new Error('Satuan tidak ditemukan.');
+  }
+
+  db.satuan = (db.satuan || []).filter(s => s.id !== item.id);
+  saveDb();
+  return { success: true, message: `Satuan "${item.nama}" berhasil dihapus.` };
 }
 
 export function checkMasterUsage(

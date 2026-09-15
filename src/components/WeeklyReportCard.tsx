@@ -14,6 +14,13 @@ import { BreakdownTabs, BreakdownTabType } from './BreakdownTabs';
 import { BreakdownToko, TokoBreakdownItem } from './BreakdownToko';
 import { BreakdownPemasok, PemasokBreakdownItem } from './BreakdownPemasok';
 import { BreakdownDapur, DapurBreakdownItem } from './BreakdownDapur';
+import { 
+  Wallet, 
+  TrendingUp, 
+  Building2, 
+  CheckCircle2 
+} from 'lucide-react';
+import { AnimatedCounter } from './AnimatedCounter';
 
 interface WeeklyReportCardProps {
   stats: PeriodSummaryStats;
@@ -60,21 +67,56 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
     : 0;
 
   let title = 'Laporan Mingguan';
-  let subtitle = 'Closing Bisnis Mingguan (Senin – Minggu)';
 
   if (customRange) {
     title = 'Laporan Kustom';
-    subtitle = 'Rekap Transaksi Rentang Tanggal Terpilih';
   } else if (period === 'hari_ini') {
     title = 'Rekap Harian';
-    subtitle = 'Transaksi & Pengeluaran Khusus Hari Ini';
   } else if (period === 'bulan_ini') {
     title = 'Laporan Bulanan';
-    subtitle = 'Closing Bisnis Bulanan';
   } else if (period === 'all_time') {
     title = 'Rekap Seluruh Waktu';
-    subtitle = 'Akumulasi Semua Data Transaksi';
   }
+
+  // Dynamic calculations for accounting metrics: Modal, Omset, Koperasi, Laba Bersih
+  const { totalModal, totalOmset, totalKeKoperasi, totalLabaBersih } = useMemo(() => {
+    if (periodOrders && periodOrders.length > 0) {
+      let modal = 0;
+      let omset = 0;
+      let keKoperasi = 0;
+      let labaBersih = 0;
+
+      for (let i = 0; i < periodOrders.length; i++) {
+        const item = periodOrders[i];
+        const qty = parseIndonesianNumber(item.qty) || 0;
+        const beli = parseIndonesianNumber(item.hargaBeli) || 0;
+        const jual = parseIndonesianNumber(item.hargaJual) || 0;
+        const cb = parseIndonesianNumber(item.cashback) || 0;
+
+        const labaItem = cb > 0 ? (cb - beli) * qty : (jual - beli) * qty;
+        const kopItem = cb > 0 ? (jual - cb) * qty : 0;
+
+        modal += (qty * beli);
+        omset += (qty * jual);
+        keKoperasi += kopItem;
+        labaBersih += labaItem;
+      }
+
+      return {
+        totalModal: modal,
+        totalOmset: omset,
+        totalKeKoperasi: keKoperasi,
+        totalLabaBersih: labaBersih,
+      };
+    }
+
+    return {
+      totalModal: stats.totalPengeluaran || 0,
+      totalOmset: stats.totalPendapatan || 0,
+      totalKeKoperasi: stats.totalKeKoperasi || 0,
+      totalLabaBersih: stats.totalLabaBersih !== undefined ? stats.totalLabaBersih : (stats.profitBersih || 0),
+    };
+  }, [periodOrders, stats]);
 
   const effectiveMonth = selectedMonth || (selectedDate ? selectedDate.slice(0, 7) : getTodayWIB().slice(0, 7));
 
@@ -316,12 +358,9 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
       {/* Header with Title & Period Selector Dropdown */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
         <div>
-          <h2 className="text-sm font-bold text-slate-900 tracking-tight">
+          <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
             {title}
           </h2>
-          <span className="text-[11px] font-semibold text-slate-500">
-            {subtitle}
-          </span>
         </div>
 
         {/* Dropdown Bulan & Custom Date Range */}
@@ -336,83 +375,79 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
         />
       </div>
 
-      {/* 4 Financial Metric Cards (Flat, Clean, High Legibility) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 tablet-landscape-grid-4 gap-2.5">
-        {/* Metric 1: Total Pesanan Masuk */}
-        <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-3 flex flex-col justify-between min-h-[82px]">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Pesanan Masuk
-          </span>
-          <div className="mt-1">
-            <span className="text-base sm:text-lg font-bold font-nominal text-slate-900 block leading-tight">
-              {stats.totalTransactions.toLocaleString('id-ID')}
-              <span className="text-xs font-semibold text-slate-500 ml-1">Transaksi</span>
+      {/* 4 Summary Cards: MODAL, OMSET, KOPERASI, LABA BERSIH */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5">
+        {/* 1. MODAL */}
+        <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-2xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <Wallet className="w-3.5 h-3.5 text-slate-500" />
+              Modal
             </span>
-            <span className="text-[11px] font-medium text-slate-500 block mt-0.5">
-              {stats.totalQty.toLocaleString('id-ID')} Total Qty
-            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+          </div>
+          <div className="mt-1.5 min-w-0">
+            <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black font-nominal text-slate-900 leading-tight truncate">
+              <AnimatedCounter value={totalModal} format="rupiah" />
+            </div>
           </div>
         </div>
 
-        {/* Metric 2: Total Pendapatan (H.JUAL) */}
-        <div className="bg-slate-50/90 border border-slate-200/80 rounded-xl p-3 flex flex-col justify-between min-h-[82px]">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Pendapatan (H.Jual)
-          </span>
-          <div className="mt-1">
-            <span className="text-base sm:text-lg font-bold font-nominal text-slate-900 block leading-tight truncate">
-              {formatRupiah(stats.totalPendapatan)}
+        {/* 2. OMSET */}
+        <div className="bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-2xs hover:border-indigo-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-indigo-600" />
+              Omset
             </span>
-            <span className="text-[11px] font-medium text-slate-500 block mt-0.5">
-              Total tagihan dapur
-            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+          </div>
+          <div className="mt-1.5 min-w-0">
+            <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black font-nominal text-indigo-950 leading-tight truncate">
+              <AnimatedCounter value={totalOmset} format="rupiah" />
+            </div>
           </div>
         </div>
 
-        {/* Metric 3: Total Pengeluaran (H.BELI) */}
-        <div className="bg-rose-50/60 border border-rose-200/80 rounded-xl p-3 flex flex-col justify-between min-h-[82px]">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700">
-            Pengeluaran PO (H.Beli)
-          </span>
-          <div className="mt-1">
-            <span className="text-base sm:text-lg font-bold font-nominal text-rose-700 block leading-tight truncate">
-              {formatRupiah(stats.totalPengeluaran)}
+        {/* 3. KOPERASI */}
+        <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-2xs hover:border-amber-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-amber-600" />
+              Koperasi
             </span>
-            <span className="text-[11px] font-medium text-rose-600/80 block mt-0.5">
-              Uang keluar ke supplier
-            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+          </div>
+          <div className="mt-1.5 min-w-0">
+            <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black font-nominal text-amber-950 leading-tight truncate">
+              <AnimatedCounter value={totalKeKoperasi} format="rupiah" />
+            </div>
           </div>
         </div>
 
-        {/* Metric 4: Profit Bersih */}
-        <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-3 flex flex-col justify-between min-h-[82px]">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
-            Profit Bersih
-          </span>
-          <div className="mt-1">
-            <span className={`text-base sm:text-lg font-bold font-nominal block leading-tight truncate ${
-              stats.profitBersih < 0 ? 'text-rose-700' : 'text-emerald-900'
-            }`}>
-              {formatRupiah(stats.profitBersih)}
+        {/* 4. LABA BERSIH */}
+        <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-2xs hover:border-emerald-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              Laba Bersih
             </span>
-            <span className="text-[11px] font-semibold text-emerald-700 block mt-0.5">
-              Margin {marginPercent}%
-            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          </div>
+          <div className="mt-1.5 min-w-0">
+            <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black font-nominal text-emerald-950 leading-tight truncate">
+              <AnimatedCounter value={totalLabaBersih} format="rupiah" />
+            </div>
           </div>
         </div>
       </div>
 
       {/* Breakdown Section with Tabs (Toko, Pemasok, Dapur) */}
-      <div className="space-y-3 pt-2">
+      <div className="space-y-3 pt-1">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
           <div>
             <span className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
-              Breakdown Toko, Pemasok & Dapur
-            </span>
-            <span className="text-[11px] font-medium text-slate-500">
-              {activeBreakdownTab === 'toko' && 'Perbandingan Omset (H.Jual), Modal (H.Beli), Profit & Margin per Toko'}
-              {activeBreakdownTab === 'pemasok' && 'Total Nilai Pembelian, Jumlah Transaksi, dan Barang Terbanyak per Pemasok'}
-              {activeBreakdownTab === 'dapur' && 'Total Pesanan, Total Tagihan Dapur, Modal Bahan & Profit per Dapur'}
+              Breakdown Toko, Pemasok &amp; Dapur
             </span>
           </div>
 

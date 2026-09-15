@@ -22,6 +22,9 @@ import {
   getMasterDapur as getLocalMasterDapur,
   createMasterDapur as createLocalMasterDapur,
   deleteMasterDapur as deleteLocalMasterDapur,
+  getMasterSatuan as getLocalMasterSatuan,
+  createMasterSatuan as createLocalMasterSatuan,
+  deleteMasterSatuan as deleteLocalMasterSatuan,
   checkMasterUsage as checkLocalMasterUsage,
 } from './localDbFallback.js';
 
@@ -197,11 +200,13 @@ export function getDateRangeForPeriod(period: string, refDateStr?: string): { st
 
 // DEFINISI KOLOM SPESIFIK: Menghemat Egress/Bandwidth (Jangan select *)
 export const ORDER_COLUMNS = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at,cashback';
-export const TRANSACTION_COLUMNS = 'id,invoice_number,tanggal,tanggal_print,pemasok,barang,toko,dapur,qty,harga_beli,total,total_profit,status_pembayaran,items,created_at';
+export const TRANSACTION_COLUMNS = 'id,invoice_number,tanggal,tanggal_print,pemasok,barang,toko,dapur,qty,harga_beli,total,total_profit,status_pembayaran,items,catatan,created_at';
+export const TRANSACTION_COLUMNS_LEGACY = 'id,invoice_number,tanggal,tanggal_print,pemasok,barang,toko,dapur,qty,harga_beli,total,total_profit,status_pembayaran,items,created_at';
 export const NOTE_COLUMNS = 'id,dapur,item,qty,satuan,catatan,status,is_done,order_id,created_at';
 export const TOKO_COLUMNS = 'id,nama,created_at';
 export const PEMASOK_COLUMNS = 'id,nama,created_at';
 export const DAPUR_COLUMNS = 'id,nama,alamat,created_at';
+export const SATUAN_COLUMNS = 'id,nama,created_at';
 
 export interface OrderFilterOptions {
   period?: 'hari_ini' | 'mingguan' | 'bulan_ini' | 'all_time';
@@ -300,7 +305,7 @@ export async function createOrdersInDb(ordersData: any[] | any) {
       ...(item.id ? { id: String(item.id) } : {}),
       dapur: item.dapur || item.tujuanDapur || '',
       item: item.item || item.namaBarang || '',
-      tanggal: item.tanggal || new Date().toISOString().split('T')[0],
+      tanggal: item.tanggal ? String(item.tanggal).split('T')[0] : new Date().toISOString().split('T')[0],
       qty: Number(item.qty) || 1,
       satuan: item.satuan || 'Kg',
       toko: item.toko || '',
@@ -499,16 +504,30 @@ export async function getTransactionsFromDb(limit: number = 50, page: number = 1
 
   try {
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    let query = supabase
       .from('transaksi')
       .select(TRANSACTION_COLUMNS)
       .order('tanggal', { ascending: false })
       .order('created_at', { ascending: false })
       .range(offset, offset + safeLimit - 1);
 
+    const { data, error } = await query;
+
     if (error) {
       if (isTableMissingError(error)) {
         return getLocalTransactions(safeLimit);
+      }
+      // If error is caused by missing 'catatan' column before migration is run, fallback to legacy columns
+      if (error.message && (error.message.includes('catatan') || error.code === 'PGRST204')) {
+        const fallbackRes = await supabase
+          .from('transaksi')
+          .select(TRANSACTION_COLUMNS_LEGACY)
+          .order('tanggal', { ascending: false })
+          .order('created_at', { ascending: false })
+          .range(offset, offset + safeLimit - 1);
+        if (!fallbackRes.error) {
+          return fallbackRes.data || [];
+        }
       }
       throw error;
     }
@@ -522,10 +541,11 @@ export async function getTransactionsFromDb(limit: number = 50, page: number = 1
 }
 
 export async function createTransactionInDb(tx: any) {
-  const record = {
+  const itemsCatatan = Array.isArray(tx.items) ? tx.items.map((i: any) => i.catatan).filter(Boolean).join('; ') : '';
+  const record: any = {
     ...(tx.id ? { id: String(tx.id) } : {}),
     invoice_number: tx.invoice_number || tx.invoiceNumber || `INV-${Date.now()}`,
-    tanggal: tx.tanggal || new Date().toISOString().split('T')[0],
+    tanggal: tx.tanggal ? String(tx.tanggal).split('T')[0] : (Array.isArray(tx.items) && tx.items[0]?.tanggal ? String(tx.items[0].tanggal).split('T')[0] : new Date().toISOString().split('T')[0]),
     tanggal_print: tx.tanggal_print || tx.tanggalPrint || new Date().toLocaleDateString('id-ID'),
     pemasok: tx.pemasok || '',
     barang: tx.barang || (Array.isArray(tx.items) ? tx.items.map((i: any) => `${i.namaBarang || i.item} (${i.qty})`).join(', ') : ''),
@@ -537,6 +557,7 @@ export async function createTransactionInDb(tx: any) {
     total_profit: Number(tx.total_profit !== undefined ? tx.total_profit : tx.totalProfit) || 0,
     status_pembayaran: tx.status_pembayaran || tx.status || 'PAID',
     items: Array.isArray(tx.items) ? tx.items : [],
+    catatan: tx.catatan || itemsCatatan || '',
     created_at: tx.created_at || tx.createdAt || new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -551,6 +572,14 @@ export async function createTransactionInDb(tx: any) {
     if (error) {
       if (isTableMissingError(error)) {
         return createLocalTransaction(record);
+      }
+      // If error because column 'catatan' does not exist yet, retry without 'catatan'
+      if (error.message && (error.message.includes('catatan') || error.code === 'PGRST204')) {
+        const { catatan: _, ...recordWithoutCatatan } = record;
+        const retryRes = await supabase.from('transaksi').insert(recordWithoutCatatan).select(TRANSACTION_COLUMNS_LEGACY);
+        if (!retryRes.error) {
+          return retryRes.data?.[0] || null;
+        }
       }
       throw error;
     }
@@ -1220,5 +1249,91 @@ export async function checkMasterUsageInDb(
       return checkLocalMasterUsage(type, id, name);
     }
     return checkLocalMasterUsage(type, id, name);
+  }
+}
+
+export async function getMasterSatuanFromDb() {
+  if (!isSupabaseConfigured()) {
+    return getLocalMasterSatuan();
+  }
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('satuan')
+      .select(SATUAN_COLUMNS)
+      .order('nama', { ascending: true });
+
+    if (error) {
+      if (isTableMissingError(error)) return getLocalMasterSatuan();
+      throw error;
+    }
+    return data || [];
+  } catch (err: any) {
+    if (isTableMissingError(err)) return getLocalMasterSatuan();
+    throw err;
+  }
+}
+
+export async function createMasterSatuanInDb(nama: string) {
+  const cleanName = (nama || '').trim();
+  if (!cleanName) throw new Error('Nama satuan wajib diisi.');
+
+  if (!isSupabaseConfigured()) {
+    return createLocalMasterSatuan(cleanName);
+  }
+
+  try {
+    const supabase = getSupabase();
+    const { data: existing } = await supabase
+      .from('satuan')
+      .select(SATUAN_COLUMNS)
+      .ilike('nama', cleanName)
+      .maybeSingle();
+
+    if (existing) return existing;
+
+    const { data, error } = await supabase
+      .from('satuan')
+      .insert({ nama: cleanName })
+      .select(SATUAN_COLUMNS)
+      .single();
+
+    if (error) {
+      if (isTableMissingError(error)) return createLocalMasterSatuan(cleanName);
+      throw error;
+    }
+    return data;
+  } catch (err: any) {
+    if (isTableMissingError(err)) return createLocalMasterSatuan(cleanName);
+    throw err;
+  }
+}
+
+export async function deleteMasterSatuanInDb(id: string) {
+  if (!id) throw new Error('ID satuan wajib disertakan.');
+
+  if (!isSupabaseConfigured()) {
+    return deleteLocalMasterSatuan(id);
+  }
+
+  try {
+    const supabase = getSupabase();
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim());
+    let query = supabase.from('satuan').delete();
+    if (isUUID) {
+      query = query.eq('id', id.trim());
+    } else {
+      query = query.ilike('nama', id.trim());
+    }
+    const { error } = await query;
+
+    if (error) {
+      if (isTableMissingError(error)) return deleteLocalMasterSatuan(id);
+      throw error;
+    }
+    return { success: true, message: 'Satuan berhasil dihapus.' };
+  } catch (err: any) {
+    if (isTableMissingError(err)) return deleteLocalMasterSatuan(id);
+    throw err;
   }
 }

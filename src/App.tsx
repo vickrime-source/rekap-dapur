@@ -13,7 +13,8 @@ import {
   DashboardPeriod,
   MasterToko,
   MasterPemasok,
-  MasterDapur
+  MasterDapur,
+  MasterSatuan
 } from './types';
 import { 
   INITIAL_KITCHENS, 
@@ -54,7 +55,9 @@ import {
   deleteNoteFromDb,
   fetchMasterTokoFromDb, 
   fetchMasterPemasokFromDb, 
-  fetchMasterDapurFromDb 
+  fetchMasterDapurFromDb,
+  fetchMasterSatuanFromDb,
+  saveMasterSatuanToDb 
 } from './lib/supabaseDb';
 import { subscribeToTableChanges } from './lib/supabaseClient';
 import { invalidateCache } from './lib/cacheManager';
@@ -116,17 +119,19 @@ export default function App() {
   const [isNoteSheetOpen, setIsNoteSheetOpen] = useState(false);
   const [autoStartVoiceNote, setAutoStartVoiceNote] = useState(false);
 
-  // Master Data State (PostgreSQL Master Tables: Toko, Pemasok, Dapur)
+  // Master Data State (PostgreSQL Master Tables: Toko, Pemasok, Dapur, Satuan)
   const [masterToko, setMasterToko] = useState<MasterToko[]>([]);
   const [masterPemasok, setMasterPemasok] = useState<MasterPemasok[]>([]);
   const [masterDapur, setMasterDapur] = useState<MasterDapur[]>([]);
+  const [masterSatuan, setMasterSatuan] = useState<MasterSatuan[]>([]);
 
   const refreshMasterData = async () => {
     try {
-      const [tokoRes, pemasokRes, dapurRes] = await Promise.all([
+      const [tokoRes, pemasokRes, dapurRes, satuanRes] = await Promise.all([
         fetchMasterTokoFromDb(),
         fetchMasterPemasokFromDb(),
         fetchMasterDapurFromDb(),
+        fetchMasterSatuanFromDb(),
       ]);
       if (tokoRes.success && tokoRes.data) {
         setMasterToko(tokoRes.data);
@@ -146,9 +151,22 @@ export default function App() {
           setKitchens(dapurRes.data.map((d) => ({ id: d.id, nama: d.nama, lokasi: d.alamat })));
         }
       }
+      if (satuanRes.success && satuanRes.data) {
+        setMasterSatuan(satuanRes.data);
+      }
     } catch (e) {
       console.warn('Error refreshing master data from Supabase:', e);
     }
+  };
+
+  const handleAddMasterSatuan = async (nama: string): Promise<{ success: boolean; error?: string }> => {
+    const res = await saveMasterSatuanToDb(nama);
+    if (res.success) {
+      await refreshMasterData();
+      showToast(`Satuan "${nama}" berhasil disimpan ke Master`, 'success');
+      return { success: true };
+    }
+    return { success: false, error: res.error || 'Gagal menyimpan satuan' };
   };
 
   // Smart Live Voice Order State (Hold to record & AI auto order)
@@ -621,6 +639,7 @@ export default function App() {
 
       return {
         ...item,
+        tanggal: item.tanggal ? String(item.tanggal).split('T')[0] : getTodayWIB(),
         toko_id: fTokoId,
         tokoId: fTokoId,
         pemasok_id: fPemasokId,
@@ -633,7 +652,9 @@ export default function App() {
     });
 
     setOrders((prev) => [...newOrdersAdded, ...prev]);
-    setSelectedDate(getTodayWIB());
+    if (newOrdersAdded[0]?.tanggal) {
+      setSelectedDate(newOrdersAdded[0].tanggal);
+    }
 
     setIsLoadingDb(true);
     let successCount = 0;
@@ -654,6 +675,7 @@ export default function App() {
       const newInvoiceRec: InvoiceRecord = {
         id: `tx-${Date.now()}`,
         invoiceNumber: `TRX-${Date.now().toString().slice(-6)}`,
+        tanggal: firstItem.tanggal,
         tanggalPrint: firstItem.tanggal,
         createdAt: createdDate,
         tujuanDapur: firstItem.tujuanDapur,
@@ -725,7 +747,7 @@ export default function App() {
             const matchingInvoices = invoices.filter((inv) => {
               if (inv.id === id) return true;
               if (inv.items && Array.isArray(inv.items) && inv.items.some((it) => it.id === id)) return true;
-              const invDate = inv.tanggalPrint || inv.tanggal || inv.createdAt?.split('T')[0] || '';
+              const invDate = inv.tanggal || (inv.tanggalPrint && /^\d{4}-\d{2}-\d{2}$/.test(inv.tanggalPrint) ? inv.tanggalPrint : (inv.items?.[0]?.tanggal || ''));
               const invToko = inv.toko || inv.items?.[0]?.toko || '';
               const invDapur = inv.tujuanDapur || inv.items?.[0]?.tujuanDapur || '';
               const invPemasok = inv.pemasok || inv.items?.[0]?.pemasok || '';
@@ -829,7 +851,7 @@ export default function App() {
             if (itemIds.has(inv.id)) return true;
             if (inv.items && Array.isArray(inv.items) && inv.items.some((it) => itemIds.has(it.id))) return true;
 
-            const invDate = inv.tanggalPrint || inv.tanggal || inv.createdAt?.split('T')[0] || '';
+            const invDate = inv.tanggal || (inv.tanggalPrint && /^\d{4}-\d{2}-\d{2}$/.test(inv.tanggalPrint) ? inv.tanggalPrint : (inv.items?.[0]?.tanggal || ''));
             const invToko = inv.toko || inv.items?.[0]?.toko || '';
             const invDapur = inv.tujuanDapur || inv.items?.[0]?.tujuanDapur || '';
             const invPemasok = inv.pemasok || inv.items?.[0]?.pemasok || '';
@@ -889,7 +911,7 @@ export default function App() {
             // Hapus juga transaksi/invoice terkait dari state & database
             const matchingInvoices = invoices.filter((inv) => {
               if (itemIds.has(inv.id)) return true;
-              const invDate = inv.tanggalPrint || inv.tanggal;
+              const invDate = inv.tanggal || (inv.tanggalPrint && /^\d{4}-\d{2}-\d{2}$/.test(inv.tanggalPrint) ? inv.tanggalPrint : (inv.items?.[0]?.tanggal || ''));
               const invToko = inv.toko;
               const invDapur = inv.tujuanDapur;
               return (
@@ -1520,7 +1542,7 @@ export default function App() {
           setInvoices((prev) =>
             prev.filter((inv) => {
               if (inv.id === batch.id) return false;
-              const invDate = inv.tanggalPrint || inv.tanggal;
+              const invDate = inv.tanggal || (inv.tanggalPrint && /^\d{4}-\d{2}-\d{2}$/.test(inv.tanggalPrint) ? inv.tanggalPrint : (inv.items?.[0]?.tanggal || ''));
               if (
                 invDate === batch.tanggal &&
                 (inv.toko || '') === (batch.toko || '') &&
@@ -1856,6 +1878,10 @@ export default function App() {
         pemasokList={pemasokList}
         masterToko={masterToko}
         masterPemasok={masterPemasok}
+        masterDapur={masterDapur}
+        masterSatuan={masterSatuan}
+        onAddMasterSatuan={handleAddMasterSatuan}
+        onRefreshMaster={refreshMasterData}
         existingItemNames={existingItemNames}
         autoStartVoice={autoStartVoiceNote}
       />
@@ -1874,6 +1900,10 @@ export default function App() {
         pemasokList={pemasokList}
         masterToko={masterToko}
         masterPemasok={masterPemasok}
+        masterDapur={masterDapur}
+        masterSatuan={masterSatuan}
+        onAddMasterSatuan={handleAddMasterSatuan}
+        onRefreshMaster={refreshMasterData}
         existingOrders={orders}
         selectedDate={selectedDate}
       />
@@ -1895,6 +1925,8 @@ export default function App() {
         masterToko={masterToko}
         masterPemasok={masterPemasok}
         masterDapur={masterDapur}
+        masterSatuan={masterSatuan}
+        onAddMasterSatuan={handleAddMasterSatuan}
         onRefreshMaster={refreshMasterData}
         selectedDate={selectedDate}
         existingOrders={orders}

@@ -8,16 +8,20 @@ import {
   TrendingUp, 
   Loader2,
   FileText,
-  Check
+  Check,
+  Search,
+  ChevronDown
 } from 'lucide-react';
-import { NoteItem, Kitchen, Store as StoreType, MasterToko, MasterPemasok } from '../types';
-import { getTodayWIB } from '../lib/formatters';
+import { NoteItem, Kitchen, Store as StoreType, MasterToko, MasterPemasok, MasterDapur, MasterSatuan } from '../types';
+import { getTodayWIB, formatTanggalWeb } from '../lib/formatters';
 import { guessStoreForItem } from '../lib/storeMatcher';
 import { getItemSuggestions } from '../lib/suggestions';
+import { saveMasterDapurToDb, saveMasterPemasokToDb, saveMasterSatuanToDb } from '../lib/supabaseDb';
 import { MoneyInput, formatIDR } from './MoneyInput';
 import { ProfitSummary } from './ProfitSummary';
 import { FormSection } from './FormSection';
 import { TransactionModalLayout } from './TransactionModalLayout';
+import { SatuanAutocomplete } from './SatuanAutocomplete';
 
 export interface FollowUpNoteModalProps {
   isOpen: boolean;
@@ -41,6 +45,10 @@ export interface FollowUpNoteModalProps {
   pemasokList: string[];
   masterToko?: MasterToko[];
   masterPemasok?: MasterPemasok[];
+  masterDapur?: MasterDapur[];
+  masterSatuan?: MasterSatuan[];
+  onAddMasterSatuan?: (nama: string) => Promise<{ success: boolean; error?: string }>;
+  onRefreshMaster?: () => Promise<void> | void;
   selectedDate: string;
   pastPriceHistory?: { namaBarang: string; hargaBeli: number; hargaJual: number }[];
   existingOrders?: { namaBarang: string }[];
@@ -58,6 +66,10 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
   pemasokList = [],
   masterToko = [],
   masterPemasok = [],
+  masterDapur = [],
+  masterSatuan = [],
+  onAddMasterSatuan,
+  onRefreshMaster,
   selectedDate,
   pastPriceHistory = [],
   existingOrders = [],
@@ -91,6 +103,11 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
     };
   }, []);
   const [selectedSugIdx, setSelectedSugIdx] = useState(0);
+  const [isDapurOpen, setIsDapurOpen] = useState(false);
+  const [isPemasokOpen, setIsPemasokOpen] = useState(false);
+  const dapurInputRef = useRef<HTMLInputElement>(null);
+  const pemasokInputRef = useRef<HTMLInputElement>(null);
+
   const [touched, setTouched] = useState({
     namaBarang: false,
     qty: false,
@@ -104,6 +121,25 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
   // Available lists
   const availableStores = masterToko.length > 0 ? masterToko.map((t) => t.nama) : stores.map((s) => s.nama);
   const availablePemasok = masterPemasok.length > 0 ? masterPemasok.map((p) => p.nama) : pemasokList;
+
+  // Filtered lists for Autocomplete
+  const filteredKitchenSuggestions = useMemo(() => {
+    const q = tujuanDapur.trim().toLowerCase().replace(/^dapur\s+/i, '');
+    const pool = masterDapur.length > 0 ? masterDapur : kitchens.map((k) => ({ id: k.id, nama: k.nama, alamat: k.lokasi || '' }));
+    if (!q) return pool;
+    return pool.filter((d) => {
+      const namaClean = d.nama.toLowerCase().replace(/^dapur\s+/i, '');
+      const alamatClean = (d.alamat || '').toLowerCase();
+      return namaClean.includes(q) || alamatClean.includes(q);
+    });
+  }, [tujuanDapur, masterDapur, kitchens]);
+
+  const filteredPemasokSuggestions = useMemo(() => {
+    const q = pemasok.trim().toLowerCase();
+    const pool = masterPemasok.length > 0 ? masterPemasok : availablePemasok.map((p, idx) => ({ id: `p-${idx}`, nama: p }));
+    if (!q) return pool;
+    return pool.filter((p) => p.nama.toLowerCase().includes(q));
+  }, [pemasok, masterPemasok, availablePemasok]);
 
   useEffect(() => {
     if (note && isOpen) {
@@ -204,14 +240,49 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
 
     try {
       setIsSubmitting(true);
+
+      const cleanDapur = tujuanDapur.trim();
+      const cleanDapurCheck = cleanDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
+      const matchedDapur = (masterDapur || []).find(
+        (d) => d.nama.trim().toLowerCase() === cleanDapur.toLowerCase() ||
+               d.nama.trim().toLowerCase() === cleanDapurCheck ||
+               d.nama.trim().toLowerCase().replace(/^dapur\s+/i, '') === cleanDapurCheck
+      );
+      if (!matchedDapur && cleanDapur) {
+        const newDapurName = cleanDapur.replace(/^dapur\s+/i, '').trim();
+        try {
+          await saveMasterDapurToDb(newDapurName);
+        } catch (e) {
+          console.warn('Auto-save master dapur note error:', e);
+        }
+      }
+
+      const cleanPemasok = pemasok.trim();
+      const matchedPemasok = (masterPemasok || []).find(
+        (p) => p.nama.trim().toLowerCase() === cleanPemasok.toLowerCase()
+      );
+      if (!matchedPemasok && cleanPemasok) {
+        try {
+          await saveMasterPemasokToDb(cleanPemasok);
+        } catch (e) {
+          console.warn('Auto-save master pemasok note error:', e);
+        }
+      }
+
+      if (onRefreshMaster) {
+        try {
+          await onRefreshMaster();
+        } catch (_) {}
+      }
+
       await onDone({
         noteId: note.id,
         namaBarang: namaBarang.trim(),
         qty: quantity,
         satuan: satuan.trim() || 'Kg',
         toko: toko.trim(),
-        pemasok: pemasok.trim(),
-        tujuanDapur: tujuanDapur.trim(),
+        pemasok: cleanPemasok,
+        tujuanDapur: cleanDapur,
         hargaBeli: purchasePrice,
         hargaJual: sellingPrice,
         tanggal: tanggal || getTodayWIB(),
@@ -437,18 +508,18 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Satuan
                 </label>
-                <select
+                <SatuanAutocomplete
                   id="select-followup-satuan"
                   value={satuan}
-                  onChange={(e) => setSatuan(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
-                >
-                  {COMMON_UNITS.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSatuan}
+                  masterSatuan={masterSatuan}
+                  onAddMasterSatuan={async (nama) => {
+                    if (onAddMasterSatuan) return await onAddMasterSatuan(nama);
+                    const res = await saveMasterSatuanToDb(nama);
+                    if (res.success && onRefreshMaster) await onRefreshMaster();
+                    return { success: res.success, error: res.error };
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -488,57 +559,180 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
               )}
             </div>
 
-            <div>
+            {/* Pemasok Autocomplete */}
+            <div className="relative">
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Pemasok <span className="text-rose-500">*</span>
               </label>
-              <select
-                id="select-followup-pemasok"
-                value={pemasok}
-                onChange={(e) => {
-                  setPemasok(e.target.value);
-                  setTouched((prev) => ({ ...prev, pemasok: true }));
-                }}
-                className={`w-full px-3 py-2 bg-white border rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer ${
-                  touched.pemasok && !isSupplierValid ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300'
-                }`}
-              >
-                <option value="">-- Pilih Pemasok --</option>
-                {availablePemasok.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  id="input-followup-pemasok"
+                  ref={pemasokInputRef}
+                  value={pemasok}
+                  placeholder="Cari / ketik pemasok..."
+                  autoComplete="off"
+                  onFocus={() => {
+                    setIsPemasokOpen(true);
+                    setTouched((prev) => ({ ...prev, pemasok: true }));
+                  }}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setPemasok(val);
+                    setIsPemasokOpen(true);
+                    setTouched((prev) => ({ ...prev, pemasok: true }));
+                  }}
+                  className={`w-full pl-8 pr-7 py-2 bg-white border rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all placeholder:text-slate-400 placeholder:font-normal ${
+                    touched.pemasok && !isSupplierValid ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300'
+                  }`}
+                />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <button
+                  type="button"
+                  onClick={() => setIsPemasokOpen(!isPemasokOpen)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  title="Buka daftar pemasok"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
               {touched.pemasok && !isSupplierValid && (
-                <p className="text-[10px] font-semibold text-rose-600 mt-1">Pilih pemasok</p>
+                <p className="text-[10px] font-semibold text-rose-600 mt-1">Pilih / isi pemasok</p>
+              )}
+
+              {isPemasokOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-30" 
+                    onClick={() => setIsPemasokOpen(false)} 
+                  />
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-40 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                    {filteredPemasokSuggestions.length > 0 ? (
+                      filteredPemasokSuggestions.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            setPemasok(p.nama);
+                            setIsPemasokOpen(false);
+                            setTouched((prev) => ({ ...prev, pemasok: true }));
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-indigo-50 transition-colors flex items-center justify-between group cursor-pointer"
+                        >
+                          <span className="text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-indigo-900">
+                            {p.nama}
+                          </span>
+                          {pemasok.trim().toLowerCase() === p.nama.trim().toLowerCase() && (
+                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Terpilih</span>
+                          )}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-2.5 text-center">
+                        <p className="text-xs text-slate-500 mb-1">
+                          Belum ada pemasok "<span className="font-semibold text-slate-700">{pemasok}</span>"
+                        </p>
+                        <span className="inline-block text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg">
+                          + Otomatis disimpan ke Master saat disimpan
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
 
-            <div>
+            {/* Dapur Autocomplete */}
+            <div className="relative">
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Dapur Tujuan <span className="text-rose-500">*</span>
               </label>
-              <select
-                id="select-followup-dapur"
-                value={tujuanDapur}
-                onChange={(e) => {
-                  setTujuanDapur(e.target.value);
-                  setTouched((prev) => ({ ...prev, tujuanDapur: true }));
-                }}
-                className={`w-full px-3 py-2 bg-white border rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer ${
-                  touched.tujuanDapur && !isKitchenValid ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300'
-                }`}
-              >
-                <option value="">-- Pilih Dapur --</option>
-                {kitchens.map((k) => (
-                  <option key={k.id} value={k.nama}>
-                    Dapur {k.nama}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  id="input-followup-dapur"
+                  ref={dapurInputRef}
+                  value={tujuanDapur}
+                  placeholder="Cari / ketik nama dapur..."
+                  autoComplete="off"
+                  onFocus={() => {
+                    setIsDapurOpen(true);
+                    setTouched((prev) => ({ ...prev, tujuanDapur: true }));
+                  }}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTujuanDapur(val);
+                    setIsDapurOpen(true);
+                    setTouched((prev) => ({ ...prev, tujuanDapur: true }));
+                  }}
+                  className={`w-full pl-8 pr-7 py-2 bg-white border rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all placeholder:text-slate-400 placeholder:font-normal ${
+                    touched.tujuanDapur && !isKitchenValid ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300'
+                  }`}
+                />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <button
+                  type="button"
+                  onClick={() => setIsDapurOpen(!isDapurOpen)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  title="Buka daftar dapur"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
               {touched.tujuanDapur && !isKitchenValid && (
-                <p className="text-[10px] font-semibold text-rose-600 mt-1">Pilih dapur tujuan</p>
+                <p className="text-[10px] font-semibold text-rose-600 mt-1">Pilih / isi dapur tujuan</p>
+              )}
+
+              {isDapurOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-30" 
+                    onClick={() => setIsDapurOpen(false)} 
+                  />
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-40 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                    {filteredKitchenSuggestions.length > 0 ? (
+                      filteredKitchenSuggestions.map((d) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => {
+                            setTujuanDapur(d.nama);
+                            setIsDapurOpen(false);
+                            setTouched((prev) => ({ ...prev, tujuanDapur: true }));
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-indigo-50 transition-colors flex items-center justify-between group cursor-pointer"
+                        >
+                          <div>
+                            <span className="text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-indigo-900">
+                              Dapur {d.nama.replace(/^dapur\s+/i, '')}
+                            </span>
+                            {d.alamat && (
+                              <span className="text-[10px] text-slate-400 block mt-0.5">
+                                {d.alamat}
+                              </span>
+                            )}
+                          </div>
+                          {tujuanDapur.trim().toLowerCase().replace(/^dapur\s+/i, '') === d.nama.trim().toLowerCase().replace(/^dapur\s+/i, '') && (
+                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Terpilih</span>
+                          )}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-2.5 text-center">
+                        <p className="text-xs text-slate-500 mb-1">
+                          Belum ada dapur "<span className="font-semibold text-slate-700">{tujuanDapur}</span>"
+                        </p>
+                        <span className="inline-block text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg">
+                          + Otomatis disimpan ke Master saat disimpan
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -594,9 +788,16 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
           icon={<Calendar className="w-3.5 h-3.5" />}
         >
           <div>
-            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Tanggal Pesanan
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                Tanggal Pesanan
+              </label>
+              {tanggal && (
+                <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                  {formatTanggalWeb(tanggal, true)}
+                </span>
+              )}
+            </div>
             <input
               type="date"
               required

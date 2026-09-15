@@ -63,6 +63,7 @@ export interface TransactionBatch {
   totalLabaBersih?: number;
   totalKeKoperasi?: number;
   items: OrderItem[];
+  catatan?: string;
   rowIndex?: number;
 }
 
@@ -262,8 +263,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     const todayStr = getTodayWIB();
     return orders.filter((item) => {
       if (customRange) {
-        const itemDate = item.tanggal || (item.createdAt ? item.createdAt.split('T')[0] : '');
-        return itemDate >= customRange.startDate && itemDate <= customRange.endDate;
+        const itemDate = item.tanggal ? String(item.tanggal).split('T')[0] : '';
+        return Boolean(itemDate && itemDate >= customRange.startDate && itemDate <= customRange.endDate);
       }
       if (activePeriod === 'hari_ini') {
         return isOrderToday(item, todayStr);
@@ -376,7 +377,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     const groups: Record<string, OrderItem[]> = {};
 
     orders.forEach((o) => {
-      const tanggal = o.tanggal || o.createdAt?.split('T')[0] || '';
+      const tanggal = o.tanggal ? String(o.tanggal).split('T')[0] : '';
       const dapur = o.tujuanDapur || 'Siliragung';
       const toko = o.toko || '';
       const pemasok = o.pemasok || '-';
@@ -430,6 +431,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         totalLabaBersih,
         totalKeKoperasi,
         items,
+        catatan: items.map((i) => i.catatan).filter(Boolean).join('; ') || '',
         rowIndex: items[0]?.rowIndex,
       };
     });
@@ -437,7 +439,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     // Invoices integration (if any stand-alone invoices exist)
     if (invoices && invoices.length > 0) {
       invoices.forEach((inv) => {
-        const invDate = inv.tanggalPrint || inv.tanggal || inv.createdAt?.split('T')[0] || '';
+        const invDate = inv.tanggal || (inv.tanggalPrint && /^\d{4}-\d{2}-\d{2}$/.test(inv.tanggalPrint) ? inv.tanggalPrint : (inv.items?.[0]?.tanggal || ''));
         const invDapur = inv.tujuanDapur || inv.items?.[0]?.tujuanDapur || 'Siliragung';
         const invToko = inv.toko || inv.items?.[0]?.toko || '';
         const invPemasok = inv.pemasok || inv.PEMASOK || inv.items?.[0]?.pemasok || '-';
@@ -473,6 +475,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             totalLabaBersih = totalJual - totalBeli;
           }
 
+          const invCatatan = inv.catatan || inv.keterangan || (items.map((i) => i.catatan).filter(Boolean).join('; ')) || '';
+
           batches.push({
             id: inv.id || key,
             batchIndex: idx++,
@@ -489,6 +493,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             totalLabaBersih,
             totalKeKoperasi,
             items,
+            catatan: invCatatan,
             rowIndex: inv.rowIndex,
           });
         }
@@ -504,24 +509,24 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     return transactionBatches.filter((batch) => {
       // 1. Period filter (Hari Ini, Mingguan, Bulanan, All Time, atau Rentang Kustom)
       if (customRange) {
-        const batchDate = batch.tanggal || (batch.createdAt ? batch.createdAt.split('T')[0] : '');
-        const isMatch = (batchDate >= customRange.startDate && batchDate <= customRange.endDate) ||
-          (batch.items && batch.items.some(i => {
-            const d = i.tanggal || (i.createdAt ? i.createdAt.split('T')[0] : '');
-            return d >= customRange.startDate && d <= customRange.endDate;
+        const batchDate = batch.tanggal ? String(batch.tanggal).split('T')[0] : '';
+        const isMatch = Boolean(batchDate && batchDate >= customRange.startDate && batchDate <= customRange.endDate) ||
+          Boolean(batch.items && batch.items.some(i => {
+            const d = i.tanggal ? String(i.tanggal).split('T')[0] : '';
+            return Boolean(d && d >= customRange.startDate && d <= customRange.endDate);
           }));
         if (!isMatch) return false;
       } else if (activePeriod === 'hari_ini') {
         const isMatch = (batch.items && batch.items.length > 0 && batch.items.some(i => isOrderToday(i, todayStr))) ||
-          isOrderToday({ tanggal: batch.tanggal, createdAt: batch.createdAt }, todayStr);
+          isOrderToday({ tanggal: batch.tanggal }, todayStr);
         if (!isMatch) return false;
       } else if (activePeriod === 'mingguan') {
         const isMatch = (batch.items && batch.items.length > 0 && batch.items.some(i => isOrderThisWeek(i, weekRange))) ||
-          isOrderThisWeek({ tanggal: batch.tanggal, createdAt: batch.createdAt }, weekRange);
+          isOrderThisWeek({ tanggal: batch.tanggal }, weekRange);
         if (!isMatch) return false;
       } else if (activePeriod === 'bulan_ini') {
         const isMatch = (batch.items && batch.items.length > 0 && batch.items.some(i => isOrderThisMonth(i, selectedMonth))) ||
-          isOrderThisMonth({ tanggal: batch.tanggal, createdAt: batch.createdAt }, selectedMonth);
+          isOrderThisMonth({ tanggal: batch.tanggal }, selectedMonth);
         if (!isMatch) return false;
       }
 
@@ -562,6 +567,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     transactionBatches, 
     activePeriod, 
     selectedDate, 
+    selectedMonth,
+    customRange,
     weekRange, 
     selectedStoreFilter, 
     searchQuery, 
@@ -761,9 +768,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
           {/* Pill 2: Filter Pemasok */}
           <div className="relative inline-flex items-center">
-            <div className="rounded-full px-3.5 py-2 bg-white border border-slate-200/90 shadow-2xs hover:border-indigo-300 transition-all flex items-center gap-1.5 cursor-pointer min-h-[44px]">
+            <div className={`rounded-full px-3.5 py-2 border shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer min-h-[44px] ${
+              selectedPemasok !== 'all'
+                ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-bold ring-1 ring-indigo-300'
+                : 'bg-white border-slate-200/90 text-slate-800 hover:border-indigo-300'
+            }`}>
               <Filter className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-              <span className="text-xs font-bold text-slate-800 whitespace-nowrap">
+              <span className="text-xs font-bold whitespace-nowrap">
                 {selectedPemasok === 'all' ? 'Semua Pemasok' : selectedPemasok}
               </span>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -782,6 +793,37 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               ))}
             </select>
           </div>
+
+          {/* Quick Clear Pemasok Filter Button */}
+          {selectedPemasok !== 'all' && (
+            <button
+              type="button"
+              onClick={() => setSelectedPemasok('all')}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer min-h-[44px]"
+              title="Kembali tampilkan semua pemasok"
+            >
+              <span>Reset Pemasok</span>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Pill 2b: Filter Dapur (Visible if selected from breakdown) */}
+          {selectedDapurFilter !== 'all' && (
+            <div className="inline-flex items-center gap-1.5">
+              <span className="rounded-full px-3 py-1.5 bg-indigo-50 border border-indigo-300 text-indigo-900 text-xs font-bold">
+                Dapur: {selectedDapurFilter}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedDapurFilter('all')}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer min-h-[44px]"
+                title="Kembali tampilkan semua dapur"
+              >
+                <span>Reset Dapur</span>
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Pill 3: Filter Status (PAID / UNPAID) */}
           <div className="relative inline-flex items-center">
@@ -866,9 +908,16 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                   {/* Baris Atas: Tanggal, Dapur, Pemasok, Toko, Action Buttons */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80">
-                        {formatTanggalDisatuin(batch.tanggal)}
-                      </span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80">
+                          {formatTanggalDisatuin(batch.tanggal)}
+                        </span>
+                        {batch.createdAt && formatJam(batch.createdAt) ? (
+                          <span className="font-mono text-slate-500 text-[7.5px]">
+                            {formatJam(batch.createdAt)} WIB
+                          </span>
+                        ) : null}
+                      </div>
                       <span className="bg-indigo-50 text-indigo-900 font-black px-1.5 py-0.5 rounded text-[9.5px] border border-indigo-200">
                         Dapur {batch.tujuanDapur}
                       </span>
@@ -996,6 +1045,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                     </div>
                   </div>
 
+                  {/* Catatan Transaksi Mobile */}
+                  {batch.catatan && (
+                    <div className="bg-slate-100/90 rounded-lg px-2.5 py-1.5 border border-slate-200/80 text-[9.5px] text-slate-700 flex items-start gap-1.5">
+                      <span className="font-bold text-slate-500 shrink-0 uppercase text-[8.5px]">Catatan:</span>
+                      <span className="line-clamp-2 font-medium">{batch.catatan}</span>
+                    </div>
+                  )}
+
                   {/* List Item di dalam Card */}
                   <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-100 space-y-1">
                     {visibleItems.map((it) => (
@@ -1086,6 +1143,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         <th className="py-2.5 px-2.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[90px]">H. BELI</th>
                         <th className="py-2.5 px-2.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[90px]">TOTAL (JUAL)</th>
                         <th className="py-2.5 px-2 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px] text-amber-800">CASHBACK</th>
+                        <th className="py-2.5 px-2 text-left whitespace-nowrap bg-slate-100 sticky top-0 min-w-[90px] max-w-[140px] text-slate-700">CATATAN</th>
                         <th className="py-2.5 px-2 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px] text-emerald-800">LABA BERSIH</th>
                         <th className="py-2.5 px-2 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[80px]">STATUS</th>
                         <th className="py-2.5 px-1.5 text-center min-w-[125px] bg-slate-100 sticky top-0">AKSI</th>
@@ -1107,9 +1165,16 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
                             {/* 2. TANGGAL */}
                             <td className="py-2.5 px-2 whitespace-nowrap align-middle">
-                              <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80">
-                                {formatTanggalDisatuin(batch.tanggal)}
-                              </span>
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80 inline-block w-fit">
+                                  {formatTanggalDisatuin(batch.tanggal)}
+                                </span>
+                                {batch.createdAt && formatJam(batch.createdAt) ? (
+                                  <span className="font-mono text-slate-500 text-[8px]">
+                                    {formatJam(batch.createdAt)} WIB
+                                  </span>
+                                ) : null}
+                              </div>
                             </td>
 
                             {/* 3. PEMASOK */}
@@ -1176,6 +1241,20 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                                 </span>
                               ) : (
                                 <span className="text-slate-400 font-medium block text-center">-</span>
+                              )}
+                            </td>
+
+                            {/* 9b. CATATAN (Di sebelah kanan kolom CASHBACK) */}
+                            <td className="py-2.5 px-2 text-left align-middle max-w-[140px]">
+                              {batch.catatan ? (
+                                <span 
+                                  className="inline-block text-[9px] text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/90 font-medium truncate max-w-[130px] align-middle"
+                                  title={batch.catatan}
+                                >
+                                  {batch.catatan}
+                                </span>
+                              ) : (
+                                <span className="text-slate-300 font-medium text-center block">-</span>
                               )}
                             </td>
 
@@ -1290,6 +1369,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         </td>
                         <td className="py-2.5 px-2 text-right font-black font-nominal text-[10px] text-amber-800 whitespace-nowrap">
                           {summaryTotals.totalKeKoperasi > 0 ? `+${formatRupiah(summaryTotals.totalKeKoperasi)}` : 'Rp 0'}
+                        </td>
+                        <td className="py-2.5 px-2 text-center text-slate-400 font-medium text-[9px]">
+                          -
                         </td>
                         <td className="py-2.5 px-2 text-right font-black font-nominal text-[10px] whitespace-nowrap">
                           <span className={summaryTotals.totalLabaBersih >= 0 ? 'text-emerald-700' : 'text-rose-600'}>

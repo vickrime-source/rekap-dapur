@@ -65,7 +65,6 @@ export const BreakdownToko: React.FC<BreakdownTokoProps> = ({
                   ? 'bg-indigo-50/80 ring-1 ring-inset ring-indigo-500'
                   : 'hover:bg-slate-50/80 active:bg-slate-100'
               }`}
-              title="Klik untuk memfilter transaksi toko ini"
             >
               {/* Desktop Layout (Grid) */}
               <div className="hidden sm:grid grid-cols-12 gap-2 items-center">

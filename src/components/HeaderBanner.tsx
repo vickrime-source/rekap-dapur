@@ -17,7 +17,6 @@ import {
   Tag,
   Scale,
   Check,
-  TrendingUp,
   Database,
   ArrowRightCircle,
   Store,
@@ -114,10 +113,11 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
     return orders;
   }, [orders, activePeriod, selectedDate, weekRange]);
 
-  // Dynamic memoized calculations for orders, pending count, and net profit
-  const { totalOrders, totalPending, totalLaba } = useMemo(() => {
+  // Dynamic memoized calculations for operational metrics: Pesanan, Laba Bersih & Pending
+  const { totalOrders, totalPending, totalLabaBersih } = useMemo(() => {
     let pendingCount = 0;
-    let laba = 0;
+    let labaBersih = 0;
+
     for (let i = 0; i < filteredOrders.length; i++) {
       const item = filteredOrders[i];
       const isPaid = item.paymentStatus === 'PAID' || (item.status === 'selesai' && !item.paymentStatus);
@@ -125,15 +125,19 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
       if (!isPaid || !isDone || item.status === 'pending') {
         pendingCount++;
       }
-      const qty = parseIndonesianNumber(item.qty) || 0;
-      const beli = parseIndonesianNumber(item.hargaBeli) || 0;
-      const jual = parseIndonesianNumber(item.hargaJual) || 0;
-      laba += ((jual - beli) * qty);
+
+      const qty = parseIndonesianNumber(item.qty);
+      const beli = parseIndonesianNumber(item.hargaBeli);
+      const jual = parseIndonesianNumber(item.hargaJual || item.hargaBeli);
+      const cb = parseIndonesianNumber(item.cashback);
+      const labaItem = cb > 0 ? (cb - beli) * qty : (jual - beli) * qty;
+      labaBersih += labaItem;
     }
+
     return {
       totalOrders: filteredOrders.length,
       totalPending: pendingCount,
-      totalLaba: laba,
+      totalLabaBersih: labaBersih,
     };
   }, [filteredOrders]);
 
@@ -260,70 +264,75 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
           </div>
         </div>
 
-        {/* 
-          REVISION REQUIREMENT 1:
-          Left Side: Stacked Duo-Card (Atas: Pesanan [Indigo], Bawah: Pending [Rose/Amber])
-          Right Side: Highlight Notes for Follow Up & Done with Status Dots + New Note Button
-        */}
+        {/* SUB-ROW: Status Operasional & Follow Up Notes */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5">
-          
-          {/* Left Column: Stacked Unified Duo-Card (Atas: Pesanan, Bawah: Pending, Box 3: Total Laba Bersih) */}
-          <div className="md:col-span-4 tablet-landscape-full-col flex flex-col sm:flex-row md:flex-col tablet-landscape-grid-3 gap-2">
-            {/* Top Box: PESANAN */}
-            <div className="flex-1 bg-indigo-50/80 border border-indigo-200/80 rounded-2xl p-2.5 flex items-center justify-between shadow-[inset_1px_1px_2px_rgba(255,255,255,0.9)]">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm shadow-indigo-500/30 flex-shrink-0">
-                  <ShoppingBag className="w-4 h-4" />
+          {/* Left: Status Operasional (Pesanan, Laba Bersih & Pending) */}
+          <div className="md:col-span-4 tablet-landscape-full-col grid grid-cols-1 sm:grid-cols-3 md:flex md:flex-col tablet-landscape-grid-3 gap-2">
+            {/* Box Pesanan */}
+            <div className="flex-1 bg-white border border-slate-200/90 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between shadow-2xs">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center border border-indigo-100 flex-shrink-0">
+                  <ShoppingBag className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 block">
-                    PESANAN
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block">
+                    Pesanan
                   </span>
-                  <span className="text-base sm:text-lg font-black font-nominal text-slate-900 leading-tight flex items-baseline gap-1">
-                    <AnimatedCounter value={totalOrders} format="number" />
-                    <span className="text-[10px] font-bold text-slate-500">Item</span>
+                  <span className="text-xs sm:text-sm font-black font-nominal text-slate-800 leading-none">
+                    <AnimatedCounter value={totalOrders} format="number" /> <span className="text-[10px] font-medium text-slate-400">item</span>
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Bottom Box: PENDING */}
-            <div className="flex-1 bg-rose-50/80 border border-rose-200/80 rounded-2xl p-2.5 flex items-center justify-between shadow-[inset_1px_1px_2px_rgba(255,255,255,0.9)]">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-sm shadow-rose-500/30 flex-shrink-0">
-                  <AlertCircle className="w-4 h-4" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-rose-700 block">
-                    PENDING
-                  </span>
-                  <span className="text-base sm:text-lg font-black font-nominal text-rose-700 leading-tight flex items-baseline gap-1">
-                    <AnimatedCounter value={totalPending} format="number" />
-                    <span className="text-[10px] font-bold text-rose-600/80">Item</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Box 3: TOTAL LABA BERSIH */}
-            <div className="flex-1 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl p-2.5 flex items-center justify-between shadow-[inset_1px_1px_2px_rgba(255,255,255,0.9)]">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shadow-emerald-500/30 flex-shrink-0">
-                  <TrendingUp className="w-4 h-4" />
+            {/* Box Laba Bersih */}
+            <div className="flex-1 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between shadow-2xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center border border-emerald-600 shadow-xs flex-shrink-0">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
                 </div>
                 <div className="min-w-0">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 block">
-                    TOTAL LABA BERSIH
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 block">
+                    Laba Bersih
                   </span>
-                  <span className="text-base sm:text-lg font-black font-nominal text-emerald-950 leading-tight truncate block">
-                    <AnimatedCounter value={totalLaba} format="rupiah" />
+                  <span className="text-xs sm:text-sm font-black font-nominal text-emerald-950 leading-none truncate block">
+                    <AnimatedCounter value={totalLabaBersih} format="rupiah" />
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Box Pending */}
+            <div className={`flex-1 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between border shadow-2xs transition-colors ${
+              totalPending > 0
+                ? 'bg-rose-50/80 border-rose-200/90'
+                : 'bg-white border-slate-200/90'
+            }`}>
+              <div className="flex items-center gap-2">
+                <div className={`w-7 h-7 rounded-xl flex items-center justify-center border flex-shrink-0 ${
+                  totalPending > 0
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                    : 'bg-slate-100 text-slate-400 border-slate-200'
+                }`}>
+                  <AlertCircle className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider block ${
+                    totalPending > 0 ? 'text-rose-700' : 'text-slate-500'
+                  }`}>
+                    Pending
+                  </span>
+                  <span className={`text-xs sm:text-sm font-black font-nominal leading-none ${
+                    totalPending > 0 ? 'text-rose-700' : 'text-slate-700'
+                  }`}>
+                    <AnimatedCounter value={totalPending} format="number" /> <span className="text-[10px] font-medium opacity-80">item</span>
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Right Column: HIGHLIGHT FOLLOW UP (Daftar pesanan sementara untuk ditindaklanjuti) */}
+          {/* Right Column: HIGHLIGHT FOLLOW UP */}
           <div className="md:col-span-8 tablet-landscape-full-col bg-slate-50/90 border border-slate-200 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-[inset_1px_1px_2px_rgba(255,255,255,0.9)]">
             {/* Header of Follow Up Section */}
             <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
@@ -334,6 +343,11 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                 <span className="text-[11px] font-black uppercase tracking-wider text-slate-900">
                   FOLLOW UP
                 </span>
+                {notes.length > 0 && (
+                  <span className="text-[9.5px] font-black px-1.5 py-0.2 rounded-full bg-indigo-100 text-indigo-800">
+                    {notes.length}
+                  </span>
+                )}
               </div>
 
               {/* Action Button: Tambah Follow Up */}
@@ -350,10 +364,10 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
             </div>
 
             {/* List of Follow Up Items with Checklist Icon & Trash */}
-            <div className="mt-2 space-y-1.5 max-h-[145px] overflow-y-auto pr-1">
+            <div className="mt-2 space-y-1.5 max-h-[125px] overflow-y-auto pr-1">
               {notes.length === 0 ? (
                 <div className="text-center py-2 text-slate-400 text-[11px] font-medium italic">
-                  Belum ada daftar follow up. Klik <strong>+ Tambah Follow Up</strong> untuk mencatat pesanan sementara.
+                  Belum ada catatan follow up.
                 </div>
               ) : (
                 notes.map((note) => {
@@ -456,7 +470,6 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
               )}
             </div>
           </div>
-
         </div>
 
       </div>

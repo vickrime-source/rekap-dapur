@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS public.transaksi (
   total_profit NUMERIC(15, 2) NOT NULL DEFAULT 0,
   status_pembayaran TEXT NOT NULL DEFAULT 'PAID',
   items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  catatan TEXT DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -113,6 +114,7 @@ CREATE TABLE IF NOT EXISTS public.transaksi (
 ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS toko_id TEXT REFERENCES public.toko(id) ON DELETE RESTRICT;
 ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS pemasok_id TEXT REFERENCES public.pemasok(id) ON DELETE RESTRICT;
 ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS dapur_id TEXT REFERENCES public.dapur(id) ON DELETE RESTRICT;
+ALTER TABLE public.transaksi ADD COLUMN IF NOT EXISTS catatan TEXT DEFAULT '';
 
 -- Indexing transaksi
 CREATE INDEX IF NOT EXISTS idx_transaksi_tanggal ON public.transaksi (tanggal);

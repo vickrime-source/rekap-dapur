@@ -78,6 +78,13 @@ export interface MasterDapur {
   createdAt?: string;
 }
 
+export interface MasterSatuan {
+  id: string;
+  nama: string;
+  created_at?: string;
+  createdAt?: string;
+}
+
 export interface Kitchen {
   id: string;
   nama: string;
@@ -116,6 +123,7 @@ export interface InvoiceRecord {
   totalBeli: number;
   totalJual: number;
   totalProfit: number;
+  catatan?: string;
   rowIndex?: number;     // Baris indeks aktual di Google Sheets (sheet "transaksi")
   status?: string;
 }

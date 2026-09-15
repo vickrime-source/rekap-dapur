@@ -1,3 +1,4 @@
+
 import { OrderItem } from '../types';
 import { formatRupiah, formatTanggalInvoice, resolveRecipientSppgName, parseIndonesianNumber } from './formatters';
 import { getStoreProfile, StoreProfile } from './storeProfiles';
@@ -48,8 +49,8 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
         <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: center; font-size: 10pt; font-weight: normal; font-family: ${styleConfig.fontFamily}; color: #000000;">${idx + 1}</td>
         <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: center; font-size: 10pt; font-weight: normal; font-family: ${styleConfig.fontFamily}; color: #000000;">${q}</td>
         <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: left; font-size: 10pt; font-weight: normal; font-family: ${styleConfig.fontFamily}; color: #000000;">${item.namaBarang}</td>
-        <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: right; font-size: 10pt; font-weight: normal; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(p)}</td>
-        <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: right; font-size: 10pt; font-weight: normal; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(subtotal)}</td>
+        <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: center; font-size: 10pt; font-weight: normal; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(p)}</td>
+        <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: center; font-size: 10pt; font-weight: normal; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(subtotal)}</td>
       </tr>
     `;
     })
@@ -338,24 +339,32 @@ export async function exportHtmlInvoicePdf(
     ]);
     const html2canvas = (html2canvasModule.default || html2canvasModule) as any;
 
-    const canvas = await html2canvas(container, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      logging: false,
-      backgroundColor: '#ffffff',
-      scrollX: 0,
-      scrollY: 0,
-      windowWidth: 794,
-      onclone: (clonedDoc) => {
-        const el = clonedDoc.getElementById('html-invoice-render-target');
-        if (el) {
-          el.style.left = '0px';
-          el.style.top = '0px';
-          el.style.opacity = '1';
-          el.style.zIndex = '1';
-        }
-      },
+    const canvas = await withSanitizedComputedStyles(async () => {
+      return await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 794,
+        onclone: (clonedDoc: Document) => {
+          const el = clonedDoc.getElementById('html-invoice-render-target');
+          if (el) {
+            el.style.left = '0px';
+            el.style.top = '0px';
+            el.style.opacity = '1';
+            el.style.zIndex = '1';
+            el.style.transform = 'none';
+          }
+          clonedDoc.querySelectorAll('style').forEach((st) => {
+            if (st.textContent && (st.textContent.includes('oklch') || st.textContent.includes('lab'))) {
+              st.textContent = sanitizeCssColorsInString(st.textContent);
+            }
+          });
+        },
+      });
     });
 
     const cleanNumber = options.invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -404,6 +413,106 @@ export async function exportHtmlInvoicePdf(
   }
 }
 
+// Helper to convert modern CSS color (oklch, lab, color(...)) to hex/rgb via canvas 2d
+let colorHelperCanvasCtx: CanvasRenderingContext2D | null = null;
+
+function convertCssColorToRgb(colorStr: string): string {
+  if (!colorStr || typeof colorStr !== 'string') return colorStr;
+  if (!colorStr.includes('oklch') && !colorStr.includes('lab') && !colorStr.includes('color(')) {
+    return colorStr;
+  }
+  try {
+    if (typeof document !== 'undefined') {
+      if (!colorHelperCanvasCtx) {
+        const c = document.createElement('canvas');
+        c.width = 1;
+        c.height = 1;
+        colorHelperCanvasCtx = c.getContext('2d', { willReadFrequently: true });
+      }
+      if (colorHelperCanvasCtx) {
+        colorHelperCanvasCtx.fillStyle = '#000000';
+        colorHelperCanvasCtx.fillStyle = colorStr;
+        const res = colorHelperCanvasCtx.fillStyle;
+        if (res && !res.includes('oklch') && !res.includes('lab') && !res.includes('color(')) {
+          return res;
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return 'rgba(0,0,0,0)';
+}
+
+function sanitizeCssColorsInString(val: string): string {
+  if (typeof val !== 'string') return val;
+  if (!val.includes('oklch') && !val.includes('lab') && !val.includes('color(')) {
+    return val;
+  }
+  return val.replace(/(oklch|lab|color)\([^)]+\)/gi, (match) => {
+    return convertCssColorToRgb(match);
+  });
+}
+
+/**
+ * Executes an async task while proxying window.getComputedStyle so that modern CSS
+ * color formats (oklch, lab, etc.) that crash html2canvas are safely converted to RGB/hex.
+ */
+async function withSanitizedComputedStyles<T>(fn: () => Promise<T>): Promise<T> {
+  if (typeof window === 'undefined') return fn();
+  const originalGetComputedStyle = window.getComputedStyle;
+
+  const createProxiedStyle = (style: CSSStyleDeclaration) => {
+    return new Proxy(style, {
+      get(target, prop, receiver) {
+        const val = Reflect.get(target, prop, target);
+        if (typeof val === 'function') {
+          if (prop === 'getPropertyValue') {
+            return (propName: string) => {
+              const res = target.getPropertyValue(propName);
+              return sanitizeCssColorsInString(res);
+            };
+          }
+          return val.bind(target);
+        }
+        if (typeof val === 'string') {
+          return sanitizeCssColorsInString(val);
+        }
+        return val;
+      },
+    });
+  };
+
+  window.getComputedStyle = function (elt: Element, pseudoElt?: string | null) {
+    const style = originalGetComputedStyle.call(window, elt, pseudoElt);
+    return createProxiedStyle(style);
+  } as typeof window.getComputedStyle;
+
+  try {
+    return await fn();
+  } finally {
+    window.getComputedStyle = originalGetComputedStyle;
+  }
+}
+
+/**
+ * Preloads all <img> tags inside an element before canvas capture.
+ */
+async function preloadImagesInElement(element: HTMLElement): Promise<void> {
+  const images = Array.from(element.querySelectorAll('img'));
+  await Promise.all(
+    images.map((img) => {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve(null);
+      return new Promise((resolve) => {
+        img.onload = () => resolve(null);
+        img.onerror = () => resolve(null);
+        setTimeout(resolve, 350);
+      });
+    })
+  );
+  await new Promise((resolve) => setTimeout(resolve, 150));
+}
+
 /**
  * Exports the HTML Invoice directly to a high-resolution PNG image file using html2canvas.
  * Generates an image file (.png) and triggers automatic download.
@@ -421,21 +530,11 @@ export async function exportHtmlInvoicePng(
   const html2canvasModule = await import('html2canvas');
   const html2canvas = (html2canvasModule.default || html2canvasModule) as any;
 
-  // If a live visible targetElement is provided, capture it directly
-  if (options.targetElement) {
-    onProgress?.('Mengambil tangkapan layar invoice...');
-    const canvas = await html2canvas(options.targetElement, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      logging: false,
-      backgroundColor: '#ffffff',
-    });
-
+  const downloadCanvasAsPng = (canvas: HTMLCanvasElement): Promise<{ pngBlob: Blob; pngUrl: string; fileName: string }> => {
     return new Promise((resolve, reject) => {
       canvas.toBlob((blob: Blob | null) => {
         if (!blob) {
-          reject(new Error('Gagal menghasilkan gambar PNG dari invoice'));
+          reject(new Error('Gagal menghasilkan berkas gambar PNG'));
           return;
         }
 
@@ -446,16 +545,58 @@ export async function exportHtmlInvoicePng(
         document.body.appendChild(link);
         link.click();
         setTimeout(() => {
-          document.body.removeChild(link);
+          if (document.body.contains(link)) {
+            document.body.removeChild(link);
+          }
         }, 500);
 
         onProgress?.('Selesai!');
         resolve({ pngBlob: blob, pngUrl, fileName });
       }, 'image/png');
     });
+  };
+
+  // Attempt 1: If a live targetElement is provided, capture it safely with style sanitization
+  if (options.targetElement && document.body.contains(options.targetElement)) {
+    try {
+      onProgress?.('Mengambil tangkapan layar invoice...');
+      await preloadImagesInElement(options.targetElement);
+
+      const targetId = options.targetElement.id || 'invoice-paper-a4';
+      const canvas = await withSanitizedComputedStyles(async () => {
+        return await html2canvas(options.targetElement!, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          onclone: (clonedDoc: Document) => {
+            const el = clonedDoc.getElementById(targetId) || clonedDoc.querySelector(`[id="${targetId}"]`);
+            if (el && el instanceof HTMLElement) {
+              el.style.transform = 'none';
+              el.style.boxShadow = 'none';
+              el.style.margin = '0 auto';
+              el.style.borderRadius = '0px';
+            }
+            clonedDoc.querySelectorAll('style').forEach((st) => {
+              if (st.textContent && (st.textContent.includes('oklch') || st.textContent.includes('lab'))) {
+                st.textContent = sanitizeCssColorsInString(st.textContent);
+              }
+            });
+          },
+        });
+      });
+
+      if (canvas && canvas.width > 0 && canvas.height > 0) {
+        return await downloadCanvasAsPng(canvas);
+      }
+    } catch (targetErr) {
+      console.warn('Tangkapan langsung gagal, beralih ke generator invoice HTML presisi...', targetErr);
+    }
   }
 
-  // Fallback: build standalone high-res container
+  // Attempt 2 (Robust Fallback / Standalone generator): Build dedicated high-res A4 container
+  onProgress?.('Menyusun template invoice resolusi tinggi...');
   const htmlContent = generateInvoiceHtmlString(options);
 
   const container = document.createElement('div');
@@ -473,65 +614,40 @@ export async function exportHtmlInvoicePng(
   document.body.appendChild(container);
 
   try {
-    onProgress?.('Memproses grafik invoice...');
-
-    const images = Array.from(container.querySelectorAll('img'));
-    await Promise.all(
-      images.map((img) => {
-        if (img.complete && img.naturalWidth > 0) return Promise.resolve(null);
-        return new Promise((resolve) => {
-          img.onload = () => resolve(null);
-          img.onerror = () => resolve(null);
-          setTimeout(resolve, 300);
-        });
-      })
-    );
-
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    onProgress?.('Memproses grafik & teks invoice...');
+    await preloadImagesInElement(container);
 
     onProgress?.('Membuat berkas gambar PNG...');
 
-    const canvas = await html2canvas(container, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      logging: false,
-      backgroundColor: '#ffffff',
-      scrollX: 0,
-      scrollY: 0,
-      windowWidth: 794,
-      onclone: (clonedDoc: Document) => {
-        const el = clonedDoc.getElementById('html-invoice-render-target-png');
-        if (el) {
-          el.style.left = '0px';
-          el.style.top = '0px';
-          el.style.opacity = '1';
-          el.style.zIndex = '1';
-        }
-      },
+    const canvas = await withSanitizedComputedStyles(async () => {
+      return await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 794,
+        onclone: (clonedDoc: Document) => {
+          const el = clonedDoc.getElementById('html-invoice-render-target-png');
+          if (el) {
+            el.style.left = '0px';
+            el.style.top = '0px';
+            el.style.opacity = '1';
+            el.style.zIndex = '1';
+            el.style.transform = 'none';
+          }
+          clonedDoc.querySelectorAll('style').forEach((st) => {
+            if (st.textContent && (st.textContent.includes('oklch') || st.textContent.includes('lab'))) {
+              st.textContent = sanitizeCssColorsInString(st.textContent);
+            }
+          });
+        },
+      });
     });
 
-    return new Promise((resolve, reject) => {
-      canvas.toBlob((blob: Blob | null) => {
-        if (!blob) {
-          reject(new Error('Gagal menghasilkan gambar PNG'));
-          return;
-        }
-
-        const pngUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = pngUrl;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => {
-          document.body.removeChild(link);
-        }, 500);
-
-        onProgress?.('Selesai!');
-        resolve({ pngBlob: blob, pngUrl, fileName });
-      }, 'image/png');
-    });
+    return await downloadCanvasAsPng(canvas);
   } finally {
     if (document.body.contains(container)) {
       document.body.removeChild(container);

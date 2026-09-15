@@ -70,10 +70,9 @@ export const InvoicePaperA4 = React.forwardRef<HTMLDivElement, InvoicePaperA4Pro
             )}
           </div>
 
-          {/* Date, Invoice Number & Recipient */}
+          {/* Date & Recipient */}
           <div className="w-1/2 text-left pl-6">
-            <div className="flex items-center justify-between text-[11px] text-slate-900 mb-2 font-bold pb-1 border-b border-slate-200">
-              <span>Invoice: <span className="font-black text-indigo-900">{invoiceNumber}</span></span>
+            <div className="text-[11px] text-slate-900 mb-2 font-bold pb-1 border-b border-slate-200">
               <span>{invoiceDate}</span>
             </div>
             <div className="text-[11px] text-slate-800 space-y-0.5">
@@ -95,11 +94,11 @@ export const InvoicePaperA4 = React.forwardRef<HTMLDivElement, InvoicePaperA4Pro
             }}
             className="font-extrabold text-center text-[11px]"
           >
-            <th className="border border-slate-900 px-2 py-2 w-10">NO</th>
-            <th className="border border-slate-900 px-2 py-2 w-24">BANYAKNYA</th>
-            <th className="border border-slate-900 px-3 py-2 text-left">NAMA ITEM</th>
-            <th className="border border-slate-900 px-3 py-2 w-28 text-right">HARGA</th>
-            <th className="border border-slate-900 px-3 py-2 w-32 text-right">JUMLAH</th>
+            <th className="border border-slate-900 px-2 py-2 w-10 text-center align-middle">NO</th>
+            <th className="border border-slate-900 px-2 py-2 w-24 text-center align-middle">BANYAKNYA</th>
+            <th className="border border-slate-900 px-3 py-2 text-center align-middle">NAMA ITEM</th>
+            <th className="border border-slate-900 px-3 py-2 w-28 text-center align-middle">HARGA</th>
+            <th className="border border-slate-900 px-3 py-2 w-32 text-center align-middle">JUMLAH</th>
           </tr>
         </thead>
         <tbody>
@@ -108,11 +107,11 @@ export const InvoicePaperA4 = React.forwardRef<HTMLDivElement, InvoicePaperA4Pro
             const p = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
             return (
               <tr key={idx} className="border border-slate-900 text-[11px]">
-                <td className="border border-slate-900 px-2 py-2 text-center text-slate-700">{idx + 1}</td>
-                <td className="border border-slate-900 px-2 py-2 text-center font-bold">{q}</td>
-                <td className="border border-slate-900 px-3 py-2 font-medium">{item.namaBarang}</td>
-                <td className="border border-slate-900 px-3 py-2 text-right tabular-nums whitespace-nowrap">{formatRupiah(p)}</td>
-                <td className="border border-slate-900 px-3 py-2 text-right font-bold tabular-nums whitespace-nowrap">{formatRupiah(q * p)}</td>
+                <td className="border border-slate-900 px-2 py-2 text-center align-middle text-slate-700">{idx + 1}</td>
+                <td className="border border-slate-900 px-2 py-2 text-center align-middle font-bold">{q}</td>
+                <td className="border border-slate-900 px-3 py-2 text-left align-middle font-medium">{item.namaBarang}</td>
+                <td className="border border-slate-900 px-3 py-2 text-center align-middle tabular-nums whitespace-nowrap">{formatRupiah(p)}</td>
+                <td className="border border-slate-900 px-3 py-2 text-center align-middle font-bold tabular-nums whitespace-nowrap">{formatRupiah(q * p)}</td>
               </tr>
             );
           })}

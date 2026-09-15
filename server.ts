@@ -27,6 +27,9 @@ import {
   getMasterDapurFromDb,
   createMasterDapurInDb,
   deleteMasterDapurInDb,
+  getMasterSatuanFromDb,
+  createMasterSatuanInDb,
+  deleteMasterSatuanInDb,
   checkMasterUsageInDb,
 } from './server/supabaseService.js';
 import { parseVoiceOrderWithGemini } from './server/geminiService.js';
@@ -573,8 +576,12 @@ async function startServer() {
         const data = await getMasterDapurFromDb();
         return res.json({ success: true, data, count: data.length });
       }
+      if (type === 'satuan') {
+        const data = await getMasterSatuanFromDb();
+        return res.json({ success: true, data, count: data.length });
+      }
 
-      return res.status(400).json({ success: false, error: 'Parameter type (toko, pemasok, dapur) diperlukan' });
+      return res.status(400).json({ success: false, error: 'Parameter type (toko, pemasok, dapur, satuan) diperlukan' });
     } catch (error) {
       console.error(error);
       return res.status(500).json({
@@ -606,7 +613,13 @@ async function startServer() {
         const data = await createMasterDapurInDb(nama, alamat);
         return res.json({ success: true, data, message: 'Dapur berhasil ditambahkan' });
       }
-      return res.status(400).json({ success: false, error: 'Parameter type (toko, pemasok, dapur) diperlukan' });
+      if (type === 'satuan') {
+        const nama = req.body.nama || req.body.name;
+        if (!nama || !nama.trim()) return res.status(400).json({ success: false, error: 'Nama satuan wajib diisi' });
+        const data = await createMasterSatuanInDb(nama);
+        return res.json({ success: true, data, message: 'Satuan berhasil ditambahkan' });
+      }
+      return res.status(400).json({ success: false, error: 'Parameter type (toko, pemasok, dapur, satuan) diperlukan' });
     } catch (error) {
       console.error(error);
       return res.status(500).json({
@@ -634,7 +647,11 @@ async function startServer() {
         const result = await deleteMasterDapurInDb(id);
         return res.json({ success: true, ...result });
       }
-      return res.status(400).json({ success: false, error: 'Parameter type (toko, pemasok, dapur) diperlukan' });
+      if (type === 'satuan') {
+        const result = await deleteMasterSatuanInDb(id);
+        return res.json({ success: true, ...result });
+      }
+      return res.status(400).json({ success: false, error: 'Parameter type (toko, pemasok, dapur, satuan) diperlukan' });
     } catch (error) {
       console.error(error);
       return res.status(500).json({
@@ -800,6 +817,54 @@ async function startServer() {
         return res.status(400).json({ success: false, error: 'ID dapur wajib disertakan' });
       }
       const result = await deleteMasterDapurInDb(id);
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
+    }
+  });
+
+  // SATUAN
+  app.get('/api/supabase/master/satuan', async (req, res) => {
+    try {
+      const data = await getMasterSatuanFromDb();
+      res.json({ success: true, data, count: data.length });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
+    }
+  });
+
+  app.post('/api/supabase/master/satuan', async (req, res) => {
+    try {
+      const nama = req.body.nama || req.body.name;
+      if (!nama || !nama.trim()) {
+        return res.status(400).json({ success: false, error: 'Nama satuan wajib diisi' });
+      }
+      const data = await createMasterSatuanInDb(nama);
+      res.json({ success: true, data, message: 'Satuan berhasil ditambahkan' });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Internal Server Error",
+        error: error instanceof Error ? error.message : error
+      });
+    }
+  });
+
+  app.delete('/api/supabase/master/satuan', async (req, res) => {
+    try {
+      const id = (req.query.id || req.body.id) as string;
+      if (!id) {
+        return res.status(400).json({ success: false, error: 'ID satuan wajib disertakan' });
+      }
+      const result = await deleteMasterSatuanInDb(id);
       res.json({ success: true, ...result });
     } catch (error) {
       console.error(error);
