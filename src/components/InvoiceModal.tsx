@@ -78,6 +78,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   const targetKitchen = (tujuanDapur || items[0]?.tujuanDapur || '').trim().toLowerCase();
   const targetDate = items[0]?.tanggal;
 
+  // Source of truth: use the items directly passed to the modal so preview and export share the exact same data
   const scopedItems = items.filter((item) => {
     const matchStore = !targetStore || item.toko.trim().toLowerCase() === targetStore;
     const matchKitchen = !targetKitchen || item.tujuanDapur.trim().toLowerCase() === targetKitchen;
@@ -85,7 +86,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
     return matchStore && matchKitchen && matchDate;
   });
 
-  const displayItems = scopedItems.length > 0 ? scopedItems : items;
+  const displayItems = items && items.length > 0 ? items : (scopedItems.length > 0 ? scopedItems : []);
 
   const totalJual = displayItems.reduce((sum, item) => {
     const q = parseIndonesianNumber(item.qty);
@@ -130,8 +131,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
       if (onSaveInvoiceRecord) {
         onSaveInvoiceRecord();
       }
-      const targetEl = isViewFull ? fullViewPaperRef.current : invoicePaperRef.current;
-      await exportHtmlInvoicePng({
+
+      const options = {
         storeName: mainStore,
         kitchenName: mainKitchen,
         items: displayItems,
@@ -141,8 +142,13 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         customAlamat: recipientAddress || '-',
         customNomor: recipientPhone || '-',
         customTanggal: invoiceDate,
-        targetElement: targetEl,
-      });
+      };
+
+      console.log('PNG EXPORT OPTIONS', options);
+      console.log('PNG ITEMS LENGTH', options.items?.length);
+      console.log('PNG FIRST ITEM', options.items?.[0]);
+
+      await exportHtmlInvoicePng(options);
     } catch (err: any) {
       console.error('Failed to export PNG:', err);
       alert('Gagal mengunduh gambar PNG invoice.');
