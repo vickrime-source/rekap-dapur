@@ -32,9 +32,9 @@ export const PeriodSegmentedControl: React.FC<PeriodSegmentedControlProps> = ({
     <div
       role="tablist"
       aria-label="Pilih Periode"
-      className={`relative flex items-center bg-slate-100/95 p-0.5 ${
+      className={`relative flex items-center bg-slate-100/95 dark:bg-slate-800/90 p-0.5 ${
         isPill ? 'rounded-full' : 'rounded-xl'
-      } border border-slate-200/80 shadow-2xs w-full sm:w-auto justify-between sm:justify-start select-none ${className}`}
+      } border border-slate-200/80 dark:border-slate-700 shadow-2xs w-full sm:w-auto justify-between sm:justify-start select-none transition-colors duration-200 ${className}`}
     >
       {PERIOD_OPTIONS.map((opt) => {
         const isActive = value === opt.id;
@@ -48,7 +48,7 @@ export const PeriodSegmentedControl: React.FC<PeriodSegmentedControlProps> = ({
             className={`relative flex-1 sm:flex-none px-2.5 sm:px-3.5 py-1 text-xs font-bold transition-colors duration-200 whitespace-nowrap text-center cursor-pointer select-none ${
               isPill ? 'rounded-full' : 'rounded-lg'
             } ${
-              isActive ? 'text-white' : 'text-slate-600 hover:text-slate-900'
+              isActive ? 'text-white' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
             {isActive && (

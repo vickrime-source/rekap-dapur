@@ -53,10 +53,10 @@ export const TransactionsMobileList: React.FC<TransactionsMobileListProps> = ({
       {isLoading && filteredBatches.length === 0 ? (
         <TableSkeleton rows={4} />
       ) : paginatedBatches.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 text-center text-slate-500 text-xs shadow-xs space-y-1">
-          <p className="font-bold text-slate-700">Tidak ada transaksi yang sesuai filter</p>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 text-center text-slate-500 dark:text-slate-400 text-xs shadow-xs space-y-1">
+          <p className="font-bold text-slate-700 dark:text-slate-200">Tidak ada transaksi yang sesuai filter</p>
           {selectedStoreFilter !== 'all' && (
-            <p className="text-[11px] text-indigo-600">Filter aktif: Toko {selectedStoreFilter}</p>
+            <p className="text-[11px] text-indigo-600 dark:text-indigo-400">Filter aktif: Toko {selectedStoreFilter}</p>
           )}
         </div>
       ) : (

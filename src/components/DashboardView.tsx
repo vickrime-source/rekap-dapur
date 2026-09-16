@@ -137,7 +137,7 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
   ]);
 
   return (
-    <div className="space-y-3 pt-1 pb-36 sm:pb-24 font-sans text-slate-800">
+    <div className="space-y-3 pt-1 pb-36 sm:pb-24 font-sans text-slate-800 dark:text-slate-200 transition-colors duration-200">
       {/* Filter Pills Bar (Store, Kitchen, Calendar & Search) */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Pill Filters Group */}
@@ -146,14 +146,14 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
           <div className="relative inline-flex items-center">
             <div className={`rounded-full px-3.5 py-2 border shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer min-h-[44px] ${
               selectedStoreFilter !== 'all' 
-                ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-bold'
-                : 'bg-white border-slate-200/90 text-slate-800 hover:border-indigo-300'
+                ? 'bg-indigo-50 dark:bg-indigo-950/80 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 font-bold'
+                : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-indigo-300 dark:hover:border-indigo-600'
             }`}>
-              <StoreIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <StoreIcon className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
               <span className="text-xs font-bold whitespace-nowrap">
                 {selectedStoreFilter === 'all' ? 'Semua Toko' : `Toko ${selectedStoreFilter}`}
               </span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
             </div>
             <select
               value={selectedStoreFilter}
@@ -174,14 +174,14 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
           <div className="relative inline-flex items-center">
             <div className={`rounded-full px-3.5 py-2 border shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer min-h-[44px] ${
               selectedKitchenFilter !== 'all'
-                ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-bold'
-                : 'bg-white border-slate-200/90 text-slate-800 hover:border-indigo-300'
+                ? 'bg-indigo-50 dark:bg-indigo-950/80 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 font-bold'
+                : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-indigo-300 dark:hover:border-indigo-600'
             }`}>
-              <Utensils className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <Utensils className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
               <span className="text-xs font-bold whitespace-nowrap">
                 {selectedKitchenFilter === 'all' ? 'Semua Dapur' : `Dapur ${selectedKitchenFilter}`}
               </span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
             </div>
             <select
               value={selectedKitchenFilter}
@@ -202,10 +202,10 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
           <div className="relative inline-flex items-center">
             <div className={`rounded-full px-3.5 py-2 border shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer min-h-[44px] ${
               timeFilter !== 'all_time'
-                ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-bold ring-1 ring-indigo-300'
-                : 'bg-white border-slate-200/90 text-slate-800 hover:border-indigo-300'
+                ? 'bg-indigo-50 dark:bg-indigo-950/80 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 font-bold ring-1 ring-indigo-300 dark:ring-indigo-700'
+                : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-indigo-300 dark:hover:border-indigo-600'
             }`}>
-              <CalendarIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <CalendarIcon className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
               <span className="text-xs font-bold whitespace-nowrap">
                 {timeFilter === 'hari_ini'
                   ? 'Hari Ini'
@@ -215,7 +215,7 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
                   ? 'Bulan Ini'
                   : 'All Time'}
               </span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
             </div>
             <select
               value={timeFilter}
@@ -241,7 +241,7 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
             <button
               type="button"
               onClick={() => setSelectedStoreFilter('all')}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 text-xs font-semibold cursor-pointer min-h-[44px]"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-semibold cursor-pointer min-h-[44px]"
               title="Hapus Filter Toko"
             >
               <span>Reset Toko</span>
@@ -252,18 +252,18 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
 
         {/* Search Input */}
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Cari barang, toko, dapur..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-7 py-2.5 bg-white border border-slate-200/90 rounded-full text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 shadow-2xs transition-all min-h-[44px]"
+            className="w-full pl-9 pr-7 py-2.5 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-full text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 shadow-2xs transition-all min-h-[44px]"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer p-1"
             >
               <X className="w-3.5 h-3.5" />
             </button>

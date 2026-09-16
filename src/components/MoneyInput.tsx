@@ -72,7 +72,7 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
       {label && (
         <label
           htmlFor={id}
-          className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1"
+          className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1"
         >
           {label} {required && <span className="text-rose-500">*</span>}
         </label>
@@ -88,15 +88,15 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
           onBlur={handleBlur}
           disabled={disabled}
           placeholder={placeholder}
-          className={`w-full px-3.5 py-2.5 bg-white border rounded-xl text-xs sm:text-sm font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all ${
-            error ? 'border-rose-400 bg-rose-50/20' : 'border-slate-300'
-          } ${disabled ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''}`}
+          className={`w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all ${
+            error ? 'border-rose-400 dark:border-rose-500 bg-rose-50/20 dark:bg-rose-950/20' : 'border-slate-300 dark:border-slate-700'
+          } ${disabled ? 'bg-slate-100 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 cursor-not-allowed' : ''}`}
         />
       </div>
       {error ? (
-        <p className="text-[10px] font-semibold text-rose-600 mt-1">{error}</p>
+        <p className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 mt-1">{error}</p>
       ) : helperText ? (
-        <p className="text-[10px] text-slate-400 mt-1">{helperText}</p>
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{helperText}</p>
       ) : null}
     </div>
   );

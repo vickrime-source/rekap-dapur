@@ -25,10 +25,10 @@ export function StatusSegment<T extends string = string>({
 }: StatusSegmentProps<T>) {
   return (
     <div className={`w-full ${className}`}>
-      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
         {label}
       </label>
-      <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 gap-1">
+      <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 gap-1">
         {options.map((opt) => {
           const isSelected = value === opt.value;
           return (
@@ -39,8 +39,8 @@ export function StatusSegment<T extends string = string>({
               onClick={() => onChange(opt.value)}
               className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center select-none ${
                 isSelected
-                  ? opt.activeColor || 'bg-slate-900 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  ? opt.activeColor || 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
               }`}
             >
               {opt.label}

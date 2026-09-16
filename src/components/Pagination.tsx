@@ -43,40 +43,40 @@ export const Pagination: React.FC<PaginationProps> = ({
   };
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 py-3 px-3 sm:px-4 bg-slate-50/80 border-t border-slate-200 font-sans text-xs no-print">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 py-3 px-3 sm:px-4 bg-slate-50/80 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 font-sans text-xs no-print">
       {/* KIRI: Informasi Data & Halaman */}
-      <div className="flex items-center flex-wrap gap-2 text-slate-600 font-medium text-[11px] sm:text-xs">
+      <div className="flex items-center flex-wrap gap-2 text-slate-600 dark:text-slate-400 font-medium text-[11px] sm:text-xs">
         {totalItems !== undefined ? (
           <span>
             Menampilkan{' '}
-            <strong className="text-slate-900 font-bold">
+            <strong className="text-slate-900 dark:text-slate-100 font-bold">
               {totalItems === 0
                 ? 0
                 : Math.min(totalItems, (safeCurrentPage - 1) * (pageSize || 10) + 1)}
               -
               {Math.min(totalItems, safeCurrentPage * (pageSize || 10))}
             </strong>{' '}
-            dari <strong className="text-slate-900 font-bold">{totalItems}</strong> data
-            <span className="hidden xs:inline text-slate-400 mx-1.5">•</span>
+            dari <strong className="text-slate-900 dark:text-slate-100 font-bold">{totalItems}</strong> data
+            <span className="hidden xs:inline text-slate-400 dark:text-slate-600 mx-1.5">•</span>
             <span className="hidden xs:inline">
-              Hal <strong className="text-slate-900 font-bold">{safeCurrentPage}</strong> / {safeTotalPages}
+              Hal <strong className="text-slate-900 dark:text-slate-100 font-bold">{safeCurrentPage}</strong> / {safeTotalPages}
             </span>
           </span>
         ) : (
           <span>
-            Halaman <strong className="text-slate-900 font-bold">{safeCurrentPage}</strong> dari{' '}
-            <strong className="text-slate-900 font-bold">{safeTotalPages}</strong>
+            Halaman <strong className="text-slate-900 dark:text-slate-100 font-bold">{safeCurrentPage}</strong> dari{' '}
+            <strong className="text-slate-900 dark:text-slate-100 font-bold">{safeTotalPages}</strong>
           </span>
         )}
 
         {/* Pilihan Ukuran Baris per Halaman */}
         {onPageSizeChange && pageSize && (
-          <div className="flex items-center gap-1.5 ml-1 pl-2 border-l border-slate-300">
-            <span className="text-slate-500 text-[11px]">Tampil:</span>
+          <div className="flex items-center gap-1.5 ml-1 pl-2 border-l border-slate-300 dark:border-slate-700">
+            <span className="text-slate-500 dark:text-slate-400 text-[11px]">Tampil:</span>
             <select
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="bg-white border border-slate-300 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-slate-700 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
+              className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
             >
               <option value={10}>10 baris</option>
               <option value={15}>15 baris</option>
@@ -94,7 +94,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           type="button"
           onClick={() => onPageChange(Math.max(1, safeCurrentPage - 1))}
           disabled={safeCurrentPage <= 1}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer font-bold text-xs shadow-2xs active:scale-95"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer font-bold text-xs shadow-2xs active:scale-95"
           title="Halaman Sebelumnya"
         >
           <ChevronLeft className="w-3.5 h-3.5" />
@@ -106,7 +106,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           {getPageNumbers().map((page, idx) => {
             if (page === '...') {
               return (
-                <span key={`ellipsis-${idx}`} className="px-1 text-slate-400 font-bold text-xs">
+                <span key={`ellipsis-${idx}`} className="px-1 text-slate-400 dark:text-slate-600 font-bold text-xs">
                   ...
                 </span>
               );
@@ -121,7 +121,7 @@ export const Pagination: React.FC<PaginationProps> = ({
                 className={`min-w-8 h-8 px-2 flex items-center justify-center rounded-lg font-black text-xs transition-all cursor-pointer ${
                   isCurrent
                     ? 'bg-indigo-600 text-white shadow-xs shadow-indigo-500/30 ring-1 ring-indigo-600'
-                    : 'text-slate-600 hover:bg-white hover:text-slate-900 border border-transparent hover:border-slate-200'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white border border-transparent hover:border-slate-200 dark:hover:border-slate-700'
                 }`}
               >
                 {page}
@@ -135,7 +135,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           type="button"
           onClick={() => onPageChange(Math.min(safeTotalPages, safeCurrentPage + 1))}
           disabled={safeCurrentPage >= safeTotalPages}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer font-bold text-xs shadow-2xs active:scale-95"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer font-bold text-xs shadow-2xs active:scale-95"
           title="Halaman Selanjutnya"
         >
           <span className="hidden xs:inline">Next</span>

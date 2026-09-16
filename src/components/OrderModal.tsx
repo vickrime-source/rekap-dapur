@@ -814,26 +814,26 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className="relative w-full max-w-lg sm:max-w-xl md:max-w-2xl tablet-landscape-modal bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-200 overflow-hidden z-10 max-h-[92vh] sm:max-h-[88vh] flex flex-col"
+            className="relative w-full max-w-lg sm:max-w-xl md:max-w-2xl tablet-landscape-modal bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl border-t sm:border border-slate-200 dark:border-slate-800 overflow-hidden z-10 max-h-[92vh] sm:max-h-[88vh] flex flex-col transition-colors"
           >
             {/* Pull Tab Bar / Handle */}
-            <div className="w-full pt-3 pb-1 flex justify-center items-center cursor-grab bg-slate-50 border-b border-slate-100">
-              <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
+            <div className="w-full pt-3 pb-1 flex justify-center items-center cursor-grab bg-slate-50 dark:bg-slate-800/80 border-b border-slate-100 dark:border-slate-800">
+              <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full" />
             </div>
 
             {/* Header Modal with Tanggal Pesanan */}
-            <div className="px-4 sm:px-5 py-3 sm:py-3.5 bg-slate-50 border-b border-slate-200 shrink-0 relative z-30">
+            <div className="px-4 sm:px-5 py-3 sm:py-3.5 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 shrink-0 relative z-30">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <div className="flex items-center justify-between sm:justify-start gap-2.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs shrink-0">
+                    <div className="w-8 h-8 rounded-xl bg-slate-900 dark:bg-indigo-600 text-white flex items-center justify-center shadow-xs shrink-0">
                       <Utensils className="w-4 h-4" />
                     </div>
                     <div>
-                      <h2 className="text-sm font-black text-slate-900 leading-tight">
+                      <h2 className="text-sm font-black text-slate-900 dark:text-slate-100 leading-tight">
                         {initialData ? 'Edit Pesanan' : 'Input Pesanan Baru'}
                       </h2>
-                      <p className="text-[11px] text-slate-500 font-medium">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                         Masukkan detail pesanan dapur
                       </p>
                     </div>
@@ -844,7 +844,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     type="button"
                     onClick={onClose}
                     id="close-order-modal-btn-mobile"
-                    className="sm:hidden p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                    className="sm:hidden p-1.5 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
                     title="Tutup Modal"
                   >
                     <X className="w-4 h-4" />
@@ -853,12 +853,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
                 <div className="flex items-center gap-2">
                   {/* Tanggal Pesanan with Natural Format */}
-                  <div className="relative flex items-center bg-white border border-slate-300 hover:border-indigo-400 rounded-xl px-3 py-1.5 text-xs sm:text-sm font-semibold text-slate-900 shadow-2xs transition-all cursor-pointer group flex-1 sm:flex-none">
-                    <Calendar className="w-3.5 h-3.5 text-indigo-600 mr-2 shrink-0 group-hover:text-indigo-700" />
-                    <span className="truncate font-semibold text-slate-800 select-none">
+                  <div className="relative flex items-center bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:border-indigo-400 rounded-xl px-3 py-1.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 shadow-2xs transition-all cursor-pointer group flex-1 sm:flex-none">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 mr-2 shrink-0 group-hover:text-indigo-700" />
+                    <span className="truncate font-semibold text-slate-800 dark:text-slate-200 select-none">
                       {tanggal ? formatTanggalWeb(tanggal, false) : 'Pilih Tanggal'}
                     </span>
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-1.5 shrink-0" />
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 ml-1.5 shrink-0" />
                     <input
                       type="date"
                       required
@@ -875,7 +875,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     type="button"
                     onClick={onClose}
                     id="close-order-modal-btn"
-                    className="hidden sm:flex p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                    className="hidden sm:flex p-1.5 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
                     title="Tutup Modal"
                   >
                     <X className="w-4 h-4" />
@@ -890,16 +890,16 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               {(isListening || voiceNotice || voiceError) && (
                 <div className="text-center py-1">
                   {isListening ? (
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-600 text-[11px] font-bold animate-pulse">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-[11px] font-bold animate-pulse">
                       <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping inline-block" />
                       <span>Mendengarkan ucapan suara...</span>
                     </div>
                   ) : voiceNotice ? (
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10.5px] font-bold">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[10.5px] font-bold">
                       <span>{voiceNotice}</span>
                     </div>
                   ) : voiceError ? (
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-600 text-[10.5px] font-bold">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-[10.5px] font-bold">
                       <AlertCircle className="w-3 h-3" />
                       <span>{voiceError}</span>
                     </div>
@@ -908,13 +908,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               )}
 
               {/* CARD 1: DETAIL PESANAN (Tetap Card Pertama, Rapih & Estimasi Margin) */}
-              <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3">
+              <div className="bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
                     DETAIL PESANAN
                   </span>
                   {itemRows.length > 1 && (
-                    <span className="text-[10.5px] font-bold text-indigo-600">
+                    <span className="text-[10.5px] font-bold text-indigo-600 dark:text-indigo-400">
                       Item #{activeItemIndex + 1} dari {itemRows.length}
                     </span>
                   )}
@@ -932,7 +932,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 ${
                             isActive
                               ? 'bg-indigo-600 text-white font-bold'
-                              : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
                           }`}
                         >
                           <span>#{idx + 1} {row.namaBarang || 'Tanpa Nama'}</span>
@@ -956,7 +956,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
                 {/* Field 1: Nama Barang */}
                 <div className="relative">
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                     Nama Barang
                   </label>
                   <input
@@ -974,15 +974,15 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                         setActiveSuggestionRowId(currentItem.id);
                       }
                     }}
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
+                    className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
                   />
 
                   {/* Autocomplete Popup */}
                   {isSuggestionOpen && (
-                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden py-1 divide-y divide-slate-100 max-h-60 overflow-y-auto">
-                      <div className="sticky top-0 px-3 py-1 text-[9px] font-black text-slate-400 uppercase tracking-wider bg-slate-50 flex items-center justify-between z-10">
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-30 overflow-hidden py-1 divide-y divide-slate-100 dark:divide-slate-800 max-h-60 overflow-y-auto">
+                      <div className="sticky top-0 px-3 py-1 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-slate-800 flex items-center justify-between z-10">
                         <span>Saran Otomatis (Enter / Klik)</span>
-                        <span className="font-mono text-[8px] bg-slate-200 text-slate-700 px-1 rounded">↵ Enter</span>
+                        <span className="font-mono text-[8px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-1 rounded">↵ Enter</span>
                       </div>
                       {suggestions.map((sug, idx) => (
                         <button
@@ -992,12 +992,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           onMouseEnter={() => setSelectedSugIdx(idx)}
                           className={`w-full px-3 py-1.5 text-left text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
                             idx === selectedSugIdx
-                              ? 'bg-indigo-50 text-indigo-800'
-                              : 'text-slate-700 hover:bg-slate-50'
+                              ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300'
+                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                           }`}
                         >
                           <span>{sug}</span>
-                          <span className="text-[10px] text-slate-400 font-normal">Pilih</span>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">Pilih</span>
                         </button>
                       ))}
                     </div>
@@ -1007,7 +1007,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 {/* Field 2: Qty & Satuan */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                       Qty
                     </label>
                     <input
@@ -1024,12 +1024,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
                         )
                       }
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all text-center"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all text-center"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                       Satuan
                     </label>
                     <SatuanAutocomplete
@@ -1070,7 +1070,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     onChange={(val) => updateCurrentItem('cashback', val)}
                   />
                   {currentItem.hargaBeli > 0 && currentItem.hargaJual > 0 && (
-                    <div className="text-[10.5px] text-slate-400 font-medium px-0.5">
+                    <div className="text-[10.5px] text-slate-400 dark:text-slate-500 font-medium px-0.5">
                       Rentang valid: {formatIDR(currentItem.hargaBeli)} – {formatIDR(currentItem.hargaJual)}
                     </div>
                   )}
@@ -1082,16 +1082,16 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     if (cb > 0) {
                       if (hb > 0 && cb < hb) {
                         return (
-                          <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-semibold flex items-center gap-1.5">
-                            <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                          <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-[11px] font-semibold flex items-center gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
                             <span>Cashback tidak boleh kurang dari Harga Beli ({formatIDR(hb)})</span>
                           </div>
                         );
                       }
                       if (hj > 0 && cb > hj) {
                         return (
-                          <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-semibold flex items-center gap-1.5">
-                            <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                          <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-[11px] font-semibold flex items-center gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
                             <span>Cashback tidak boleh lebih dari Harga Jual ({formatIDR(hj)})</span>
                           </div>
                         );
@@ -1117,7 +1117,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     type="button"
                     id="btn-tambah-item-barang"
                     onClick={addItemRow}
-                    className="w-full py-2.5 px-4 bg-white hover:bg-indigo-50/60 hover:border-indigo-400 text-slate-700 hover:text-indigo-700 rounded-2xl border-2 border-dashed border-slate-300 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                    className="w-full py-2.5 px-4 bg-white dark:bg-slate-800 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/40 hover:border-indigo-400 text-slate-700 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-400 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>＋ Tambah Item Barang</span>
@@ -1125,36 +1125,36 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
                   {/* Multi item list preview when > 1 */}
                   {itemRows.length > 1 && (
-                    <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-1.5">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                    <div className="p-3 bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1.5">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
                         Daftar Barang ({itemRows.length} Item):
                       </div>
-                      <div className="divide-y divide-slate-100">
+                      <div className="divide-y divide-slate-100 dark:divide-slate-700">
                         {itemRows.map((r, idx) => (
                           <div
                             key={r.id}
                             onClick={() => setActiveItemIndex(idx)}
                             className={`py-1.5 px-2 rounded-lg flex items-center justify-between text-xs cursor-pointer ${
-                              idx === activeItemIndex ? 'bg-indigo-50 font-bold text-indigo-900' : 'hover:bg-slate-50 text-slate-700'
+                              idx === activeItemIndex ? 'bg-indigo-50 dark:bg-indigo-950/60 font-bold text-indigo-900 dark:text-indigo-300' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'
                             }`}
                           >
                             <div>
-                              <span className="font-semibold block">
+                              <span className="font-semibold block text-slate-900 dark:text-slate-100">
                                 #{idx + 1} {r.namaBarang || 'Tanpa Nama'}
                               </span>
-                              <span className="text-[10.5px] text-slate-500 font-normal">
+                              <span className="text-[10.5px] text-slate-500 dark:text-slate-400 font-normal">
                                 {r.qty} {r.satuan || 'Kg'}
                               </span>
                             </div>
                             <div className="text-right">
-                              <span className="font-mono font-bold block text-slate-900">
+                              <span className="font-mono font-bold block text-slate-900 dark:text-slate-100">
                                 {formatIDR((r.qty || 0) * (r.hargaJual || 0))}
                               </span>
-                              <span className="text-[9.5px] text-slate-400 font-mono block">
+                              <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-mono block">
                                 Beli: {formatIDR((r.qty || 0) * (r.hargaBeli || 0))}
                               </span>
                               {Boolean(r.cashback && r.cashback > 0) && (
-                                <span className="text-[9.5px] font-bold text-amber-700 font-mono block">
+                                <span className="text-[9.5px] font-bold text-amber-700 dark:text-amber-400 font-mono block">
                                   CB: {formatIDR(r.cashback)}
                                 </span>
                               )}
@@ -1168,16 +1168,16 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               )}
 
               {/* CARD 2: TUJUAN PESANAN */}
-              <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3">
-                <div className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                  <Store className="w-3.5 h-3.5 text-slate-600" />
+              <div className="bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 space-y-3">
+                <div className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Store className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
                   <span>TUJUAN PESANAN</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {/* Toko */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                       Toko
                     </label>
                     <select
@@ -1202,10 +1202,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           }
                         }
                       }}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
                     >
                       <option value="">-- Pilih Toko --</option>
-                      <option value="__ADD_NEW__" className="text-indigo-600 font-bold bg-indigo-50">
+                      <option value="__ADD_NEW__" className="text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-950">
                         + Tambah Toko Baru...
                       </option>
                       {masterToko.length > 0 ? (
@@ -1226,7 +1226,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
                   {/* Pemasok Autocomplete */}
                   <div className="relative">
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                       Pemasok
                     </label>
                     <div className="relative">
@@ -1250,13 +1250,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                             setPemasokId('');
                           }
                         }}
-                        className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all placeholder:text-slate-400 placeholder:font-normal"
+                        className="w-full pl-9 pr-8 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
                       />
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <button
                         type="button"
                         onClick={() => setIsPemasokOpen(!isPemasokOpen)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
                         title="Buka daftar pemasok"
                       >
                         <ChevronDown className="w-4 h-4" />
@@ -1269,7 +1269,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           className="fixed inset-0 z-30" 
                           onClick={() => setIsPemasokOpen(false)} 
                         />
-                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-40 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-40 max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                           {filteredPemasokSuggestions.length > 0 ? (
                             filteredPemasokSuggestions.map((p) => (
                               <button
@@ -1280,22 +1280,22 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                                   setPemasokId(p.id);
                                   setIsPemasokOpen(false);
                                 }}
-                                className="w-full text-left px-3.5 py-2.5 hover:bg-indigo-50 transition-colors flex items-center justify-between group cursor-pointer"
+                                className="w-full text-left px-3.5 py-2.5 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between group cursor-pointer"
                               >
-                                <span className="text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-indigo-900">
+                                <span className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 group-hover:text-indigo-900 dark:group-hover:text-indigo-300">
                                   {p.nama}
                                 </span>
                                 {pemasok.trim().toLowerCase() === p.nama.trim().toLowerCase() && (
-                                  <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Terpilih</span>
+                                  <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full">Terpilih</span>
                                 )}
                               </button>
                             ))
                           ) : (
                             <div className="p-3 text-center">
-                              <p className="text-xs text-slate-500 mb-1">
-                                Belum ada pemasok "<span className="font-semibold text-slate-700">{pemasok}</span>"
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
+                                Belum ada pemasok "<span className="font-semibold text-slate-700 dark:text-slate-300">{pemasok}</span>"
                               </p>
-                              <span className="inline-block text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                              <span className="inline-block text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg">
                                 + Otomatis disimpan ke Master saat pesanan dibuat
                               </span>
                             </div>
@@ -1307,7 +1307,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
                   {/* Dapur Autocomplete */}
                   <div className="relative">
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                       Dapur <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
@@ -1335,13 +1335,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                             setTujuanDapurId('');
                           }
                         }}
-                        className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all placeholder:text-slate-400 placeholder:font-normal"
+                        className="w-full pl-9 pr-8 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
                       />
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <button
                         type="button"
                         onClick={() => setIsDapurOpen(!isDapurOpen)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
                         title="Buka daftar dapur"
                       >
                         <ChevronDown className="w-4 h-4" />
@@ -1354,7 +1354,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           className="fixed inset-0 z-30" 
                           onClick={() => setIsDapurOpen(false)} 
                         />
-                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-40 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-40 max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                           {filteredKitchenSuggestions.length > 0 ? (
                             filteredKitchenSuggestions.map((d) => (
                               <button
@@ -1365,30 +1365,30 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                                   setTujuanDapurId(d.id);
                                   setIsDapurOpen(false);
                                 }}
-                                className="w-full text-left px-3.5 py-2.5 hover:bg-indigo-50 transition-colors flex items-center justify-between group cursor-pointer"
+                                className="w-full text-left px-3.5 py-2.5 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between group cursor-pointer"
                               >
                                 <div>
-                                  <span className="text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-indigo-900">
+                                  <span className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 group-hover:text-indigo-900 dark:group-hover:text-indigo-300">
                                     Dapur {d.nama.replace(/^dapur\s+/i, '')}
                                   </span>
                                   {d.alamat && (
-                                    <span className="text-[10.5px] text-slate-400 block mt-0.5">
+                                    <span className="text-[10.5px] text-slate-400 dark:text-slate-500 block mt-0.5">
                                       {d.alamat}
                                     </span>
                                   )}
                                 </div>
                                 {(tujuanDapur.trim().toLowerCase() === d.nama.trim().toLowerCase() ||
                                   tujuanDapur.trim().toLowerCase().replace(/^dapur\s+/i, '') === d.nama.trim().toLowerCase().replace(/^dapur\s+/i, '')) && (
-                                  <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Terpilih</span>
+                                  <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full">Terpilih</span>
                                 )}
                               </button>
                             ))
                           ) : (
                             <div className="p-3 text-center">
-                              <p className="text-xs text-slate-500 mb-1">
-                                Belum ada dapur "<span className="font-semibold text-slate-700">{tujuanDapur}</span>"
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
+                                Belum ada dapur "<span className="font-semibold text-slate-700 dark:text-slate-300">{tujuanDapur}</span>"
                               </p>
-                              <span className="inline-block text-[10.5px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                              <span className="inline-block text-[10.5px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg">
                                 + Otomatis disimpan ke Master saat pesanan dibuat
                               </span>
                             </div>
@@ -1435,7 +1435,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
               {/* Catatan Opsional */}
               <div className="pt-1">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                   Catatan (Opsional)
                 </label>
                 <input
@@ -1444,19 +1444,19 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   placeholder="Catatan tambahan..."
                   value={catatan}
                   onChange={(e) => setCatatan(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-medium text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
                 />
               </div>
             </form>
 
             {/* BOTTOM ACTION BAR (100% PERSIS EXISTING: Batal | 🎙 | Simpan Pesanan) */}
-            <div className="px-5 py-3 bg-white border-t border-slate-200 flex items-center gap-2">
+            <div className="px-5 py-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2">
               {/* Tombol Batal */}
               <button
                 type="button"
                 onClick={onClose}
                 id="btn-batal-order"
-                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer text-center"
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-center"
               >
                 Batal
               </button>
@@ -1487,7 +1487,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 id="btn-simpan-pesanan"
                 disabled={!isFormValid || isSubmitting}
                 onClick={() => handleSubmit()}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-900 hover:bg-indigo-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black shadow-md shadow-indigo-900/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-900 hover:bg-indigo-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-black shadow-md shadow-indigo-900/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <span>
                   {isSubmitting
@@ -1505,17 +1505,17 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       {/* Quick Add Master Modal */}
       {quickAddType && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-slate-200 space-y-4 text-slate-800">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-slate-800 dark:text-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
                   <Plus className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-900">
+                  <h3 className="text-sm font-black text-slate-900 dark:text-slate-100">
                     + Tambah {quickAddType === 'toko' ? 'Toko Baru' : quickAddType === 'pemasok' ? 'Pemasok Baru' : 'Dapur Baru'}
                   </h3>
-                  <span className="text-[10.5px] text-slate-400 font-medium block">
+                  <span className="text-[10.5px] text-slate-400 dark:text-slate-500 font-medium block">
                     Tersimpan ke database &amp; langsung terpilih
                   </span>
                 </div>
@@ -1523,7 +1523,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               <button
                 type="button"
                 onClick={() => setQuickAddType(null)}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 ✕
               </button>
@@ -1531,7 +1531,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
             <form onSubmit={handleQuickAddSubmit} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                   Nama {quickAddType === 'toko' ? 'Toko' : quickAddType === 'pemasok' ? 'Pemasok' : 'Dapur'}
                 </label>
                 <input
@@ -1541,13 +1541,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   placeholder={`Contoh: ${quickAddType === 'toko' ? 'HTG / Luweng Boga' : quickAddType === 'pemasok' ? 'UD Barokah' : 'Siliragung'}`}
                   value={quickAddNama}
                   onChange={(e) => setQuickAddNama(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-600"
                 />
               </div>
 
               {quickAddType === 'dapur' && (
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                     Alamat / Lokasi (Opsional)
                   </label>
                   <input
@@ -1555,13 +1555,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     placeholder="Contoh: Jl. Raya Rogojampi No. 12"
                     value={quickAddAlamat}
                     onChange={(e) => setQuickAddAlamat(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-600"
                   />
                 </div>
               )}
 
               {quickAddError && (
-                <div className="flex items-center gap-1.5 text-xs text-rose-600 font-bold">
+                <div className="flex items-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 font-bold">
                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                   <span>{quickAddError}</span>
                 </div>
@@ -1571,7 +1571,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setQuickAddType(null)}
-                  className="flex-1 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  className="flex-1 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   Batal
                 </button>

@@ -32,24 +32,24 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          className="clay-card bg-white w-full max-w-sm p-5 space-y-4 border border-rose-100 shadow-2xl relative"
+          className="clay-card bg-white dark:bg-slate-900 w-full max-w-sm p-5 space-y-4 border border-rose-100 dark:border-rose-950/80 shadow-2xl relative"
         >
           <button
             type="button"
             onClick={onCancel}
             disabled={isLoading}
-            className="absolute top-3 right-3 p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            className="absolute top-3 right-3 p-1 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
           >
             <X className="w-4 h-4" />
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0 border border-rose-200 shadow-xs">
+            <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center flex-shrink-0 border border-rose-200 dark:border-rose-900/60 shadow-xs">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-900">{title}</h3>
-              <p className="text-xs text-slate-500 font-medium leading-snug mt-0.5">
+              <h3 className="text-sm font-black text-slate-900 dark:text-slate-100">{title}</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-snug mt-0.5">
                 {message}
               </p>
             </div>
@@ -60,7 +60,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               type="button"
               onClick={onCancel}
               disabled={isLoading}
-              className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer active:scale-95 disabled:opacity-50"
             >
               {cancelLabel}
             </button>

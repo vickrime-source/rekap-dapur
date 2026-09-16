@@ -354,11 +354,11 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
   }, [periodOrders]);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-3 sm:p-4 space-y-4 font-sans shadow-2xs">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 sm:p-4 space-y-4 font-sans shadow-2xs transition-colors duration-200">
       {/* Header with Title & Period Selector Dropdown */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
         <div>
-          <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+          <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">
             {title}
           </h2>
         </div>
@@ -378,64 +378,64 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
       {/* 4 Summary Cards: MODAL, OMSET, KOPERASI, LABA BERSIH */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-2.5">
         {/* 1. MODAL */}
-        <div className="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-2xs hover:border-slate-300 transition-all">
+        <div className="bg-slate-50/90 dark:bg-slate-800/80 border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-              <Wallet className="w-3.5 h-3.5 text-slate-500" />
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <Wallet className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               Modal
             </span>
             <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
           </div>
           <div className="mt-1.5 min-w-0">
-            <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black font-nominal text-slate-900 leading-tight truncate">
+            <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black font-nominal text-slate-900 dark:text-slate-100 leading-tight truncate">
               <AnimatedCounter value={totalModal} format="rupiah" />
             </div>
           </div>
         </div>
 
         {/* 2. OMSET */}
-        <div className="bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-2xs hover:border-indigo-300 transition-all">
+        <div className="bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-2xs hover:border-indigo-300 dark:hover:border-indigo-700 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
-              <TrendingUp className="w-3.5 h-3.5 text-indigo-600" />
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               Omset
             </span>
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
           </div>
           <div className="mt-1.5 min-w-0">
-            <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black font-nominal text-indigo-950 leading-tight truncate">
+            <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black font-nominal text-indigo-950 dark:text-indigo-100 leading-tight truncate">
               <AnimatedCounter value={totalOmset} format="rupiah" />
             </div>
           </div>
         </div>
 
         {/* 3. KOPERASI */}
-        <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-2xs hover:border-amber-300 transition-all">
+        <div className="bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-800/60 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-2xs hover:border-amber-300 dark:hover:border-amber-700 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5 text-amber-600" />
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
               Koperasi
             </span>
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
           </div>
           <div className="mt-1.5 min-w-0">
-            <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black font-nominal text-amber-950 leading-tight truncate">
+            <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black font-nominal text-amber-950 dark:text-amber-100 leading-tight truncate">
               <AnimatedCounter value={totalKeKoperasi} format="rupiah" />
             </div>
           </div>
         </div>
 
         {/* 4. LABA BERSIH */}
-        <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-2xs hover:border-emerald-300 transition-all">
+        <div className="bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/90 dark:border-emerald-800/60 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-2xs hover:border-emerald-300 dark:hover:border-emerald-700 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               Laba Bersih
             </span>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           </div>
           <div className="mt-1.5 min-w-0">
-            <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black font-nominal text-emerald-950 leading-tight truncate">
+            <div className="text-sm sm:text-base md:text-lg lg:text-xl font-black font-nominal text-emerald-950 dark:text-emerald-100 leading-tight truncate">
               <AnimatedCounter value={totalLabaBersih} format="rupiah" />
             </div>
           </div>
@@ -446,7 +446,7 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
       <div className="space-y-3 pt-1">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
           <div>
-            <span className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
+            <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider block">
               Breakdown Toko, Pemasok &amp; Dapur
             </span>
           </div>
@@ -456,7 +456,7 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
             <button
               type="button"
               onClick={() => onFilterStore && onFilterStore('all')}
-              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 self-start sm:self-auto cursor-pointer"
+              className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 self-start sm:self-auto cursor-pointer"
             >
               Reset Filter Toko ({selectedStoreFilter})
             </button>
@@ -465,7 +465,7 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
             <button
               type="button"
               onClick={() => onFilterPemasok && onFilterPemasok('all')}
-              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 self-start sm:self-auto cursor-pointer"
+              className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 self-start sm:self-auto cursor-pointer"
             >
               Reset Filter Pemasok ({selectedPemasokFilter})
             </button>
@@ -474,7 +474,7 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
             <button
               type="button"
               onClick={() => onFilterDapur && onFilterDapur('all')}
-              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 self-start sm:self-auto cursor-pointer"
+              className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 self-start sm:self-auto cursor-pointer"
             >
               Reset Filter Dapur ({selectedDapurFilter})
             </button>

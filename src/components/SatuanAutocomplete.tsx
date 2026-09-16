@@ -129,7 +129,7 @@ export const SatuanAutocomplete: React.FC<SatuanAutocompleteProps> = ({
               setIsOpen(false);
             }
           }}
-          className="w-full px-3 py-2 pr-8 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all placeholder:text-slate-400 placeholder:font-normal"
+          className="w-full px-3 py-2 pr-8 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal"
         />
         <button
           type="button"
@@ -138,7 +138,7 @@ export const SatuanAutocomplete: React.FC<SatuanAutocompleteProps> = ({
             setIsOpen(!isOpen);
             if (!isOpen) inputRef.current?.focus();
           }}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
           title="Buka daftar satuan"
         >
           <ChevronDown className="w-3.5 h-3.5" />
@@ -146,26 +146,26 @@ export const SatuanAutocomplete: React.FC<SatuanAutocompleteProps> = ({
       </div>
 
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 animate-in fade-in zoom-in-95 duration-100">
           {/* Option to Add New Unit if user typed something not matching exactly */}
           {value.trim().length > 0 && !isExactMatch && (
             <button
               type="button"
               disabled={isAdding}
               onClick={() => handleAddNew(value)}
-              className="w-full text-left px-3.5 py-2 hover:bg-indigo-50 transition-colors flex items-center justify-between group cursor-pointer bg-indigo-50/50"
+              className="w-full text-left px-3.5 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors flex items-center justify-between group cursor-pointer bg-indigo-50/50 dark:bg-indigo-950/30"
             >
               <div className="flex items-center gap-2">
                 {isAdding ? (
-                  <Loader2 className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
+                  <Loader2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 animate-spin" />
                 ) : (
-                  <Plus className="w-3.5 h-3.5 text-indigo-600" />
+                  <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                 )}
-                <span className="text-xs font-bold text-indigo-700">
+                <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">
                   Tambah satuan baru &ldquo;{value.trim()}&rdquo;
                 </span>
               </div>
-              <span className="text-[10px] font-semibold text-indigo-500 bg-indigo-100/70 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-300 bg-indigo-100/70 dark:bg-indigo-900/60 px-2 py-0.5 rounded-full">
                 Simpan ke Master
               </span>
             </button>
@@ -180,20 +180,20 @@ export const SatuanAutocomplete: React.FC<SatuanAutocompleteProps> = ({
                   key={u}
                   type="button"
                   onClick={() => handleSelect(u)}
-                  className={`w-full text-left px-3.5 py-2 hover:bg-slate-50 transition-colors flex items-center justify-between group cursor-pointer ${
-                    isSelected ? 'bg-indigo-50/60 font-bold text-indigo-900' : 'text-slate-700 font-medium'
+                  className={`w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between group cursor-pointer ${
+                    isSelected ? 'bg-indigo-50/60 dark:bg-indigo-950/60 font-bold text-indigo-900 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-300 font-medium'
                   }`}
                 >
                   <span className="text-xs">{u}</span>
                   {isSelected && (
-                    <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                   )}
                 </button>
               );
             })
           ) : (
             !value.trim() && (
-              <div className="p-3 text-center text-xs text-slate-400">
+              <div className="p-3 text-center text-xs text-slate-400 dark:text-slate-500">
                 Ketik nama satuan...
               </div>
             )

@@ -55,29 +55,29 @@ export const ExportHistorySheet: React.FC<ExportHistorySheetProps> = ({
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
           transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-          className="relative w-full max-w-2xl bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[88vh] z-10 border-t border-slate-200/80 overflow-hidden font-sans"
+          className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-t-3xl shadow-2xl flex flex-col max-h-[88vh] z-10 border-t border-slate-200/80 dark:border-slate-800 overflow-hidden font-sans"
         >
           {/* Mobile Drag Indicator */}
           <div className="pt-3 pb-1 flex justify-center">
-            <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
+            <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full" />
           </div>
 
           {/* Header */}
-          <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+          <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
                 <Download className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm sm:text-base font-black text-slate-900 leading-none flex items-center gap-2">
+                <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 leading-none flex items-center gap-2">
                   <span>Riwayat Export &amp; Download</span>
                   {history.length > 0 && (
-                    <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[11px] font-black">
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 text-[11px] font-black">
                       {history.length}
                     </span>
                   )}
                 </h3>
-                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
                   Daftar file invoice yang telah berhasil dicetak &amp; diekspor
                 </p>
               </div>
@@ -86,7 +86,7 @@ export const ExportHistorySheet: React.FC<ExportHistorySheetProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -94,13 +94,13 @@ export const ExportHistorySheet: React.FC<ExportHistorySheetProps> = ({
 
           {/* Active Export In-Progress Banner */}
           {isExportingActive && (
-            <div className="mx-4 mt-3 bg-amber-50 border border-amber-200/80 rounded-2xl p-3 flex items-center gap-3 animate-pulse shadow-xs">
-              <Loader2 className="w-5 h-5 text-amber-600 animate-spin flex-shrink-0" />
+            <div className="mx-4 mt-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 rounded-2xl p-3 flex items-center gap-3 animate-pulse shadow-xs">
+              <Loader2 className="w-5 h-5 text-amber-600 dark:text-amber-400 animate-spin flex-shrink-0" />
               <div className="min-w-0 flex-1">
-                <span className="text-xs font-black text-amber-900 block">
+                <span className="text-xs font-black text-amber-900 dark:text-amber-200 block">
                   Sedang Memproses Cetak di Latar Belakang...
                 </span>
-                <span className="text-[11px] text-amber-700 font-medium truncate block">
+                <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium truncate block">
                   {activeExportStatus || 'Mempersiapkan dokumen dan rendering PDF browser offline'}
                 </span>
               </div>
@@ -111,12 +111,12 @@ export const ExportHistorySheet: React.FC<ExportHistorySheetProps> = ({
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {history.length === 0 ? (
               <div className="py-12 px-4 text-center space-y-3">
-                <div className="w-14 h-14 bg-slate-100 text-slate-400 rounded-3xl flex items-center justify-center mx-auto">
+                <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-3xl flex items-center justify-center mx-auto">
                   <Receipt className="w-7 h-7" />
                 </div>
                 <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-slate-700">Belum Ada Riwayat Cetak</h4>
-                  <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                  <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">Belum Ada Riwayat Cetak</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
                     Ketika Anda mengekspor atau mencetak invoice dari dashboard, riwayat dokumen akan otomatis muncul di sini.
                   </p>
                 </div>
@@ -126,32 +126,32 @@ export const ExportHistorySheet: React.FC<ExportHistorySheetProps> = ({
                 {history.map((item) => (
                   <div
                     key={item.id}
-                    className="p-3.5 bg-slate-50 hover:bg-indigo-50/40 border border-slate-200/80 rounded-2xl transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+                    className="p-3.5 bg-slate-50 dark:bg-slate-800/60 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/30 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
                   >
                     {/* Item Info */}
                     <div className="flex items-start gap-3 min-w-0">
-                      <div className="p-2.5 rounded-xl bg-indigo-100 text-indigo-700 flex-shrink-0 mt-0.5">
+                      <div className="p-2.5 rounded-xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 flex-shrink-0 mt-0.5">
                         <FileText className="w-5 h-5" />
                       </div>
                       <div className="min-w-0 space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-xs font-black text-slate-900">
+                          <span className="font-mono text-xs font-black text-slate-900 dark:text-slate-100">
                             {item.invoiceNumber}
                           </span>
-                          <span className="px-2 py-0.5 rounded-md bg-indigo-100/80 text-indigo-900 text-[10px] font-extrabold uppercase">
+                          <span className="px-2 py-0.5 rounded-md bg-indigo-100/80 dark:bg-indigo-950/70 text-indigo-900 dark:text-indigo-200 text-[10px] font-extrabold uppercase">
                             {item.toko}
                           </span>
-                          <span className="px-2 py-0.5 rounded-md bg-slate-200 text-slate-800 text-[10px] font-bold">
+                          <span className="px-2 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-bold">
                             {item.tujuanDapur}
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
-                          <span className="font-semibold text-slate-700">
+                        <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400 flex-wrap">
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">
                             {item.itemCount} Barang
                           </span>
                           <span>•</span>
-                          <span className="font-black text-emerald-700">
+                          <span className="font-black text-emerald-700 dark:text-emerald-400">
                             {formatRupiah(item.totalJual)}
                           </span>
                           <span>•</span>
@@ -174,7 +174,7 @@ export const ExportHistorySheet: React.FC<ExportHistorySheetProps> = ({
                           <span>Buka / Unduh</span>
                         </a>
                       ) : (
-                        <span className="px-2.5 py-1 bg-slate-200 text-slate-600 rounded-lg text-[11px] font-bold">
+                        <span className="px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[11px] font-bold">
                           Tersimpan
                         </span>
                       )}
@@ -182,7 +182,7 @@ export const ExportHistorySheet: React.FC<ExportHistorySheetProps> = ({
                       <button
                         type="button"
                         onClick={() => onDeleteHistoryItem(item.id)}
-                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                        className="p-2 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
                         title="Hapus dari riwayat"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -196,14 +196,14 @@ export const ExportHistorySheet: React.FC<ExportHistorySheetProps> = ({
 
           {/* Footer Action */}
           {history.length > 0 && (
-            <div className="p-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[11px] text-slate-500 font-medium">
+            <div className="p-3.5 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                 Riwayat tersimpan di perangkat lokal
               </span>
               <button
                 type="button"
                 onClick={onClearHistory}
-                className="px-3 py-1.5 text-rose-600 hover:bg-rose-100/60 rounded-xl text-xs font-black transition-colors cursor-pointer"
+                className="px-3 py-1.5 text-rose-600 dark:text-rose-400 hover:bg-rose-100/60 dark:hover:bg-rose-950/50 rounded-xl text-xs font-black transition-colors cursor-pointer"
               >
                 Bersihkan Riwayat
               </button>

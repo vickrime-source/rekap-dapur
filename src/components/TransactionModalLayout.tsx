@@ -44,7 +44,7 @@ export const TransactionModalLayout: React.FC<TransactionModalLayoutProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 14 }}
           transition={{ duration: 0.22, ease: 'easeOut' }}
-          className={`relative w-[calc(100vw-24px)] ${maxWidth} my-auto max-h-[92vh] bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.14)] border border-slate-200 overflow-hidden z-10 flex flex-col font-sans`}
+          className={`relative w-[calc(100vw-24px)] ${maxWidth} my-auto max-h-[92vh] bg-white dark:bg-slate-900 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.14)] border border-slate-200 dark:border-slate-800 overflow-hidden z-10 flex flex-col font-sans`}
         >
           {/* Mobile Drag Handle Indicator (─────) */}
           <div className="w-full pt-2.5 pb-1 flex justify-center items-center bg-slate-900 sm:hidden">
@@ -109,13 +109,13 @@ export const TransactionModalLayout: React.FC<TransactionModalLayoutProps> = ({
           </div>
 
           {/* Scrollable Body Content */}
-          <div className="overflow-y-auto flex-1 p-4 sm:p-5 space-y-4 sm:space-y-5 text-slate-800">
+          <div className="overflow-y-auto flex-1 p-4 sm:p-5 space-y-4 sm:space-y-5 text-slate-800 dark:text-slate-100">
             {children}
           </div>
 
           {/* Footer Action Bar */}
           {footer && (
-            <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-200 sticky bottom-0 z-20 shrink-0">
+            <div className="p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 sticky bottom-0 z-20 shrink-0">
               {footer}
             </div>
           )}

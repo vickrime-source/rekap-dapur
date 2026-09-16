@@ -316,7 +316,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white pb-36 sm:pb-24">
+    <div className="min-h-screen bg-[#eef2f6] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white pb-36 sm:pb-24 transition-colors duration-200">
       {/* Top Header Banner */}
       {activeTab === 'dashboard' && (
         <HeaderBanner

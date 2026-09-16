@@ -150,37 +150,37 @@ export const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="clay-card w-full max-w-sm bg-white p-4 sm:p-5 rounded-3xl shadow-2xl border border-slate-200 text-slate-800 space-y-4 font-sans"
+          className="clay-card w-full max-w-sm bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 space-y-4 font-sans"
         >
           {/* Top Bar with Title and Close */}
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
-              <CalendarIcon className="w-5 h-5 text-blue-600" />
-              <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
+              <CalendarIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-slate-100">
                 Pilih Tanggal / Rentang
               </h3>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+              className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Quick Filter Shortcuts */}
-          <div className="flex items-center justify-between gap-1.5 bg-slate-50 p-1.5 rounded-2xl border border-slate-200/80">
+          <div className="flex items-center justify-between gap-1.5 bg-slate-50 dark:bg-slate-800/80 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-700">
             <button
               type="button"
               onClick={handleSelectToday}
-              className="flex-1 py-1.5 text-[11px] font-extrabold rounded-xl bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-all shadow-2xs border border-slate-200/60 text-center"
+              className="flex-1 py-1.5 text-[11px] font-extrabold rounded-xl bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:text-blue-600 dark:hover:text-blue-400 transition-all shadow-2xs border border-slate-200/60 dark:border-slate-600 text-center"
             >
               Hari Ini
             </button>
             <button
               type="button"
               onClick={handleSelectFullMonth}
-              className="flex-1 py-1.5 text-[11px] font-extrabold rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all shadow-2xs border border-blue-200/60 text-center"
+              className="flex-1 py-1.5 text-[11px] font-extrabold rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-all shadow-2xs border border-blue-200/60 dark:border-blue-800 text-center"
             >
               Bulan Ini (1 - 31)
             </button>
@@ -192,7 +192,7 @@ export const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({
               <button
                 type="button"
                 onClick={handlePrevYear}
-                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors"
+                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
                 title="Tahun Sebelumnya"
               >
                 <ChevronsLeft className="w-4 h-4 stroke-[2.5]" />
@@ -200,14 +200,14 @@ export const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({
               <button
                 type="button"
                 onClick={handlePrevMonth}
-                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors"
+                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
                 title="Bulan Sebelumnya"
               >
                 <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
               </button>
             </div>
 
-            <span className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+            <span className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 tracking-tight">
               {MONTH_NAMES_ID[viewMonth]} {viewYear}
             </span>
 
@@ -215,7 +215,7 @@ export const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({
               <button
                 type="button"
                 onClick={handleNextMonth}
-                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors"
+                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
                 title="Bulan Berikutnya"
               >
                 <ChevronRight className="w-4 h-4 stroke-[2.5]" />
@@ -223,7 +223,7 @@ export const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({
               <button
                 type="button"
                 onClick={handleNextYear}
-                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors"
+                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
                 title="Tahun Berikutnya"
               >
                 <ChevronsRight className="w-4 h-4 stroke-[2.5]" />
@@ -236,7 +236,7 @@ export const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({
             {/* Day Names Header (M S S R K J S) */}
             <div className="grid grid-cols-7 gap-1 text-center">
               {DAY_NAMES_ID.map((d, i) => (
-                <span key={i} className="text-[11px] font-black text-slate-400 py-1">
+                <span key={i} className="text-[11px] font-black text-slate-400 dark:text-slate-500 py-1">
                   {d}
                 </span>
               ))}
@@ -261,12 +261,12 @@ export const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({
                 const isSingle = isStart && tempStart === tempEnd;
                 const isInRange = dateStr >= tempStart && dateStr <= tempEnd && !isSingle;
 
-                let btnStyle = 'bg-slate-50 hover:bg-slate-100 text-slate-800 font-bold';
+                let btnStyle = 'bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold';
 
                 if (isStart || isEnd) {
                   btnStyle = 'bg-blue-600 text-white font-black shadow-md rounded-xl scale-105';
                 } else if (isInRange) {
-                  btnStyle = 'bg-blue-100 text-blue-900 font-extrabold rounded-lg';
+                  btnStyle = 'bg-blue-100 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 font-extrabold rounded-lg';
                 }
 
                 return (
@@ -284,11 +284,11 @@ export const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({
           </div>
 
           {/* Bottom Selected Rentang Pill (Matches Image 2) */}
-          <div className="bg-slate-50/90 p-3 rounded-2xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+          <div className="bg-slate-50/90 dark:bg-slate-800/80 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
               RENTANG:
             </span>
-            <div className="bg-blue-100/90 text-blue-800 font-black text-xs px-3 py-1.5 rounded-xl border border-blue-200 shadow-2xs">
+            <div className="bg-blue-100/90 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 font-black text-xs px-3 py-1.5 rounded-xl border border-blue-200 dark:border-blue-800 shadow-2xs">
               {tempStart === tempEnd ? (
                 formatShortDate(tempStart)
               ) : (
@@ -302,7 +302,7 @@ export const CalendarPickerModal: React.FC<CalendarPickerModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               Batal
             </button>

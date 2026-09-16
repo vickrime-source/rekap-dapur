@@ -175,30 +175,30 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
           transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-          className="relative w-full max-w-4xl tablet-landscape-modal bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[90vh] z-10 border-t sm:border border-slate-200/80 overflow-hidden"
+          className="relative w-full max-w-4xl tablet-landscape-modal bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[90vh] z-10 border-t sm:border border-slate-200/80 dark:border-slate-800 overflow-hidden"
         >
           {/* Mobile Drag Indicator */}
           <div className="pt-3 pb-1 flex justify-center sm:hidden">
-            <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
+            <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full" />
           </div>
 
           {/* D. Header: Clean, Ringkas, Informasi Inti */}
-          <div className="px-5 sm:px-6 py-3.5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+          <div className="px-5 sm:px-6 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20 shrink-0">
                 <Receipt className="w-5 h-5" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-sm sm:text-base font-black text-slate-900 leading-tight">
+                  <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 leading-tight">
                     {invoiceNumber}
                   </h3>
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[11px] font-black uppercase border border-emerald-200 tracking-wide">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[11px] font-black uppercase border border-emerald-200 dark:border-emerald-800 tracking-wide">
                     {profile.name}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 font-medium mt-0.5 truncate">
-                  {mainKitchen} • {displayItems.length} Barang • <span className="font-bold text-slate-700">{formatRupiah(totalJual)}</span>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate">
+                  {mainKitchen} • {displayItems.length} Barang • <span className="font-bold text-slate-700 dark:text-slate-200">{formatRupiah(totalJual)}</span>
                 </p>
               </div>
             </div>
@@ -207,7 +207,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               <button
                 onClick={onClose}
                 type="button"
-                className="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer min-h-[42px] min-w-[42px] flex items-center justify-center"
+                className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer min-h-[42px] min-w-[42px] flex items-center justify-center"
                 aria-label="Tutup Modal"
               >
                 <X className="w-5 h-5" />
@@ -216,7 +216,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
           </div>
 
           {/* A. Area Preview Utama: Rasio Kertas A4 Bersih di Tengah Background Netral */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/90 flex flex-col items-center">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/90 dark:bg-slate-950/80 flex flex-col items-center">
             <div className="w-full flex justify-center py-2">
               <div className="overflow-x-auto w-full flex justify-center pb-2">
                 <div className="w-[794px] max-w-full">
@@ -242,27 +242,27 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               <button
                 type="button"
                 onClick={() => setIsViewFull(true)}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-slate-50 active:scale-98 text-slate-700 hover:text-indigo-600 text-xs font-bold border border-slate-200 shadow-sm transition-all cursor-pointer min-h-[40px]"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-98 text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-bold border border-slate-200 dark:border-slate-700 shadow-sm transition-all cursor-pointer min-h-[40px]"
               >
-                <Eye className="w-4 h-4 text-indigo-600" />
+                <Eye className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                 <span>View Full</span>
               </button>
             </div>
           </div>
 
           {/* B. Sederhanakan Aksi Bawah: Unduh PNG (Secondary) & Export PDF (Primary) */}
-          <div className="p-3.5 sm:p-4 bg-white border-t border-slate-200/80 grid grid-cols-2 gap-3 shrink-0">
+          <div className="p-3.5 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 grid grid-cols-2 gap-3 shrink-0">
             {/* Secondary Action: Unduh PNG */}
             <button
               type="button"
               disabled={isGeneratingPng}
               onClick={handleStartPngExport}
-              className="py-3 px-4 bg-white hover:bg-emerald-50 active:bg-emerald-100 text-emerald-700 hover:text-emerald-800 font-bold text-xs sm:text-sm rounded-xl sm:rounded-2xl border border-emerald-300 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 min-h-[46px]"
+              className="py-3 px-4 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 active:bg-emerald-100 text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 font-bold text-xs sm:text-sm rounded-xl sm:rounded-2xl border border-emerald-300 dark:border-emerald-700/60 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 min-h-[46px]"
             >
               {isGeneratingPng ? (
-                <Loader2 className="w-4 h-4 animate-spin shrink-0 text-emerald-600" />
+                <Loader2 className="w-4 h-4 animate-spin shrink-0 text-emerald-600 dark:text-emerald-400" />
               ) : (
-                <ImageIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+                <ImageIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               )}
               <span>{isGeneratingPng ? 'Memproses...' : 'Unduh PNG'}</span>
             </button>
