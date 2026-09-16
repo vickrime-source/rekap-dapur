@@ -303,6 +303,24 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
       title="FOLLOW UP PESANAN"
       subtitle="Lengkapi harga beli & jual untuk menghitung estimasi margin"
       icon={<CircleCheck className="w-5 h-5 text-emerald-400" />}
+      headerRight={
+        <div className="relative flex items-center bg-slate-800 border border-slate-700 hover:border-indigo-400 rounded-xl px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold text-white shadow-2xs transition-all cursor-pointer group flex-1 sm:flex-none">
+          <Calendar className="w-3.5 h-3.5 text-indigo-400 mr-2 shrink-0 group-hover:text-indigo-300" />
+          <span className="truncate font-semibold text-slate-100 select-none">
+            {tanggal ? formatTanggalWeb(tanggal, false) : 'Pilih Tanggal'}
+          </span>
+          <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-1.5 shrink-0" />
+          <input
+            type="date"
+            required
+            id="input-followup-tanggal"
+            value={tanggal}
+            onChange={(e) => setTanggal(e.target.value)}
+            className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+            title="Pilih tanggal pesanan"
+          />
+        </div>
+      }
       footer={
         <div className="flex items-center justify-between gap-3">
           <button
@@ -525,10 +543,10 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
           </div>
         </FormSection>
 
-        {/* SECTION 2 — TUJUAN PESANAN (Toko, Pemasok, Dapur) */}
+        {/* SECTION 2 — TUJUAN PESANAN */}
         <FormSection
           title="Tujuan Pesanan"
-          subtitle="Distribusi toko rekanan, pemasok & dapur pemesan"
+          subtitle="Toko rekanan, pemasok & dapur pemesan"
           icon={<Store className="w-3.5 h-3.5" />}
         >
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -634,7 +652,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                         <p className="text-xs text-slate-500 mb-1">
                           Belum ada pemasok "<span className="font-semibold text-slate-700">{pemasok}</span>"
                         </p>
-                        <span className="inline-block text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg">
+                        <span className="inline-block text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
                           + Otomatis disimpan ke Master saat disimpan
                         </span>
                       </div>
@@ -647,7 +665,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
             {/* Dapur Autocomplete */}
             <div className="relative">
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Dapur Tujuan <span className="text-rose-500">*</span>
+                Dapur <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -726,7 +744,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                         <p className="text-xs text-slate-500 mb-1">
                           Belum ada dapur "<span className="font-semibold text-slate-700">{tujuanDapur}</span>"
                         </p>
-                        <span className="inline-block text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg">
+                        <span className="inline-block text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
                           + Otomatis disimpan ke Master saat disimpan
                         </span>
                       </div>
@@ -777,34 +795,6 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
               quantity={quantity}
               purchasePrice={purchasePrice}
               sellingPrice={sellingPrice}
-            />
-          </div>
-        </FormSection>
-
-        {/* SECTION 4 — TANGGAL PESANAN */}
-        <FormSection
-          title="Tanggal Transaksi"
-          subtitle="Tanggal pencatatan pesanan ke sistem pembukuan"
-          icon={<Calendar className="w-3.5 h-3.5" />}
-        >
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                Tanggal Pesanan
-              </label>
-              {tanggal && (
-                <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
-                  {formatTanggalWeb(tanggal, true)}
-                </span>
-              )}
-            </div>
-            <input
-              type="date"
-              required
-              id="input-followup-tanggal"
-              value={tanggal}
-              onChange={(e) => setTanggal(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
             />
           </div>
         </FormSection>

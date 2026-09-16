@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { formatIDR } from './MoneyInput';
 
 export interface ProfitPreviewProps {
@@ -37,65 +37,69 @@ export const ProfitPreview: React.FC<ProfitPreviewProps> = ({
   const isPositif = totalLabaBersih > 0;
 
   return (
-    <div className="pt-2.5 border-t border-slate-200/80 space-y-2">
-      {/* Single Breakdown Banner: Laba Bersih: Rp x | Ke Koperasi: Rp y */}
-      <div className="p-2.5 bg-slate-50 border border-slate-200/90 rounded-xl flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 flex-wrap text-xs">
-          <span className="font-semibold text-slate-600">Laba Bersih:</span>
-          <span
-            className={`font-black font-mono ${
-              isRugi
-                ? 'text-rose-600'
-                : isPositif
-                ? 'text-emerald-700'
-                : 'text-slate-700'
-            }`}
-          >
-            {isPositif ? `+Rp ${formatIDR(totalLabaBersih)}` : isRugi ? `-Rp ${formatIDR(Math.abs(totalLabaBersih))}` : `Rp ${formatIDR(totalLabaBersih)}`}
-          </span>
+    <div className="pt-2 border-t border-slate-200/80 space-y-2">
+      {/* Clean & Modern Summary Card */}
+      <div className="p-3 sm:p-3.5 bg-slate-50 border border-slate-200/90 rounded-xl space-y-2">
+        <div className="grid grid-cols-3 items-center gap-2">
+          {/* Laba Bersih */}
+          <div>
+            <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 uppercase tracking-wider block">
+              Laba Bersih
+            </span>
+            <div
+              className={`text-sm sm:text-base font-bold font-mono tracking-tight mt-0.5 ${
+                isRugi
+                  ? 'text-rose-600'
+                  : isPositif
+                  ? 'text-emerald-700'
+                  : 'text-slate-700'
+              }`}
+            >
+              {isRugi ? `- ${formatIDR(Math.abs(totalLabaBersih))}` : formatIDR(totalLabaBersih)}
+            </div>
+          </div>
 
-          <span className="text-slate-300 font-bold px-1">|</span>
+          {/* Ke Koperasi */}
+          <div>
+            <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 uppercase tracking-wider block">
+              Ke Koperasi
+            </span>
+            <div
+              className={`text-sm sm:text-base font-bold font-mono tracking-tight mt-0.5 ${
+                totalKeKoperasi > 0 ? 'text-amber-800' : 'text-slate-600'
+              }`}
+            >
+              {formatIDR(totalKeKoperasi)}
+            </div>
+          </div>
 
-          <span className="font-semibold text-slate-600">Ke Koperasi:</span>
-          <span
-            className={`font-black font-mono ${
-              totalKeKoperasi > 0 ? 'text-amber-700' : 'text-slate-500'
-            }`}
-          >
-            {totalKeKoperasi > 0 ? `+Rp ${formatIDR(totalKeKoperasi)}` : 'Rp 0'}
-          </span>
-        </div>
-
-        {/* Margin Pill */}
-        <div className="flex items-center gap-1 text-[11px]">
-          <span className="text-slate-400 font-medium">Margin:</span>
-          <span
-            className={`font-black px-1.5 py-0.5 rounded text-[10px] ${
-              isRugi
-                ? 'bg-rose-100 text-rose-800'
-                : margin > 0
-                ? 'bg-emerald-100 text-emerald-800'
-                : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            {margin.toFixed(1)}%
-          </span>
+          {/* Margin Pill */}
+          <div className="flex flex-col items-end justify-center">
+            <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block mb-1">
+              Margin
+            </span>
+            <span
+              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                isRugi
+                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                  : margin > 0
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-slate-100 text-slate-600 border border-slate-200'
+              }`}
+            >
+              {margin.toFixed(1)}%
+            </span>
+          </div>
         </div>
       </div>
 
-      {cb > 0 && (
-        <div className="text-[10px] text-slate-400 font-medium px-1 flex flex-wrap items-center justify-between gap-1">
-          <span>Laba: (Rp {formatIDR(cb)} - Rp {formatIDR(hargaBeli)}) × {qty}</span>
-          <span>Koperasi: (Rp {formatIDR(hargaJual)} - Rp {formatIDR(cb)}) × {qty}</span>
-        </div>
-      )}
-
       {isRugi && (
-        <div className="p-2 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-1.5 text-rose-700 text-[11px] font-bold">
-          <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-          <span>Harga beli lebih besar dari pendapatan/cashback!</span>
+        <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-700 text-xs font-semibold">
+          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+          <span>Harga beli lebih besar dari pendapatan / cashback</span>
         </div>
       )}
     </div>
   );
 };
+

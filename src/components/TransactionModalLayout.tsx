@@ -8,6 +8,8 @@ export interface TransactionModalLayoutProps {
   title: string;
   subtitle?: string;
   icon?: React.ReactNode;
+  headerRight?: React.ReactNode;
+  headerBottom?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
   maxWidth?: string; // e.g. "max-w-2xl" or "max-w-3xl"
@@ -19,6 +21,8 @@ export const TransactionModalLayout: React.FC<TransactionModalLayoutProps> = ({
   title,
   subtitle = 'Lengkapi harga beli & jual untuk menghitung estimasi margin',
   icon,
+  headerRight,
+  headerBottom,
   children,
   footer,
   maxWidth = 'max-w-2xl',
@@ -48,35 +52,60 @@ export const TransactionModalLayout: React.FC<TransactionModalLayoutProps> = ({
           </div>
 
           {/* Header Navy Gelap */}
-          <div className="px-5 py-3.5 sm:py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 sticky top-0 z-20 shrink-0">
-            <div className="flex items-center gap-3">
-              {icon && (
-                <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 flex items-center justify-center shrink-0">
-                  {icon}
+          <div className="px-4 sm:px-5 py-3 sm:py-3.5 bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shrink-0 space-y-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center justify-between sm:justify-start gap-2.5">
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                  {icon && (
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 flex items-center justify-center shrink-0">
+                      {icon}
+                    </div>
+                  )}
+                  <div>
+                    <h2 className="text-sm sm:text-base font-black tracking-tight text-white uppercase">
+                      {title}
+                    </h2>
+                    {subtitle && (
+                      <p className="text-[11px] text-slate-300 font-medium">
+                        {subtitle}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              )}
-              <div>
-                <h2 className="text-sm sm:text-base font-black tracking-tight text-white uppercase">
-                  {title}
-                </h2>
-                {subtitle && (
-                  <p className="text-[11px] text-slate-300 font-medium">
-                    {subtitle}
-                  </p>
-                )}
+
+                {/* Close button on mobile right */}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  id="btn-close-transaction-modal-mobile"
+                  className="sm:hidden w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  title="Tutup (Esc)"
+                  aria-label="Tutup Modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {headerRight}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  id="btn-close-transaction-modal"
+                  className="hidden sm:flex w-8 h-8 rounded-full items-center justify-center hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  title="Tutup (Esc)"
+                  aria-label="Tutup Modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={onClose}
-              id="btn-close-transaction-modal"
-              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
-              title="Tutup (Esc)"
-              aria-label="Tutup Modal"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            {headerBottom && (
+              <div className="pt-0.5">
+                {headerBottom}
+              </div>
+            )}
           </div>
 
           {/* Scrollable Body Content */}

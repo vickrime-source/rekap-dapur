@@ -644,7 +644,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
       if (cb > 0) {
         if (cb < hb || cb > hj) {
-          alert(`Cashback ${row.namaBarang} harus di antara Rp ${formatIDR(hb)} dan Rp ${formatIDR(hj)}`);
+          alert(`Cashback ${row.namaBarang} harus di antara ${formatIDR(hb)} dan ${formatIDR(hj)}`);
           return;
         }
       }
@@ -821,30 +821,67 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
             </div>
 
-            {/* Header Modal (100% Persis Style Existing) */}
-            <div className="px-5 py-3.5 bg-slate-50 flex items-center justify-between border-b border-slate-200">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs">
-                  <Utensils className="w-4 h-4" />
+            {/* Header Modal with Tanggal Pesanan */}
+            <div className="px-4 sm:px-5 py-3 sm:py-3.5 bg-slate-50 border-b border-slate-200 shrink-0 relative z-30">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center justify-between sm:justify-start gap-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs shrink-0">
+                      <Utensils className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-black text-slate-900 leading-tight">
+                        {initialData ? 'Edit Pesanan' : 'Input Pesanan Baru'}
+                      </h2>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Masukkan detail pesanan dapur
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Close button on mobile right */}
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    id="close-order-modal-btn-mobile"
+                    className="sm:hidden p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                    title="Tutup Modal"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <div>
-                  <h2 className="text-sm font-black text-slate-900 leading-tight">
-                    {initialData ? 'Edit Pesanan' : 'Input Pesanan Baru'}
-                  </h2>
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    Masukkan detail pesanan dapur
-                  </p>
+
+                <div className="flex items-center gap-2">
+                  {/* Tanggal Pesanan with Natural Format */}
+                  <div className="relative flex items-center bg-white border border-slate-300 hover:border-indigo-400 rounded-xl px-3 py-1.5 text-xs sm:text-sm font-semibold text-slate-900 shadow-2xs transition-all cursor-pointer group flex-1 sm:flex-none">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-600 mr-2 shrink-0 group-hover:text-indigo-700" />
+                    <span className="truncate font-semibold text-slate-800 select-none">
+                      {tanggal ? formatTanggalWeb(tanggal, false) : 'Pilih Tanggal'}
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-1.5 shrink-0" />
+                    <input
+                      type="date"
+                      required
+                      id="input-tanggal-order"
+                      value={tanggal}
+                      onChange={(e) => setTanggal(e.target.value)}
+                      className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+                      title="Pilih tanggal pesanan"
+                    />
+                  </div>
+
+                  {/* Close button on desktop */}
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    id="close-order-modal-btn"
+                    className="hidden sm:flex p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                    title="Tutup Modal"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                id="close-order-modal-btn"
-                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
-                title="Tutup Modal"
-              >
-                <X className="w-4 h-4" />
-              </button>
             </div>
 
             {/* Scrollable Form Content */}
@@ -1028,18 +1065,15 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   <MoneyInput
                     label="Cashback (Opsional)"
                     id={`input-cashback-${currentItem.id}`}
-                    placeholder="0 (opsional)"
+                    placeholder="Rp 0"
                     value={currentItem.cashback || 0}
                     onChange={(val) => updateCurrentItem('cashback', val)}
                   />
-                  <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium px-0.5">
-                    <span>Opsional per barang</span>
-                    {currentItem.hargaBeli > 0 && currentItem.hargaJual > 0 && (
-                      <span className="text-slate-400 font-mono">
-                        Valid: Rp {formatIDR(currentItem.hargaBeli)} - Rp {formatIDR(currentItem.hargaJual)}
-                      </span>
-                    )}
-                  </div>
+                  {currentItem.hargaBeli > 0 && currentItem.hargaJual > 0 && (
+                    <div className="text-[10.5px] text-slate-400 font-medium px-0.5">
+                      Rentang valid: {formatIDR(currentItem.hargaBeli)} – {formatIDR(currentItem.hargaJual)}
+                    </div>
+                  )}
                   {/* Inline real-time validation error */}
                   {(() => {
                     const cb = Number(currentItem.cashback) || 0;
@@ -1048,17 +1082,17 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     if (cb > 0) {
                       if (hb > 0 && cb < hb) {
                         return (
-                          <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold flex items-center gap-1.5">
+                          <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-semibold flex items-center gap-1.5">
                             <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
-                            <span>Cashback tidak boleh kurang dari Harga Beli (Rp {formatIDR(hb)})</span>
+                            <span>Cashback tidak boleh kurang dari Harga Beli ({formatIDR(hb)})</span>
                           </div>
                         );
                       }
                       if (hj > 0 && cb > hj) {
                         return (
-                          <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold flex items-center gap-1.5">
+                          <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-semibold flex items-center gap-1.5">
                             <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
-                            <span>Cashback tidak boleh lebih dari Harga Jual (Rp {formatIDR(hj)})</span>
+                            <span>Cashback tidak boleh lebih dari Harga Jual ({formatIDR(hj)})</span>
                           </div>
                         );
                       }
@@ -1133,14 +1167,14 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 </div>
               )}
 
-              {/* CARD 2: TUJUAN PESANAN (Konteks Pesanan: Toko, Pemasok, Dapur) */}
+              {/* CARD 2: TUJUAN PESANAN */}
               <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-4 space-y-3">
                 <div className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
                   <Store className="w-3.5 h-3.5 text-slate-600" />
                   <span>TUJUAN PESANAN</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {/* Toko */}
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
@@ -1271,10 +1305,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     )}
                   </div>
 
-                  {/* Dapur Autocomplete (Full Width pada Desktop) */}
-                  <div className="sm:col-span-2 relative">
+                  {/* Dapur Autocomplete */}
+                  <div className="relative">
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      Dapur
+                      Dapur <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
                       <input
@@ -1283,7 +1317,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                         id="input-order-dapur"
                         ref={dapurInputRef}
                         value={tujuanDapur}
-                        placeholder="Cari / ketik nama dapur (contoh: Rejoagung 1)..."
+                        placeholder="Cari / ketik nama dapur..."
                         autoComplete="off"
                         onFocus={() => setIsDapurOpen(true)}
                         onChange={(e) => {
@@ -1338,7 +1372,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                                     Dapur {d.nama.replace(/^dapur\s+/i, '')}
                                   </span>
                                   {d.alamat && (
-                                    <span className="text-[11px] text-slate-400 block mt-0.5">
+                                    <span className="text-[10.5px] text-slate-400 block mt-0.5">
                                       {d.alamat}
                                     </span>
                                   )}
@@ -1354,7 +1388,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                               <p className="text-xs text-slate-500 mb-1">
                                 Belum ada dapur "<span className="font-semibold text-slate-700">{tujuanDapur}</span>"
                               </p>
-                              <span className="inline-block text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                              <span className="inline-block text-[10.5px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
                                 + Otomatis disimpan ke Master saat pesanan dibuat
                               </span>
                             </div>
@@ -1399,42 +1433,19 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 totalKeKoperasi={totalKeKoperasiSemua}
               />
 
-              {/* Tanggal & Catatan Opsional */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                      Tanggal
-                    </label>
-                    {tanggal && (
-                      <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
-                        {formatTanggalWeb(tanggal, true)}
-                      </span>
-                    )}
-                  </div>
-                  <input
-                    type="date"
-                    required
-                    id="input-tanggal-order"
-                    value={tanggal}
-                    onChange={(e) => setTanggal(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Catatan (Opsional)
-                  </label>
-                  <input
-                    type="text"
-                    id="input-catatan-order"
-                    placeholder="Catatan tambahan..."
-                    value={catatan}
-                    onChange={(e) => setCatatan(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
-                  />
-                </div>
+              {/* Catatan Opsional */}
+              <div className="pt-1">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Catatan (Opsional)
+                </label>
+                <input
+                  type="text"
+                  id="input-catatan-order"
+                  placeholder="Catatan tambahan..."
+                  value={catatan}
+                  onChange={(e) => setCatatan(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
+                />
               </div>
             </form>
 
