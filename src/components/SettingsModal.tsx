@@ -1,58 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
-  Utensils, 
-  Store as StoreIcon, 
-  Truck, 
-  Plus, 
   Trash2, 
-  Edit2, 
-  Check, 
-  RefreshCw, 
-  Copy, 
-  CheckCircle2, 
-  AlertCircle, 
-  Download, 
   Smartphone, 
-  AlertTriangle, 
   FileText, 
-  Upload, 
-  FileCheck, 
-  ExternalLink, 
-  Receipt, 
-  Sparkles,
-  Bell,
-  Clock,
-  Search,
-  Database
+  Bell, 
+  Database 
 } from 'lucide-react';
 import { Kitchen, Store as StoreType, OrderItem } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  getCustomTemplateUrl, 
-  setCustomTemplateUrl, 
-  downloadDocxInvoice, 
-  INVOICE_TEMPLATES 
-} from '../lib/docxTemplate';
-import {
-  getNotificationSettings,
-  saveNotificationSettings,
-  getNotificationPermissionStatus,
-  requestNotificationPermission,
-  sendTestNotification,
-  NotificationSettings,
-} from '../lib/notificationManager';
-import { 
-  saveMasterTokoToDb, 
   deleteMasterTokoFromDb, 
-  saveMasterPemasokToDb, 
   deleteMasterPemasokFromDb, 
-  saveMasterDapurToDb, 
-  deleteMasterDapurFromDb, 
-  checkMasterUsageFromDb 
+  deleteMasterDapurFromDb 
 } from '../lib/supabaseDb';
 import { MASTER_TABLES_SQL } from '../lib/masterSqlScript';
-import { Code2 } from 'lucide-react';
+
+import { SettingsTab, KelolaSubTab, SafetyDialogState } from './settings/types';
+import { KelolaDataTab } from './settings/KelolaDataTab';
+import { DocxTemplateTab } from './settings/DocxTemplateTab';
+import { NotificationTab } from './settings/NotificationTab';
+import { InstallAppTab } from './settings/InstallAppTab';
+import { DangerZoneTab } from './settings/DangerZoneTab';
+import { SafetyDeleteDialog } from './settings/SafetyDeleteDialog';
+import { SqlViewerModal } from './settings/SqlViewerModal';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -80,47 +51,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   pemasokList,
   onUpdatePemasok,
   orders = [],
-  onUpdateOrders,
   onDeleteAllData,
   onRefreshData,
   initialTab,
 }) => {
-  const [activeTab, setActiveTab] = useState<'kelola_data' | 'template' | 'notifikasi' | 'install' | 'danger'>(() => {
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
     if (initialTab === 'dapur' || initialTab === 'toko' || initialTab === 'pemasok' || initialTab === 'kelola_data') {
       return 'kelola_data';
     }
     return (initialTab as any) || 'kelola_data';
   });
 
-  const [kelolaSubTab, setKelolaSubTab] = useState<'toko' | 'pemasok' | 'dapur'>(() => {
+  const [kelolaSubTab, setKelolaSubTab] = useState<KelolaSubTab>(() => {
     if (initialTab === 'dapur') return 'dapur';
     if (initialTab === 'pemasok') return 'pemasok';
     return 'toko';
   });
 
-  // Search states for Kelola Data
-  const [searchToko, setSearchToko] = useState('');
-  const [searchPemasok, setSearchPemasok] = useState('');
-  const [searchDapur, setSearchDapur] = useState('');
-
   // Safety dialog state for delete checking
-  const [safetyDialog, setSafetyDialog] = useState<{
-    type: 'blocked' | 'confirm';
-    category: 'Toko' | 'Pemasok' | 'Dapur';
-    id: string;
-    nama: string;
-    orderCount?: number;
-    transaksiCount?: number;
-  } | null>(null);
+  const [safetyDialog, setSafetyDialog] = useState<SafetyDialogState | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  React.useEffect(() => {
+  // SQL Script modal state
+  const [showSqlModal, setShowSqlModal] = useState<boolean>(false);
+  const [copiedSql, setCopiedSql] = useState<boolean>(false);
+
+  useEffect(() => {
     if (isOpen) {
       onRefreshData?.();
     }
   }, [isOpen]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (initialTab && isOpen) {
       if (initialTab === 'dapur' || initialTab === 'toko' || initialTab === 'pemasok' || initialTab === 'kelola_data') {
         setActiveTab('kelola_data');
@@ -133,263 +95,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   }, [initialTab, isOpen]);
 
-  // Notification States
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(getNotificationSettings());
-  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(getNotificationPermissionStatus());
-  const [testNotificationSent, setTestNotificationSent] = useState<boolean>(false);
-  const [showSqlModal, setShowSqlModal] = useState<boolean>(false);
-  const [copiedSql, setCopiedSql] = useState<boolean>(false);
-
   const handleCopySql = () => {
     navigator.clipboard.writeText(MASTER_TABLES_SQL);
     setCopiedSql(true);
     setTimeout(() => setCopiedSql(false), 2500);
-  };
-
-  const handleUpdateNotificationSetting = <K extends keyof NotificationSettings>(
-    key: K,
-    value: NotificationSettings[K]
-  ) => {
-    const updated = { ...notificationSettings, [key]: value };
-    setNotificationSettings(updated);
-    saveNotificationSettings(updated);
-  };
-
-  const handleRequestPermission = async () => {
-    const res = await requestNotificationPermission();
-    setPermissionStatus(res);
-    if (res === 'granted') {
-      handleUpdateNotificationSetting('enabled', true);
-    }
-  };
-
-  const handleSendTestNotification = async () => {
-    setTestNotificationSent(false);
-    const success = await sendTestNotification();
-    if (success) {
-      setTestNotificationSent(true);
-      setTimeout(() => setTestNotificationSent(false), 3000);
-    } else {
-      const res = await requestNotificationPermission();
-      setPermissionStatus(res);
-      if (res === 'granted') {
-        await sendTestNotification();
-        setTestNotificationSent(true);
-        setTimeout(() => setTestNotificationSent(false), 3000);
-      }
-    }
-  };
-
-  // Form states for adding/editing Master Data
-  const [newKitchenName, setNewKitchenName] = useState('');
-  const [newKitchenLocation, setNewKitchenLocation] = useState('');
-  const [editingKitchenId, setEditingKitchenId] = useState<string | null>(null);
-
-  const [newStoreName, setNewStoreName] = useState('');
-  const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
-
-  const [newPemasokName, setNewPemasokName] = useState('');
-
-  // DOCX Template States
-  const [selectedTemplateFile, setSelectedTemplateFile] = useState<File | null>(null);
-  const [templateStatus, setTemplateStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [activeCustomTemplateUrl, setActiveCustomTemplateUrl] = useState<string | null>(getCustomTemplateUrl());
-  const [customTemplateName, setCustomTemplateName] = useState<string | null>(
-    localStorage.getItem('custom_docx_template_name')
-  );
-
-  // Google Sheets API states
-  const [testingSheets, setTestingSheets] = useState(false);
-  const [sheetsConnectionData, setSheetsConnectionData] = useState<{
-    success?: boolean;
-    configured?: boolean;
-    title?: string;
-    clientEmail?: string | null;
-    spreadsheetId?: string | null;
-    sheets?: string[];
-    error?: string;
-  } | null>(null);
-
-  // Install PWA states
-  const [isInstalled, setIsInstalled] = useState(false);
-
-  if (!isOpen) return null;
-
-  // --- KITCHEN HANDLERS ---
-  const handleAddOrUpdateKitchen = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newKitchenName.trim()) return;
-
-    const trimmedName = newKitchenName.trim();
-    const trimmedLoc = newKitchenLocation.trim() || undefined;
-
-    // Simpan ke PostgreSQL Dapur
-    saveMasterDapurToDb(trimmedName, trimmedLoc).then(() => {
-      onRefreshData?.();
-    }).catch(console.error);
-
-    if (editingKitchenId) {
-      onUpdateKitchens(
-        kitchens.map((k) =>
-          k.id === editingKitchenId
-            ? { ...k, nama: trimmedName, lokasi: trimmedLoc }
-            : k
-        )
-      );
-      setEditingKitchenId(null);
-    } else {
-      const newK: Kitchen = {
-        id: `k-${Date.now()}`,
-        nama: trimmedName,
-        lokasi: trimmedLoc,
-      };
-      onUpdateKitchens([...kitchens, newK]);
-    }
-    setNewKitchenName('');
-    setNewKitchenLocation('');
-  };
-
-  const handleEditKitchen = (k: Kitchen) => {
-    setEditingKitchenId(k.id);
-    setNewKitchenName(k.nama);
-    setNewKitchenLocation(k.lokasi || '');
-  };
-
-  const handleDeleteKitchen = async (id: string) => {
-    const targetKitchen = kitchens.find((k) => k.id === id);
-    const targetName = targetKitchen?.nama || '';
-
-    // Cek apakah masih dipakai di pesanan atau transaksi
-    try {
-      const check = await checkMasterUsageFromDb('dapur', id, targetName);
-      if (check.isUsed) {
-        setSafetyDialog({
-          type: 'blocked',
-          category: 'Dapur',
-          id,
-          nama: targetName,
-          orderCount: check.orderCount,
-          transaksiCount: check.transaksiCount,
-        });
-        return;
-      }
-    } catch (e) {
-      console.warn('Error checking usage:', e);
-    }
-
-    setSafetyDialog({
-      type: 'confirm',
-      category: 'Dapur',
-      id,
-      nama: targetName,
-    });
-  };
-
-  // --- STORE HANDLERS ---
-  const handleAddOrUpdateStore = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newStoreName.trim()) return;
-
-    const trimmedStore = newStoreName.trim();
-    // Simpan ke PostgreSQL Toko
-    saveMasterTokoToDb(trimmedStore).then(() => {
-      onRefreshData?.();
-    }).catch(console.error);
-
-    if (editingStoreId) {
-      onUpdateStores(
-        stores.map((s) => (s.id === editingStoreId ? { ...s, nama: trimmedStore } : s))
-      );
-      setEditingStoreId(null);
-    } else {
-      const newS: StoreType = {
-        id: `s-${Date.now()}`,
-        nama: trimmedStore,
-      };
-      onUpdateStores([...stores, newS]);
-    }
-    setNewStoreName('');
-  };
-
-  const handleEditStore = (s: StoreType) => {
-    setEditingStoreId(s.id);
-    setNewStoreName(s.nama);
-  };
-
-  const handleDeleteStore = async (id: string) => {
-    const targetStore = stores.find((s) => s.id === id);
-    const targetName = targetStore?.nama || '';
-
-    // Cek apakah masih dipakai di pesanan atau transaksi
-    try {
-      const check = await checkMasterUsageFromDb('toko', id, targetName);
-      if (check.isUsed) {
-        setSafetyDialog({
-          type: 'blocked',
-          category: 'Toko',
-          id,
-          nama: targetName,
-          orderCount: check.orderCount,
-          transaksiCount: check.transaksiCount,
-        });
-        return;
-      }
-    } catch (e) {
-      console.warn('Error checking usage:', e);
-    }
-
-    setSafetyDialog({
-      type: 'confirm',
-      category: 'Toko',
-      id,
-      nama: targetName,
-    });
-  };
-
-  // --- PEMASOK HANDLERS ---
-  const handleAddPemasok = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPemasokName.trim()) return;
-    const trimmedPemasok = newPemasokName.trim();
-    if (pemasokList.includes(trimmedPemasok)) {
-      alert('Pemasok sudah terdaftar di daftar');
-      return;
-    }
-
-    // Simpan ke PostgreSQL Pemasok
-    saveMasterPemasokToDb(trimmedPemasok).then(() => {
-      onRefreshData?.();
-    }).catch(console.error);
-
-    onUpdatePemasok([...pemasokList, trimmedPemasok]);
-    setNewPemasokName('');
-  };
-
-  const handleDeletePemasok = async (name: string) => {
-    // Cek apakah masih dipakai di pesanan atau transaksi
-    try {
-      const check = await checkMasterUsageFromDb('pemasok', name, name);
-      if (check.isUsed) {
-        setSafetyDialog({
-          type: 'blocked',
-          category: 'Pemasok',
-          id: name,
-          nama: name,
-          orderCount: check.orderCount,
-          transaksiCount: check.transaksiCount,
-        });
-        return;
-      }
-    } catch (e) {
-      console.warn('Error checking usage:', e);
-    }
-
-    setSafetyDialog({
-      type: 'confirm',
-      category: 'Pemasok',
-      id: name,
-      nama: name,
-    });
   };
 
   // Execute safe deletion
@@ -416,61 +125,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
-  // --- TEMPLATE HANDLERS ---
-  const handleUseLocalDocx = () => {
-    if (!selectedTemplateFile) return;
-    const objectUrl = URL.createObjectURL(selectedTemplateFile);
-    setCustomTemplateUrl(objectUrl);
-    localStorage.setItem('custom_docx_template_name', selectedTemplateFile.name);
-    setActiveCustomTemplateUrl(objectUrl);
-    setCustomTemplateName(selectedTemplateFile.name);
-    setTemplateStatus({
-      type: 'success',
-      text: `Template lokal "${selectedTemplateFile.name}" aktif untuk sesi browser ini!`,
-    });
-  };
-
-  const handleResetCustomTemplate = () => {
-    setCustomTemplateUrl(null);
-    localStorage.removeItem('custom_docx_template_name');
-    setActiveCustomTemplateUrl(null);
-    setCustomTemplateName(null);
-    setTemplateStatus({
-      type: 'success',
-      text: 'Berhasil di-reset ke template standar default per toko.',
-    });
-  };
-
-  const handleTestSampleDocxExport = async () => {
-    try {
-      const sampleItems: OrderItem[] = orders.length > 0 ? orders.slice(0, 3) : [
-        {
-          id: 'test-1',
-          namaBarang: 'Ayam Potong Segar',
-          qty: 10,
-          hargaBeli: 28000,
-          hargaJual: 35000,
-          toko: stores[0]?.nama || 'HTG',
-          tujuanDapur: kitchens[0]?.nama || 'Dapur Utama',
-          pemasok: pemasokList[0] || 'Supplier Utama',
-          status: 'pending',
-          tanggal: new Date().toISOString().split('T')[0],
-          catatan: 'Contoh catatan pesanan'
-        }
-      ];
-
-      await downloadDocxInvoice({
-        storeName: stores[0]?.nama || 'HTG',
-        kitchenName: kitchens[0]?.nama || 'Dapur Utama',
-        items: sampleItems,
-        invoiceNumber: 'INV-SAMPLE-001',
-        bayar: 100000,
-      });
-    } catch (err: any) {
-      alert(`Gagal uji export template: ${err?.message || err}`);
-    }
-  };
-
   const handleDeleteAllDataConfirm = () => {
     if (
       confirm(
@@ -482,6 +136,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <AnimatePresence>
@@ -495,7 +151,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
         />
 
-        {/* Bottom Sheet Container (Centered & bounded on tablet landscape) */}
+        {/* Bottom Sheet Container */}
         <motion.div
           initial={{ y: '100%' }}
           animate={{ y: 0 }}
@@ -604,966 +260,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Scrollable Content Body */}
           <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
-            {/* UNIFIED TAB: KELOLA DATA (TOKO, PEMASOK, DAPUR) */}
             {activeTab === 'kelola_data' && (
-              <div className="space-y-4">
-                {/* Sub-Tabs Switcher: Toko | Pemasok | Dapur */}
-                <div className="flex items-center p-1 bg-slate-100 rounded-2xl gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setKelolaSubTab('toko')}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                      kelolaSubTab === 'toko'
-                        ? 'bg-white text-indigo-700 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                    }`}
-                  >
-                    <StoreIcon className="w-3.5 h-3.5" />
-                    <span>Toko</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      kelolaSubTab === 'toko' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'
-                    }`}>
-                      {stores.length}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setKelolaSubTab('pemasok')}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                      kelolaSubTab === 'pemasok'
-                        ? 'bg-white text-indigo-700 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                    }`}
-                  >
-                    <Truck className="w-3.5 h-3.5" />
-                    <span>Pemasok</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      kelolaSubTab === 'pemasok' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'
-                    }`}>
-                      {pemasokList.length}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setKelolaSubTab('dapur')}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                      kelolaSubTab === 'dapur'
-                        ? 'bg-white text-indigo-700 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                    }`}
-                  >
-                    <Utensils className="w-3.5 h-3.5" />
-                    <span>Dapur</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      kelolaSubTab === 'dapur' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'
-                    }`}>
-                      {kitchens.length}
-                    </span>
-                  </button>
-                </div>
-
-                {/* Database SQL Helper Banner */}
-                <div className="flex items-center justify-between p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200/80">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
-                      <Database className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-black text-indigo-950 truncate">
-                        Skrip SQL Database (Supabase / Postgres)
-                      </h4>
-                      <p className="text-[10px] text-indigo-700 font-medium truncate">
-                        Tabel &amp; data master dapur, toko, pemasok
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={handleCopySql}
-                      className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-indigo-700 border border-indigo-200 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
-                      title="Salin query SQL ke clipboard"
-                    >
-                      {copiedSql ? (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          <span className="text-emerald-700">Tersalin!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Salin SQL</span>
-                        </>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowSqlModal(true)}
-                      className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-[11px] font-black transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
-                      title="Lihat query SQL lengkap"
-                    >
-                      <Code2 className="w-3.5 h-3.5" />
-                      <span>Lihat SQL</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* --- SUB-VIEW 1: TOKO --- */}
-                {kelolaSubTab === 'toko' && (
-                  <div className="space-y-4">
-                    <form onSubmit={handleAddOrUpdateStore} className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                          <StoreIcon className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>{editingStoreId ? 'Edit Data Toko' : 'Tambah Toko Baru'}</span>
-                        </h3>
-                        {editingStoreId && (
-                          <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
-                            Mode Edit
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Nama Toko (Contoh: HTG, PROHE, LUWENG BOGA)"
-                          required
-                          value={newStoreName}
-                          onChange={(e) => setNewStoreName(e.target.value)}
-                          className="flex-1 p-2.5 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
-                        />
-                        {editingStoreId && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingStoreId(null);
-                              setNewStoreName('');
-                            }}
-                            className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
-                          >
-                            Batal
-                          </button>
-                        )}
-                        <button
-                          type="submit"
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>{editingStoreId ? 'Simpan' : 'Tambah'}</span>
-                        </button>
-                      </div>
-                    </form>
-
-                    {/* Search & List */}
-                    <div className="space-y-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-black text-slate-700 uppercase tracking-wider block">
-                          Daftar Toko ({stores.length})
-                        </span>
-                        {stores.length > 4 && (
-                          <div className="relative w-44">
-                            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input
-                              type="text"
-                              placeholder="Cari toko..."
-                              value={searchToko}
-                              onChange={(e) => setSearchToko(e.target.value)}
-                              className="w-full pl-8 pr-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-indigo-600 font-medium"
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      {stores.length === 0 ? (
-                        <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                          Belum ada data toko. Silakan tambahkan toko di atas.
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {stores
-                            .filter((s) => s.nama.toLowerCase().includes(searchToko.toLowerCase()))
-                            .map((s) => (
-                              <div
-                                key={s.id}
-                                className="p-3 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-between shadow-2xs hover:border-indigo-300 transition-all"
-                              >
-                                <span className="font-black text-xs text-slate-900">{s.nama}</span>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditStore(s)}
-                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                                    title="Edit Toko"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteStore(s.id)}
-                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                    title="Hapus Toko"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* --- SUB-VIEW 2: PEMASOK --- */}
-                {kelolaSubTab === 'pemasok' && (
-                  <div className="space-y-4">
-                    <form onSubmit={handleAddPemasok} className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                        <Truck className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>Tambah Pemasok Baru</span>
-                      </h3>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Nama Pemasok (Contoh: Juragan Ayam, Pasar Rogojampi)"
-                          required
-                          value={newPemasokName}
-                          onChange={(e) => setNewPemasokName(e.target.value)}
-                          className="flex-1 p-2.5 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
-                        />
-                        <button
-                          type="submit"
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Tambah</span>
-                        </button>
-                      </div>
-                    </form>
-
-                    {/* Search & List */}
-                    <div className="space-y-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-black text-slate-700 uppercase tracking-wider block">
-                          Daftar Pemasok ({pemasokList.length})
-                        </span>
-                        {pemasokList.length > 4 && (
-                          <div className="relative w-44">
-                            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input
-                              type="text"
-                              placeholder="Cari pemasok..."
-                              value={searchPemasok}
-                              onChange={(e) => setSearchPemasok(e.target.value)}
-                              className="w-full pl-8 pr-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-indigo-600 font-medium"
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      {pemasokList.length === 0 ? (
-                        <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                          Belum ada data pemasok. Silakan tambahkan pemasok di atas.
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {pemasokList
-                            .filter((p) => p.toLowerCase().includes(searchPemasok.toLowerCase()))
-                            .map((p) => (
-                              <div
-                                key={p}
-                                className="p-3 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-between shadow-2xs hover:border-indigo-300 transition-all"
-                              >
-                                <span className="font-bold text-xs text-slate-900">{p}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeletePemasok(p)}
-                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                  title="Hapus Pemasok"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* --- SUB-VIEW 3: DAPUR --- */}
-                {kelolaSubTab === 'dapur' && (
-                  <div className="space-y-4">
-                    <form onSubmit={handleAddOrUpdateKitchen} className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                          <Utensils className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>{editingKitchenId ? 'Edit Data Dapur' : 'Tambah Dapur Baru'}</span>
-                        </h3>
-                        {editingKitchenId && (
-                          <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
-                            Mode Edit
-                          </span>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                        <input
-                          type="text"
-                          placeholder="Nama Dapur (misal: Dapur Utama)"
-                          required
-                          value={newKitchenName}
-                          onChange={(e) => setNewKitchenName(e.target.value)}
-                          className="p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Lokasi / Keterangan (Opsional)"
-                          value={newKitchenLocation}
-                          onChange={(e) => setNewKitchenLocation(e.target.value)}
-                          className="p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
-                        />
-                      </div>
-                      <div className="flex gap-2 justify-end pt-1">
-                        {editingKitchenId && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingKitchenId(null);
-                              setNewKitchenName('');
-                              setNewKitchenLocation('');
-                            }}
-                            className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
-                          >
-                            Batal
-                          </button>
-                        )}
-                        <button
-                          type="submit"
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>{editingKitchenId ? 'Simpan Perubahan' : 'Tambah Dapur'}</span>
-                        </button>
-                      </div>
-                    </form>
-
-                    {/* Search & List */}
-                    <div className="space-y-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-black text-slate-700 uppercase tracking-wider block">
-                          Daftar Dapur ({kitchens.length})
-                        </span>
-                        {kitchens.length > 4 && (
-                          <div className="relative w-44">
-                            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input
-                              type="text"
-                              placeholder="Cari dapur..."
-                              value={searchDapur}
-                              onChange={(e) => setSearchDapur(e.target.value)}
-                              className="w-full pl-8 pr-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-indigo-600 font-medium"
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      {kitchens.length === 0 ? (
-                        <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                          Belum ada data dapur. Silakan tambahkan dapur di atas.
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {kitchens
-                            .filter((k) => 
-                              k.nama.toLowerCase().includes(searchDapur.toLowerCase()) ||
-                              (k.lokasi && k.lokasi.toLowerCase().includes(searchDapur.toLowerCase()))
-                            )
-                            .map((k) => (
-                              <div
-                                key={k.id}
-                                className="p-3 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-between shadow-2xs hover:border-indigo-300 transition-all"
-                              >
-                                <div>
-                                  <div className="font-bold text-xs text-slate-900">{k.nama}</div>
-                                  {k.lokasi && <div className="text-[11px] text-slate-500 font-medium">{k.lokasi}</div>}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditKitchen(k)}
-                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                                    title="Edit Dapur"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteKitchen(k.id)}
-                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                    title="Hapus Dapur"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <KelolaDataTab
+                subTab={kelolaSubTab}
+                onSubTabChange={setKelolaSubTab}
+                stores={stores}
+                onUpdateStores={onUpdateStores}
+                pemasokList={pemasokList}
+                onUpdatePemasok={onUpdatePemasok}
+                kitchens={kitchens}
+                onUpdateKitchens={onUpdateKitchens}
+                onRefreshData={onRefreshData}
+                onOpenSafetyDialog={setSafetyDialog}
+                onCopySql={handleCopySql}
+                copiedSql={copiedSql}
+                onShowSqlModal={() => setShowSqlModal(true)}
+              />
             )}
 
-            {/* SUB-TAB 4: CUSTOM TEMPLATE DOCX */}
             {activeTab === 'template' && (
-              <div className="space-y-4 text-xs text-slate-700">
-                {/* Offline Print Info Card */}
-                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl space-y-2 shadow-2xs">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-emerald-600 text-white rounded-xl">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="font-black text-emerald-950 text-xs sm:text-sm block">
-                        Cetak Browser Offline (No Limit &amp; Cepat)
-                      </span>
-                      <p className="text-[11px] text-emerald-800 font-medium">
-                        Semua file Word .DOCX dikonversi menjadi PDF secara langsung di browser tanpa ketergantungan API eksternal.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Status Template Aktif & Defaults */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-black text-slate-900 text-[11px] uppercase tracking-wider">
-                      Status Template Aktif
-                    </span>
-                    {activeCustomTemplateUrl && (
-                      <button
-                        type="button"
-                        onClick={handleResetCustomTemplate}
-                        className="text-[10px] font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded-lg border border-rose-200 transition-colors"
-                      >
-                        Reset ke Default
-                      </button>
-                    )}
-                  </div>
-
-                  {activeCustomTemplateUrl ? (
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1">
-                      <div className="flex items-center gap-2 text-emerald-900 font-extrabold text-xs">
-                        <FileCheck className="w-4 h-4 text-emerald-600" />
-                        <span>Menggunakan Template Custom: {customTemplateName || 'Template Custom'}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-[11px] text-slate-600 font-medium">
-                        Menggunakan template bawaan default per toko:
-                      </p>
-                      <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
-                        {Object.entries(INVOICE_TEMPLATES).map(([storeKey, url]) => (
-                          <a
-                            key={storeKey}
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-2 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-slate-700 hover:border-indigo-400 hover:text-indigo-600 transition-all shadow-2xs"
-                          >
-                            <span className="font-bold text-slate-900">{storeKey}</span>
-                            <ExternalLink className="w-3 h-3 text-slate-400" />
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Actions for Testing and Selecting Local File */}
-                  <div className="pt-2 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleTestSampleDocxExport}
-                      className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl flex items-center gap-1.5 transition-all text-xs cursor-pointer shadow-xs"
-                    >
-                      <Receipt className="w-3.5 h-3.5" />
-                      <span>Uji Export Invoice DOCX</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Local Docx Uploader */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                  <h4 className="font-black text-slate-900 uppercase text-[11px] tracking-wider flex items-center gap-2">
-                    <Upload className="w-4 h-4 text-indigo-600" />
-                    <span>Gunakan File .DOCX Kustom dari HP/Komputer</span>
-                  </h4>
-
-                  <input
-                    type="file"
-                    accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    onChange={(e) => setSelectedTemplateFile(e.target.files?.[0] || null)}
-                    className="w-full text-xs text-slate-700 bg-white border border-slate-300 rounded-xl p-2.5 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
-                  />
-
-                  {selectedTemplateFile && (
-                    <button
-                      type="button"
-                      onClick={handleUseLocalDocx}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold rounded-xl flex items-center gap-1.5 transition-all text-xs cursor-pointer shadow-xs"
-                    >
-                      <Check className="w-4 h-4" />
-                      <span>Gunakan File "{selectedTemplateFile.name}" Sebagai Template</span>
-                    </button>
-                  )}
-
-                  {templateStatus && (
-                    <div
-                      className={`p-3 rounded-xl text-xs font-bold space-y-1.5 ${
-                        templateStatus.type === 'success'
-                          ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                          : 'bg-rose-100 text-rose-900 border border-rose-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        {templateStatus.type === 'success' ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-                        )}
-                        <span>{templateStatus.text}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Variable Placeholder Reference */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2">
-                  <span className="font-black text-slate-900 text-[11px] uppercase tracking-wider block">
-                    Daftar Variable / Tag Placeholder (.docx)
-                  </span>
-                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
-                    Sisipkan tag tag berikut ke dalam file .docx Anda:
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-2 text-[10px] font-mono pt-1">
-                    <div className="p-2 bg-white rounded-xl border border-slate-200">
-                      <span className="text-indigo-600 font-bold block">{`{dapur}`}</span>
-                      <span className="text-slate-500 text-[9px]">Dapur Tujuan</span>
-                    </div>
-                    <div className="p-2 bg-white rounded-xl border border-slate-200">
-                      <span className="text-indigo-600 font-bold block">{`{toko}`}</span>
-                      <span className="text-slate-500 text-[9px]">Nama Toko</span>
-                    </div>
-                    <div className="p-2 bg-white rounded-xl border border-slate-200">
-                      <span className="text-indigo-600 font-bold block">{`{tanggal}`}</span>
-                      <span className="text-slate-500 text-[9px]">Tanggal</span>
-                    </div>
-                    <div className="p-2 bg-white rounded-xl border border-slate-200">
-                      <span className="text-indigo-600 font-bold block">{`{invoiceNumber}`}</span>
-                      <span className="text-slate-500 text-[9px]">No Invoice</span>
-                    </div>
-                    <div className="p-2 bg-white rounded-xl border border-slate-200">
-                      <span className="text-indigo-600 font-bold block">{`{total}`}</span>
-                      <span className="text-slate-500 text-[9px]">Total (Rp)</span>
-                    </div>
-                    <div className="p-2 bg-white rounded-xl border border-slate-200">
-                      <span className="text-indigo-600 font-bold block">{`{bayar}`} &amp; {`{sisa}`}</span>
-                      <span className="text-slate-500 text-[9px]">Nominal Bayar</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <DocxTemplateTab
+                orders={orders}
+                stores={stores}
+                kitchens={kitchens}
+                pemasokList={pemasokList}
+              />
             )}
 
-            {/* SUB-TAB: KONFIGURASI NOTIFIKASI HP */}
-            {activeTab === 'notifikasi' && (
-              <div className="space-y-4 text-xs text-slate-700">
-                {/* 1. Permission Status Card */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center">
-                        <Bell className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h3 className="font-black text-slate-900 uppercase text-[11px] tracking-wider">
-                          Status Izin Notifikasi HP
-                        </h3>
-                        <p className="text-[10px] text-slate-500 font-medium">
-                          Web & Mobile Push Notifications (PWA)
-                        </p>
-                      </div>
-                    </div>
+            {activeTab === 'notifikasi' && <NotificationTab />}
 
-                    <div className="flex items-center gap-1.5">
-                      {permissionStatus === 'granted' ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          Diizinkan (Aktif)
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handleRequestPermission}
-                          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold rounded-xl text-[11px] transition-all shadow-xs flex items-center gap-1 cursor-pointer"
-                        >
-                          <Bell className="w-3 h-3" />
-                          <span>Minta Izin HP</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
+            {activeTab === 'install' && <InstallAppTab />}
 
-                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-                    {permissionStatus === 'granted'
-                      ? '✓ Browser dan HP Anda telah mengizinkan notifikasi. Pengingat laporan dan catatan akan muncul otomatis di status bar / layar kunci HP.'
-                      : '⚠️ Klik "Minta Izin HP" lalu pilih "Izinkan" (Allow) pada pop-up browser agar notifikasi laporan harian dan catatan dapat muncul di layar HP Anda.'}
-                  </p>
-                </div>
-
-                {/* 2. Pengaturan Sakelar Notifikasi */}
-                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 space-y-3.5 shadow-xs">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                    <div>
-                      <span className="font-black text-slate-900 text-xs block">
-                        Aktifkan Seluruh Notifikasi HP
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-medium">
-                        Sakelar utama untuk mengaktifkan atau menonaktifkan semua notifikasi
-                      </span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={notificationSettings.enabled}
-                        onChange={(e) => handleUpdateNotificationSetting('enabled', e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                    </label>
-                  </div>
-
-                  {/* Feature 1: Pengingat Laporan Harian */}
-                  <div className="flex items-start justify-between gap-3 pt-1">
-                    <div className="space-y-1">
-                      <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                        <Receipt className="w-3.5 h-3.5 text-indigo-600" />
-                        Pengingat Laporan Harian (Daily Report)
-                      </span>
-                      <p className="text-[10px] text-slate-500 leading-normal">
-                        Kirimkan rangkuman total pesanan, omset, dan laba bersih hari ini secara otomatis ke HP.
-                      </p>
-                      
-                      {notificationSettings.dailyReportReminder && (
-                        <div className="flex items-center gap-2 pt-1">
-                          <Clock className="w-3 h-3 text-slate-400" />
-                          <span className="text-[10px] font-bold text-slate-600">Jam Notifikasi:</span>
-                          <input
-                            type="time"
-                            value={notificationSettings.dailyReminderTime || '20:00'}
-                            onChange={(e) => handleUpdateNotificationSetting('dailyReminderTime', e.target.value)}
-                            className="px-2 py-0.5 text-[11px] font-bold bg-slate-50 border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-600 focus:outline-none"
-                          />
-                          <span className="text-[10px] text-slate-400 font-medium">WIB</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
-                      <input
-                        type="checkbox"
-                        disabled={!notificationSettings.enabled}
-                        checked={notificationSettings.dailyReportReminder}
-                        onChange={(e) => handleUpdateNotificationSetting('dailyReportReminder', e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 peer-disabled:opacity-40"></div>
-                    </label>
-                  </div>
-
-                  {/* Feature 2: Pengingat Catatan / Notes Belum Selesai */}
-                  <div className="flex items-start justify-between gap-3 pt-2 border-t border-slate-100">
-                    <div className="space-y-0.5">
-                      <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5 text-amber-500" />
-                        Pengingat Catatan / Notes Follow Up
-                      </span>
-                      <p className="text-[10px] text-slate-500 leading-normal">
-                        Kirim notifikasi pengingat jika masih ada catatan follow up dapur yang berstatus pending.
-                      </p>
-                    </div>
-
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
-                      <input
-                        type="checkbox"
-                        disabled={!notificationSettings.enabled}
-                        checked={notificationSettings.pendingNotesReminder}
-                        onChange={(e) => handleUpdateNotificationSetting('pendingNotesReminder', e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 peer-disabled:opacity-40"></div>
-                    </label>
-                  </div>
-
-                  {/* Feature 3: Notifikasi Pesanan Masuk */}
-                  <div className="flex items-start justify-between gap-3 pt-2 border-t border-slate-100">
-                    <div className="space-y-0.5">
-                      <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                        Notifikasi Pesanan Masuk (Real-time Alert)
-                      </span>
-                      <p className="text-[10px] text-slate-500 leading-normal">
-                        Tampilkan notifikasi pop-up seketika saat pesanan baru berhasil dicatat lewat suara / tombol.
-                      </p>
-                    </div>
-
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
-                      <input
-                        type="checkbox"
-                        disabled={!notificationSettings.enabled}
-                        checked={notificationSettings.newOrderAlert}
-                        onChange={(e) => handleUpdateNotificationSetting('newOrderAlert', e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 peer-disabled:opacity-40"></div>
-                    </label>
-                  </div>
-                </div>
-
-                {/* 3. Test Notification Action */}
-                <div className="bg-indigo-50/70 border border-indigo-200/80 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <div>
-                    <span className="font-black text-xs text-indigo-950 block">
-                      Tes Notifikasi Langsung di HP Anda
-                    </span>
-                    <span className="text-[10px] text-indigo-700 font-medium">
-                      Kirim pesan uji coba sekarang untuk memastikan notifikasi muncul di bar HP.
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleSendTestNotification}
-                    className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-xs rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-                  >
-                    <Bell className="w-3.5 h-3.5" />
-                    <span>{testNotificationSent ? 'Terkirim ✓' : 'Kirim Tes Notifikasi'}</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* SUB-TAB 6: INSTALL APK / PWA */}
-            {activeTab === 'install' && (
-              <div className="space-y-6 text-center py-6 max-w-sm mx-auto">
-                <div className="flex flex-col items-center space-y-3">
-                  <div className="w-20 h-20 rounded-3xl bg-white border border-slate-200 p-2 flex items-center justify-center shadow-xl shadow-slate-200/50">
-                    <img src="/icons/htg-192.png" alt="HTG Accounting" className="w-full h-full object-contain" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-black text-slate-900">
-                      HTG Accounting
-                    </h3>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">
-                      Tambahkan ke Layar Utama HP untuk pengalaman seperti aplikasi native.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl text-left space-y-2 text-xs">
-                  <span className="font-black text-slate-800 block">Cara Pasang di HP (Android / iOS):</span>
-                  <ol className="list-decimal list-inside space-y-1 text-slate-600 font-medium text-[11px]">
-                    <li>Buka menu browser (titik 3 di Chrome atau tombol Bagikan di Safari).</li>
-                    <li>Pilih <strong>"Tambahkan ke Layar Utama" (Add to Home Screen)</strong> atau <strong>"Install Aplikasi"</strong>.</li>
-                    <li>Aplikasi akan langsung muncul di menu HP Anda!</li>
-                  </ol>
-                </div>
-              </div>
-            )}
-
-            {/* SUB-TAB 7: DANGER ZONE */}
             {activeTab === 'danger' && (
-              <div className="bg-rose-50/80 p-5 rounded-2xl border border-rose-200 space-y-3">
-                <div className="flex items-center gap-2 text-rose-800 font-black text-xs uppercase tracking-wider">
-                  <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-                  <span>Danger Zone: Hapus Semua Data Pesanan Lokal</span>
-                </div>
-                <p className="text-xs text-rose-700 leading-relaxed font-medium">
-                  Fitur ini akan membersihkan data pesanan yang tersimpan di perangkat ini. Gunakan hanya jika Anda ingin mereset aplikasi.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleDeleteAllDataConfirm}
-                  className="w-full py-3 px-4 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black text-xs rounded-2xl transition-all shadow-md shadow-rose-600/20 flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>HAPUS SELURUH DATA PESANAN LOKAL</span>
-                </button>
-              </div>
+              <DangerZoneTab onDeleteAllDataConfirm={handleDeleteAllDataConfirm} />
             )}
           </div>
         </motion.div>
 
-        {/* Safety Dialog Modal (Prevent orphan data or confirm delete) */}
-        {safetyDialog && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs font-sans">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4"
-            >
-              {safetyDialog.type === 'blocked' ? (
-                <>
-                  <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
-                    <AlertTriangle className="w-6 h-6" />
-                  </div>
-                  <div className="text-center space-y-2">
-                    <h3 className="text-base font-black text-slate-900">
-                      Tidak Dapat Menghapus {safetyDialog.category}
-                    </h3>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      <span className="font-bold text-slate-900">"{safetyDialog.nama}"</span> masih tercatat digunakan pada{' '}
-                      <span className="font-extrabold text-amber-700">{safetyDialog.orderCount || 0} pesanan</span> dan{' '}
-                      <span className="font-extrabold text-amber-700">{safetyDialog.transaksiCount || 0} riwayat transaksi</span>.
-                    </p>
-                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200/80 text-[11px] text-amber-800 text-left font-medium">
-                      Data ini dilarang dihapus agar riwayat transaksi dan faktur yang sudah berjalan tidak menjadi data rusak (orphan).
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSafetyDialog(null)}
-                    className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-black transition-all cursor-pointer"
-                  >
-                    Mengerti &amp; Tutup
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
-                    <Trash2 className="w-6 h-6" />
-                  </div>
-                  <div className="text-center space-y-2">
-                    <h3 className="text-base font-black text-slate-900">
-                      Hapus {safetyDialog.category}?
-                    </h3>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      Yakin ingin menghapus {safetyDialog.category.toLowerCase()}{' '}
-                      <span className="font-bold text-slate-900">"{safetyDialog.nama}"</span>?
-                    </p>
-                    <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200/70 text-[11px] text-emerald-800 text-left font-medium flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>Data aman dihapus karena belum pernah dipakai di pesanan mana pun.</span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setSafetyDialog(null)}
-                      disabled={isDeleting}
-                      className="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                    >
-                      Batal
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleExecuteSafetyDelete}
-                      disabled={isDeleting}
-                      className="py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      {isDeleting ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Menghapus...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Ya, Hapus</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </>
-              )}
-            </motion.div>
-          </div>
-        )}
+        {/* Safety Dialog Modal */}
+        <SafetyDeleteDialog
+          dialog={safetyDialog}
+          isDeleting={isDeleting}
+          onClose={() => setSafetyDialog(null)}
+          onConfirmDelete={handleExecuteSafetyDelete}
+        />
 
         {/* SQL Viewer Modal */}
-        {showSqlModal && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-xs font-sans">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-slate-900 text-slate-100 rounded-3xl p-4 sm:p-6 max-w-2xl w-full shadow-2xl border border-slate-700 flex flex-col max-h-[85vh] space-y-3"
-            >
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
-                    <Database className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black text-white">
-                      Skrip SQL Master: Dapur, Toko &amp; Pemasok
-                    </h3>
-                    <p className="text-[10px] text-slate-400 font-medium">
-                      Supabase PostgreSQL DDL, Indexing, Seed Data &amp; RLS
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleCopySql}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    {copiedSql ? (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
-                        <span>Tersalin!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Salin SQL</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowSqlModal(false)}
-                    className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 overflow-y-auto font-mono text-[11px] leading-relaxed text-emerald-400 select-all flex-1 max-h-[60vh]">
-                <pre className="whitespace-pre-wrap">{MASTER_TABLES_SQL}</pre>
-              </div>
-
-              <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400">
-                <span>File tersimpan juga di <code className="text-indigo-300 font-mono">/master_tables_schema.sql</code></span>
-                <button
-                  type="button"
-                  onClick={() => setShowSqlModal(false)}
-                  className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
-                >
-                  Tutup
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
+        <SqlViewerModal
+          isOpen={showSqlModal}
+          onClose={() => setShowSqlModal(false)}
+          copiedSql={copiedSql}
+          onCopySql={handleCopySql}
+        />
       </div>
     </AnimatePresence>
   );
