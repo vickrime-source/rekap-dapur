@@ -23,8 +23,7 @@
       (function() {
         try {
           const stored = localStorage.getItem('htg_theme');
-          const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-          if (stored === 'dark' || (!stored && prefersDark)) {
+          if (stored === 'dark') {
             document.documentElement.classList.add('dark');
             document.documentElement.setAttribute('data-theme', 'dark');
             const meta = document.querySelector('meta[name="theme-color"]');
