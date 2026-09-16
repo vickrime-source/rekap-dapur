@@ -273,21 +273,42 @@ export function useOrderOperations({
       return;
     }
 
-    const itemsToAdd = Array.isArray(orderData) ? orderData : [orderData];
+    const rawItems = Array.isArray(orderData) ? orderData : [orderData];
+
+    // Filter ketat: Jangan pernah izinkan item kosong atau tanpa dapur tersimpan
+    const validItems = rawItems.filter((item: any) => {
+      const nama = ((item.namaBarang || item.item || item.nama_barang || '') as string).trim();
+      const dapur = ((item.tujuanDapur || item.dapur || item.tujuan_dapur || '') as string).trim();
+      return nama.length > 0 && dapur.length > 0;
+    });
+
+    console.log('FINAL ITEMS TO INSERT', validItems);
+
+    if (validItems.length === 0) {
+      console.warn('[handleSaveOrder] Ditolak: Tidak ada item valid (item & dapur wajib ada).', orderData);
+      showToast('Gagal: Nama barang dan Dapur wajib diisi!', 'error');
+      return;
+    }
+
     const createdDate = getNowWIBISOString();
 
-    const newOrdersAdded: OrderItem[] = itemsToAdd.map((item, idx) => {
-      const curToko = (item as any).toko || '';
-      const curPemasok = (item as any).pemasok || '';
-      const curDapur = (item as any).tujuanDapur || '';
+    const newOrdersAdded: OrderItem[] = validItems.map((item, idx) => {
+      const curToko = ((item as any).toko || '').trim();
+      const curPemasok = ((item as any).pemasok || '').trim();
+      const curDapur = ((item as any).tujuanDapur || (item as any).dapur || (item as any).tujuan_dapur || '').trim();
+      const curItemName = ((item as any).namaBarang || (item as any).item || (item as any).nama_barang || '').trim();
       const cleanD = curDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
 
-      const fTokoId = (item as any).toko_id || (item as any).tokoId || masterToko.find((t) => t.nama.toLowerCase() === curToko.trim().toLowerCase())?.id || '';
-      const fPemasokId = (item as any).pemasok_id || (item as any).pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === curPemasok.trim().toLowerCase())?.id || '';
-      const fDapurId = (item as any).dapur_id || (item as any).dapurId || masterDapur.find((d) => d.nama.toLowerCase() === curDapur.trim().toLowerCase() || d.nama.toLowerCase() === cleanD)?.id || '';
+      const fTokoId = (item as any).toko_id || (item as any).tokoId || masterToko.find((t) => t.nama.toLowerCase() === curToko.toLowerCase())?.id || '';
+      const fPemasokId = (item as any).pemasok_id || (item as any).pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === curPemasok.toLowerCase())?.id || '';
+      const fDapurId = (item as any).dapur_id || (item as any).dapurId || masterDapur.find((d) => d.nama.toLowerCase() === curDapur.toLowerCase() || d.nama.toLowerCase() === cleanD)?.id || '';
 
-      return {
+      const mappedOrder: OrderItem = {
         ...item,
+        namaBarang: curItemName,
+        tujuanDapur: curDapur,
+        toko: curToko,
+        pemasok: curPemasok,
         toko_id: fTokoId,
         tokoId: fTokoId,
         pemasok_id: fPemasokId,
@@ -297,6 +318,9 @@ export function useOrderOperations({
         id: `ord-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
         createdAt: createdDate,
       };
+
+      console.log('SUBMIT ITEM', mappedOrder);
+      return mappedOrder;
     });
 
     setOrders((prev) => [...newOrdersAdded, ...prev]);
@@ -629,14 +653,23 @@ export function useOrderOperations({
   }, [orders, handleSaveOrder, showToast]);
 
   const handleImportParsedItems = useCallback(async (parsedResults: TextParseResult[], targetDate: string) => {
-    const newOrdersAdded: OrderItem[] = parsedResults.map((res, index) => ({
+    const validParsed = parsedResults.filter((r) => r.namaBarang && r.namaBarang.trim() !== '');
+    if (validParsed.length === 0) {
+      showToast('Tidak ada item valid untuk diimport', 'error');
+      return;
+    }
+
+    const newOrdersAdded: OrderItem[] = validParsed.map((res, index) => ({
       id: `ord-imp-${Date.now()}-${index}`,
-      namaBarang: res.namaBarang,
-      qty: res.qty,
-      hargaBeli: res.hargaBeli,
-      hargaJual: res.hargaJual,
+      namaBarang: res.namaBarang.trim(),
+      item: res.namaBarang.trim(),
+      qty: Number(res.qty) > 0 ? Number(res.qty) : 1,
+      satuan: res.satuan || 'Kg',
+      hargaBeli: Number(res.hargaBeli) || 0,
+      hargaJual: Number(res.hargaJual) || 0,
       toko: res.toko || stores[0]?.nama || 'HTG',
       tujuanDapur: res.tujuanDapur || kitchens[0]?.nama || 'Dapur',
+      dapur: res.tujuanDapur || kitchens[0]?.nama || 'Dapur',
       pemasok: res.pemasok || pemasokList[0] || 'Ajeng fruits',
       status: 'pending',
       tanggal: targetDate || selectedDate,

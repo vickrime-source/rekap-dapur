@@ -159,6 +159,12 @@ export const ActionMenuPortal: React.FC<ActionMenuPortalProps> = ({
                   <span className="text-slate-300">•</span>
                   <span className="font-medium text-slate-600">{formatRupiah(singleItem.hargaBeli)}</span>
                 </div>
+                {singleItem.catatan && singleItem.catatan.trim() && (
+                  <div className="mt-1.5 text-[10.5px] text-slate-600 bg-amber-50/80 border border-amber-200/80 rounded-lg px-2 py-1 leading-relaxed">
+                    <span className="font-bold text-amber-800">Catatan: </span>
+                    <span className="break-words">{singleItem.catatan.trim()}</span>
+                  </div>
+                )}
               </div>
 
               <div className="h-px bg-slate-100 mx-1" />
@@ -243,6 +249,12 @@ export const ActionMenuPortal: React.FC<ActionMenuPortalProps> = ({
                         {it.qty}x
                       </span>
                     </div>
+                    {it.catatan && it.catatan.trim() && (
+                      <div className="mb-1.5 text-[10px] text-slate-600 bg-amber-50/80 border border-amber-200/80 rounded px-1.5 py-0.5 leading-relaxed">
+                        <span className="font-bold text-amber-800">Catatan: </span>
+                        <span className="break-words">{it.catatan.trim()}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-end gap-1">
                       <button
                         type="button"

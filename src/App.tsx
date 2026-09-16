@@ -347,7 +347,7 @@ export default function App() {
       )}
 
       {/* Main Content Body */}
-      <main className="flex-1 w-full max-w-5xl mx-auto px-3 sm:px-4 pt-2 pb-24 sm:pb-8">
+      <main className="flex-1 w-full max-w-7xl xl:max-w-[1536px] mx-auto px-3 sm:px-6 lg:px-8 pt-2 pb-36 sm:pb-32">
         <motion.div
           drag="x"
           dragConstraints={{ left: 0, right: 0 }}
@@ -553,7 +553,20 @@ export default function App() {
           setEditingOrder(null);
           setPrefilledKitchen(undefined);
         }}
-        onSave={handleSaveOrder}
+        onSave={(orderData, editId) => {
+          const rawItems = Array.isArray(orderData) ? orderData : [orderData];
+          const validItems = rawItems.filter((item: any) => {
+            const nama = ((item.namaBarang || item.item || item.nama_barang || '') as string).trim();
+            const dapur = ((item.tujuanDapur || item.dapur || item.tujuan_dapur || '') as string).trim();
+            return nama.length > 0 && dapur.length > 0;
+          });
+          console.log('FINAL ITEMS TO INSERT', validItems);
+          if (validItems.length === 0) {
+            console.warn('[App:onSave] Diabaikan: Tidak ada item valid (item & dapur wajib ada).');
+            return;
+          }
+          handleSaveOrder(Array.isArray(orderData) ? validItems : validItems[0], editId);
+        }}
         initialData={editingOrder}
         prefilledKitchen={prefilledKitchen}
         kitchens={kitchens}

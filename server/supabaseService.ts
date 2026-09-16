@@ -296,31 +296,50 @@ export async function getOrdersFromDb(filters: OrderFilterOptions = {}) {
 export async function createOrdersInDb(ordersData: any[] | any) {
   const list = Array.isArray(ordersData) ? ordersData : [ordersData];
 
-  const records = list.map((item) => {
-    const payStatus = (item.status_pembayaran || item.paymentStatus || (item.status === 'selesai' ? 'PAID' : 'UNPAID')).toString().toUpperCase();
-    const delStatus = (item.status_pengiriman || item.deliveryStatus || (item.status === 'selesai' ? 'DONE' : 'PENDING')).toString().toUpperCase();
-    const orderStatus = (payStatus === 'PAID' && delStatus === 'DONE') ? 'selesai' : (item.status || 'pending');
+  const records = list
+    .map((item) => {
+      const payStatus = (item.status_pembayaran || item.paymentStatus || (item.status === 'selesai' ? 'PAID' : 'UNPAID')).toString().toUpperCase();
+      const delStatus = (item.status_pengiriman || item.deliveryStatus || (item.status === 'selesai' ? 'DONE' : 'PENDING')).toString().toUpperCase();
+      const orderStatus = (payStatus === 'PAID' && delStatus === 'DONE') ? 'selesai' : (item.status || 'pending');
 
-    return {
-      ...(item.id ? { id: String(item.id) } : {}),
-      dapur: item.dapur || item.tujuanDapur || '',
-      item: item.item || item.namaBarang || '',
-      tanggal: item.tanggal || new Date().toISOString().split('T')[0],
-      qty: Number(item.qty) || 1,
-      satuan: item.satuan || 'Kg',
-      toko: item.toko || '',
-      pemasok: item.pemasok || '',
-      status_pembayaran: ['PAID', 'UNPAID'].includes(payStatus) ? payStatus : 'UNPAID',
-      status_pengiriman: ['DONE', 'PENDING', 'SHIPPED'].includes(delStatus) ? delStatus : 'PENDING',
-      status: ['pending', 'selesai'].includes(orderStatus) ? orderStatus : 'pending',
-      harga_jual: Math.max(0, Number(item.harga_jual !== undefined ? item.harga_jual : item.hargaJual) || 0),
-      harga_beli: Math.max(0, Number(item.harga_beli !== undefined ? item.harga_beli : item.hargaBeli) || 0),
-      cashback: Math.max(0, Number(item.cashback) || 0),
-      catatan: item.catatan || '',
-      created_at: item.created_at || item.createdAt || new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-  });
+      const dapur = (item.dapur || item.tujuanDapur || item.tujuan_dapur || '').toString().trim();
+      const itemName = (item.item || item.namaBarang || item.nama_barang || '').toString().trim();
+
+      const record = {
+        ...(item.id ? { id: String(item.id) } : {}),
+        dapur,
+        item: itemName,
+        tanggal: item.tanggal || new Date().toISOString().split('T')[0],
+        qty: Number(item.qty) > 0 ? Number(item.qty) : 1,
+        satuan: (item.satuan || 'Kg').toString().trim(),
+        toko: (item.toko || '').toString().trim(),
+        pemasok: (item.pemasok || '').toString().trim(),
+        status_pembayaran: ['PAID', 'UNPAID'].includes(payStatus) ? payStatus : 'UNPAID',
+        status_pengiriman: ['DONE', 'PENDING', 'SHIPPED'].includes(delStatus) ? delStatus : 'PENDING',
+        status: ['pending', 'selesai'].includes(orderStatus) ? orderStatus : 'pending',
+        harga_jual: Math.max(0, Number(item.harga_jual !== undefined ? item.harga_jual : item.hargaJual) || 0),
+        harga_beli: Math.max(0, Number(item.harga_beli !== undefined ? item.harga_beli : item.hargaBeli) || 0),
+        cashback: Math.max(0, Number(item.cashback) || 0),
+        catatan: (item.catatan || '').toString().trim(),
+        created_at: item.created_at || item.createdAt || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log('SUBMIT ITEM', item);
+      console.log('PESANAN PAYLOAD', record);
+
+      return record;
+    })
+    // FILTER WAJIB: Jangan pernah izinkan item kosong atau tanpa dapur disimpan ke database
+    .filter((record) => record.item.length > 0 && record.dapur.length > 0);
+
+  const validItems = records;
+  console.log('FINAL ITEMS TO INSERT', validItems);
+
+  if (records.length === 0) {
+    console.warn('[createOrdersInDb] Diabaikan: Tidak ada record pesanan valid (item & dapur wajib diisi).');
+    return [];
+  }
 
   if (!isSupabaseConfigured()) {
     return createLocalOrders(records);

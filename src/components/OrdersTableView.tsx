@@ -70,7 +70,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
       {isFirst && (
         <td
           rowSpan={rowSpan}
-          className="py-1 px-1 text-center font-mono text-[9px] font-bold text-slate-400 align-middle border-r border-slate-100 bg-slate-50/30"
+          className="py-2.5 px-2 text-center font-mono text-xs font-bold text-slate-400 align-middle border-r border-slate-100 bg-slate-50/40"
         >
           {group.groupIndex}
         </td>
@@ -80,20 +80,20 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
       {isFirst && (
         <td
           rowSpan={rowSpan}
-          className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100 bg-slate-50/30"
+          className="py-2.5 px-2 text-center whitespace-nowrap align-middle border-r border-slate-100 bg-slate-50/40"
         >
-          <span className="inline-block bg-indigo-50 text-indigo-900 font-black px-1.5 py-0.5 rounded text-[9px] border border-indigo-200">
+          <span className="inline-block bg-indigo-50 text-indigo-900 font-extrabold px-2 py-0.5 rounded text-[11px] border border-indigo-200 shadow-2xs">
             {group.tujuanDapur}
           </span>
         </td>
       )}
 
       {/* 3. ITEM (PER ROW ITEM) */}
-      <td className="py-1 px-1.5 align-middle">
-        <div className="font-bold text-slate-900 text-[9.5px] leading-tight">
+      <td className="py-2.5 px-3 align-middle">
+        <div className="font-bold text-slate-900 text-xs sm:text-[13px] leading-snug">
           {item.namaBarang}
         </div>
-        <div className="text-[8px] text-slate-500 font-mono font-medium">
+        <div className="text-[10px] sm:text-[11px] text-slate-500 font-mono font-medium mt-0.5">
           {item.pemasok}
         </div>
       </td>
@@ -102,14 +102,14 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
       {isFirst && (
         <td
           rowSpan={rowSpan}
-          className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100 bg-slate-50/30"
+          className="py-2.5 px-2 text-center whitespace-nowrap align-middle border-r border-slate-100 bg-slate-50/40"
         >
           <div className="flex flex-col items-center justify-center gap-0.5 leading-none">
-            <span className="font-bold text-slate-800 text-[9px] bg-slate-100 px-1 py-0.5 rounded border border-slate-200/80">
+            <span className="font-bold text-slate-800 text-[11px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200/80">
               {formatTanggalDisatuin(group.tanggal)}
             </span>
             {(group.createdAt || group.items[0]?.createdAt) && formatJam(group.createdAt || group.items[0]?.createdAt) ? (
-              <span className="text-[8px] font-mono text-slate-500 font-medium tracking-tight">
+              <span className="text-[9.5px] font-mono text-slate-500 font-medium tracking-tight">
                 {formatJam(group.createdAt || group.items[0]?.createdAt)}
               </span>
             ) : null}
@@ -118,7 +118,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
       )}
 
       {/* 5. QTY (PER ROW ITEM) */}
-      <td className="py-1 px-1 text-center font-black font-nominal text-[9.5px] text-slate-900 align-middle border-r border-slate-100">
+      <td className="py-2.5 px-2 text-center font-black font-nominal text-xs sm:text-[13px] text-slate-900 align-middle border-r border-slate-100">
         {item.qty}
       </td>
 
@@ -126,9 +126,9 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
       {isFirst && (
         <td
           rowSpan={rowSpan}
-          className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100"
+          className="py-2.5 px-2 text-center whitespace-nowrap align-middle border-r border-slate-100"
         >
-          <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] border ${getTokoBadgeStyle(group.toko)}`}>
+          <span className={`inline-block px-2 py-0.5 rounded text-[10.5px] font-bold border ${getTokoBadgeStyle(group.toko)}`}>
             {group.toko}
           </span>
         </td>
@@ -138,7 +138,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
       {isFirst && (
         <td
           rowSpan={rowSpan}
-          className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100"
+          className="py-2.5 px-2 text-center whitespace-nowrap align-middle border-r border-slate-100"
         >
           <button
             type="button"
@@ -146,10 +146,10 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
               const nextStatus: PaymentStatus = group.payStatus === 'PAID' ? 'UNPAID' : 'PAID';
               onGroupPaymentChange(group.items, nextStatus);
             }}
-            className={`text-[8px] font-black px-1.5 py-0.5 rounded border cursor-pointer transition-all active:scale-95 ${
+            className={`text-[9.5px] sm:text-[10px] font-black px-2 py-1 rounded-md border cursor-pointer transition-all active:scale-95 ${
               group.payStatus === 'PAID'
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 shadow-2xs'
+                : 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100 shadow-2xs'
             }`}
             title="Klik untuk ubah Payment (PAID / UNPAID)"
           >
@@ -162,7 +162,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
       {isFirst && (
         <td
           rowSpan={rowSpan}
-          className="py-1 px-1 text-center whitespace-nowrap align-middle border-r border-slate-100"
+          className="py-2.5 px-2 text-center whitespace-nowrap align-middle border-r border-slate-100"
         >
           <button
             type="button"
@@ -170,10 +170,10 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
               const nextStatus: DeliveryStatus = group.delStatus === 'DONE' ? 'PENDING' : 'DONE';
               onGroupDeliveryChange(group.items, nextStatus);
             }}
-            className={`text-[8px] font-black px-1.5 py-0.5 rounded border cursor-pointer transition-all active:scale-95 ${
+            className={`text-[9.5px] sm:text-[10px] font-black px-2 py-1 rounded-md border cursor-pointer transition-all active:scale-95 ${
               group.delStatus === 'DONE'
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 shadow-2xs'
+                : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 shadow-2xs'
             }`}
             title="Klik untuk ubah Delivery (DONE / PENDING)"
           >
@@ -183,25 +183,25 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
       )}
 
       {/* 9. H. JUAL (PER ROW ITEM) */}
-      <td className="py-1 px-1.5 text-right whitespace-nowrap align-middle">
-        <div className="font-bold text-slate-900 font-nominal text-[9px]">
+      <td className="py-2.5 px-3 text-right whitespace-nowrap align-middle">
+        <div className="font-bold text-slate-900 font-nominal text-xs sm:text-[12.5px]">
           {formatRupiah(
             (parseIndonesianNumber(item.qty) || 0) * (parseIndonesianNumber(item.hargaJual) || 0)
           )}
         </div>
-        <div className="text-[7.5px] text-slate-400 font-nominal">
+        <div className="text-[10px] text-slate-400 font-nominal">
           @{formatRupiah(parseIndonesianNumber(item.hargaJual) || 0)}
         </div>
       </td>
 
       {/* 10. H. BELI (PER ROW ITEM) */}
-      <td className="py-1 px-1.5 text-right whitespace-nowrap align-middle">
-        <div className="font-semibold text-slate-600 font-nominal text-[9px]">
+      <td className="py-2.5 px-3 text-right whitespace-nowrap align-middle">
+        <div className="font-semibold text-slate-600 font-nominal text-xs sm:text-[12.5px]">
           {formatRupiah(
             (parseIndonesianNumber(item.qty) || 0) * (parseIndonesianNumber(item.hargaBeli) || 0)
           )}
         </div>
-        <div className="text-[7.5px] text-slate-400 font-nominal">
+        <div className="text-[10px] text-slate-400 font-nominal">
           @{formatRupiah(parseIndonesianNumber(item.hargaBeli) || 0)}
         </div>
       </td>
@@ -214,25 +214,39 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
         const keKoperasi = cbNum > 0 ? (hjNum - cbNum) * qtyNum : 0;
 
         return (
-          <td className="py-1 px-1.5 whitespace-nowrap align-middle text-right">
+          <td className="py-2.5 px-2 text-right whitespace-nowrap align-middle">
             {keKoperasi > 0 ? (
-              <span className="inline-block font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 text-[8.5px] font-nominal">
+              <span className="inline-block font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[10px] font-nominal shadow-2xs">
                 +{formatRupiah(keKoperasi)}
               </span>
             ) : (
-              <span className="text-slate-400 font-medium text-[9.5px] block text-center">-</span>
+              <span className="text-slate-400 font-medium text-xs block text-center">-</span>
             )}
           </td>
         );
       })()}
 
-      {/* 12. AKSI (MERGED PER GROUP) */}
+      {/* 12. CATATAN (PER ROW ITEM) */}
+      <td className="py-2.5 px-2 text-left align-middle max-w-[120px] sm:max-w-[150px]">
+        {item.catatan && item.catatan.trim() ? (
+          <span
+            className="inline-block text-[10px] sm:text-[11px] text-slate-700 bg-slate-100 hover:bg-slate-200/80 px-2 py-0.5 rounded border border-slate-200/90 font-medium truncate max-w-full align-middle cursor-help transition-colors"
+            title={item.catatan.trim()}
+          >
+            {item.catatan.trim()}
+          </span>
+        ) : (
+          <span className="text-slate-300 font-medium text-xs block text-center select-none">-</span>
+        )}
+      </td>
+
+      {/* 13. AKSI (MERGED PER GROUP) */}
       {isFirst && (
         <td
           rowSpan={rowSpan}
-          className="py-1 px-1 text-center relative align-middle border-l border-slate-100"
+          className="py-2.5 px-2 text-center whitespace-nowrap relative align-middle border-l border-slate-100"
         >
-          <div className="flex items-center justify-center space-x-1">
+          <div className="flex items-center justify-center space-x-1.5">
             {/* Tombol Lihat/Preview Invoice A4 View-Only (Screenshot Bukti) */}
             <button
               type="button"
@@ -243,10 +257,10 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
                   onOpenInvoiceModal(group.items, group.tujuanDapur, group.toko);
                 }
               }}
-              className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-800 font-extrabold shadow-2xs transition-all active:scale-95 border border-sky-200 cursor-pointer"
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-800 font-extrabold shadow-2xs transition-all active:scale-95 border border-sky-200 cursor-pointer"
               title={`Lihat Bukti Invoice Dapur ${group.tujuanDapur}`}
             >
-              <Eye className="w-3.5 h-3.5 stroke-[2.5]" />
+              <Eye className="w-4 h-4 stroke-[2.2]" />
             </button>
 
             {/* Tombol Cetak / Export PDF (Tetap ada) */}
@@ -259,10 +273,10 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
                   onOpenInvoiceModal(group.items, group.tujuanDapur, group.toko);
                 }
               }}
-              className="p-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold shadow-2xs transition-all active:scale-95 border border-amber-500/80 cursor-pointer"
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold shadow-2xs transition-all active:scale-95 border border-amber-500/80 cursor-pointer"
               title={`1-Click Export Invoice PDF Dapur ${group.tujuanDapur}`}
             >
-              <Printer className="w-3.5 h-3.5 stroke-[2.5]" />
+              <Printer className="w-4 h-4 stroke-[2.2]" />
             </button>
 
             <button
@@ -272,14 +286,14 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
                 const rect = e.currentTarget.getBoundingClientRect();
                 onToggleActiveMenu(group.id, rect, group);
               }}
-              className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all cursor-pointer ${
+              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all cursor-pointer ${
                 isActiveMenu
                   ? 'bg-indigo-50 text-indigo-600 border border-indigo-200 ring-2 ring-indigo-500/20 shadow-2xs'
                   : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-transparent active:scale-95'
               }`}
               title="Menu Aksi"
             >
-              <MoreVertical className="w-3.5 h-3.5" />
+              <MoreVertical className="w-4 h-4" />
             </button>
           </div>
         </td>
@@ -319,9 +333,9 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
   onExportInvoicePdf,
   onViewInvoice,
 }) => {
-  // Pagination State (Max 15 groups per page)
+  // Pagination State (Default 10 groups per page for better screen fitting)
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 15;
+  const [pageSize, setPageSize] = useState(10);
 
   // Dropdown open state tracking (Rendered via ActionMenuPortal)
   const [activeMenu, setActiveMenu] = useState<{
@@ -474,103 +488,108 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
         ========================================================================
         TABEL TRANSAKSI PESANAN
         Struktur kolom:
-        NO -> DAPUR -> ITEM -> DATE -> QTY -> TOKO -> PAYMENT -> DILEVERY -> H. JUAL -> H. BELI -> AKSI
+        NO -> DAPUR -> ITEM -> DATE -> QTY -> TOKO -> PAYMENT -> DILEVERY -> H. JUAL -> H. BELI -> CASHBACK -> CATATAN -> AKSI
         ========================================================================
       */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden font-sans">
-      {/* 
-        REVISION REQUIREMENT 2:
-        Table structure from Left to Right:
-        DATE -> DAPUR -> ITEM -> QTY -> H. JUAL -> H. BELI -> TOKO -> PAYMENT & DELIVERY -> AKSI
-      */}
-      <div className="overflow-x-auto max-h-[70vh] sm:max-h-[75vh] overflow-y-auto">
-        <table className="w-full text-left border-collapse text-[9.5px] relative">
-          <thead className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 shadow-2xs">
-            <tr className="text-[8.5px] font-black text-slate-700 uppercase tracking-tight">
-              {/* 1. NO */}
-              <th className="py-2 px-1 text-center w-6 bg-slate-100 sticky top-0">
-                NO
-              </th>
-              {/* 2. DAPUR */}
-              <th className="py-2 px-1 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px]">
-                DAPUR
-              </th>
-              {/* 3. ITEM */}
-              <th className="py-2 px-1.5 bg-slate-100 sticky top-0 min-w-[120px]">
-                ITEM
-              </th>
-              {/* 4. DATE */}
-              <th className="py-2 px-1 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[70px]">
-                DATE
-              </th>
-              {/* 5. QTY */}
-              <th className="py-2 px-1 text-center w-7 bg-slate-100 sticky top-0">
-                QTY
-              </th>
-              {/* 6. TOKO */}
-              <th className="py-2 px-1 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[70px]">
-                TOKO
-              </th>
-              {/* 7. PAYMENT */}
-              <th className="py-2 px-1.5 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[65px]">
-                PAYMENT
-              </th>
-              {/* 8. DILEVERY */}
-              <th className="py-2 px-1.5 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[65px]">
-                DILEVERY
-              </th>
-              {/* 9. H. JUAL */}
-              <th className="py-2 px-1.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[80px]">
-                H. JUAL
-              </th>
-              {/* 10. H. BELI */}
-              <th className="py-2 px-1.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[80px]">
-                H. BELI
-              </th>
-              {/* 11. CASHBACK */}
-              <th className="py-2 px-1.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[75px]">
-                CASHBACK
-              </th>
-              {/* 12. AKSI */}
-              <th className="py-2 px-1 text-center min-w-[86px] bg-slate-100 sticky top-0">
-                AKSI
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-            {paginatedGroups.map((group) => {
-              const rowSpan = group.items.length;
-              return group.items.map((item, itemIdx) => (
-                <OrderRow
-                  key={item.id}
-                  item={item}
-                  itemIdx={itemIdx}
-                  rowSpan={rowSpan}
-                  group={group}
-                  isActiveMenu={activeMenu?.id === group.id}
-                  onToggleActiveMenu={handleToggleActiveMenu}
-                  onGroupPaymentChange={handleGroupPaymentChange}
-                  onGroupDeliveryChange={handleGroupDeliveryChange}
-                  onOpenInvoiceModal={onOpenInvoiceModal}
-                  onExportInvoicePdf={onExportInvoicePdf}
-                  onViewInvoice={onViewInvoice}
-                />
-              ));
-            })}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left border-collapse text-xs relative">
+            <thead className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 shadow-2xs">
+              <tr className="text-[10px] sm:text-[11px] font-black text-slate-700 uppercase tracking-wider">
+                {/* 1. NO */}
+                <th className="py-3 px-2 text-center w-10 bg-slate-100 sticky top-0">
+                  NO
+                </th>
+                {/* 2. DAPUR */}
+                <th className="py-3 px-2 text-center whitespace-nowrap bg-slate-100 sticky top-0">
+                  DAPUR
+                </th>
+                {/* 3. ITEM */}
+                <th className="py-3 px-3 bg-slate-100 sticky top-0 min-w-[130px]">
+                  ITEM
+                </th>
+                {/* 4. DATE */}
+                <th className="py-3 px-2 text-center whitespace-nowrap bg-slate-100 sticky top-0">
+                  DATE
+                </th>
+                {/* 5. QTY */}
+                <th className="py-3 px-2 text-center w-12 bg-slate-100 sticky top-0">
+                  QTY
+                </th>
+                {/* 6. TOKO */}
+                <th className="py-3 px-2 text-center whitespace-nowrap bg-slate-100 sticky top-0">
+                  TOKO
+                </th>
+                {/* 7. PAYMENT */}
+                <th className="py-3 px-2 text-center whitespace-nowrap bg-slate-100 sticky top-0">
+                  PAYMENT
+                </th>
+                {/* 8. DILEVERY */}
+                <th className="py-3 px-2 text-center whitespace-nowrap bg-slate-100 sticky top-0">
+                  DILEVERY
+                </th>
+                {/* 9. H. JUAL */}
+                <th className="py-3 px-3 text-right whitespace-nowrap bg-slate-100 sticky top-0">
+                  H. JUAL
+                </th>
+                {/* 10. H. BELI */}
+                <th className="py-3 px-3 text-right whitespace-nowrap bg-slate-100 sticky top-0">
+                  H. BELI
+                </th>
+                {/* 11. CASHBACK */}
+                <th className="py-3 px-2 text-right whitespace-nowrap bg-slate-100 sticky top-0">
+                  CASHBACK
+                </th>
+                {/* 12. CATATAN */}
+                <th className="py-3 px-2.5 text-left whitespace-nowrap bg-slate-100 sticky top-0 text-slate-700 min-w-[85px] max-w-[150px]">
+                  CATATAN
+                </th>
+                {/* 13. AKSI */}
+                <th className="py-3 px-2 text-center whitespace-nowrap min-w-[95px] bg-slate-100 sticky top-0">
+                  AKSI
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+              {paginatedGroups.map((group) => {
+                const rowSpan = group.items.length;
+                return group.items.map((item, itemIdx) => (
+                  <OrderRow
+                    key={item.id}
+                    item={item}
+                    itemIdx={itemIdx}
+                    rowSpan={rowSpan}
+                    group={group}
+                    isActiveMenu={activeMenu?.id === group.id}
+                    onToggleActiveMenu={handleToggleActiveMenu}
+                    onGroupPaymentChange={handleGroupPaymentChange}
+                    onGroupDeliveryChange={handleGroupDeliveryChange}
+                    onOpenInvoiceModal={onOpenInvoiceModal}
+                    onExportInvoicePdf={onExportInvoicePdf}
+                    onViewInvoice={onViewInvoice}
+                  />
+                ));
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* PAGINATION - Selalu muncul & dilengkapi info baris serta pilihan page size */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={orderGroups.length}
+          pageSize={pageSize}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setCurrentPage(1);
+          }}
+        />
       </div>
 
-      {/* PAGINATION */}
-      <Pagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={setCurrentPage}
-      />
-    </div>
-
-    {/* Spacer bawah khusus mobile agar tidak overlap dengan floating button "+" dan bottom nav bar */}
-    <div className="h-24 sm:h-0 block sm:hidden pointer-events-none" aria-hidden="true" />
+      {/* Spacer bawah agar tidak overlap dengan floating bottom nav bar */}
+      <div className="h-20 sm:h-12 pointer-events-none" aria-hidden="true" />
 
     {/* Floating Portal Action Menu (Minimalist & Professional, renders outside table) */}
     <ActionMenuPortal

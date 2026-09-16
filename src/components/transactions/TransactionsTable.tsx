@@ -79,23 +79,23 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
         </div>
       ) : (
         <>
-          <div className="w-full overflow-x-auto max-h-[70vh] sm:max-h-[75vh] overflow-y-auto">
-            <table className="w-full text-left border-collapse text-[9.5px] relative">
+          <div className="w-full overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs relative">
               <thead className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 shadow-2xs">
-                <tr className="text-[8.5px] font-black text-slate-700 uppercase tracking-wider">
-                  <th className="py-2.5 px-1.5 text-center w-8 bg-slate-100 sticky top-0">NO</th>
-                  <th className="py-2.5 px-2 whitespace-nowrap bg-slate-100 sticky top-0 min-w-[75px]">TANGGAL</th>
-                  <th className="py-2.5 px-2 whitespace-nowrap bg-slate-100 sticky top-0 min-w-[90px]">PEMASOK</th>
-                  <th className="py-2.5 px-2.5 bg-slate-100 sticky top-0 min-w-[160px]">BARANG &amp; TUJUAN</th>
-                  <th className="py-2.5 px-2 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[75px]">TOKO</th>
-                  <th className="py-2.5 px-1.5 text-center w-10 bg-slate-100 sticky top-0">QTY</th>
-                  <th className="py-2.5 px-2.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[90px]">H. BELI</th>
-                  <th className="py-2.5 px-2.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[90px]">TOTAL (JUAL)</th>
-                  <th className="py-2.5 px-2 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px] text-amber-800">CASHBACK</th>
-                  <th className="py-2.5 px-2 text-left whitespace-nowrap bg-slate-100 sticky top-0 min-w-[90px] max-w-[140px] text-slate-700">CATATAN</th>
-                  <th className="py-2.5 px-2 text-right whitespace-nowrap bg-slate-100 sticky top-0 min-w-[85px] text-emerald-800">LABA BERSIH</th>
-                  <th className="py-2.5 px-2 text-center whitespace-nowrap bg-slate-100 sticky top-0 min-w-[80px]">STATUS</th>
-                  <th className="py-2.5 px-1.5 text-center min-w-[125px] bg-slate-100 sticky top-0">AKSI</th>
+                <tr className="text-[10px] sm:text-[11px] font-black text-slate-700 uppercase tracking-wider">
+                  <th className="py-3 px-2 text-center w-10 bg-slate-100 sticky top-0">NO</th>
+                  <th className="py-3 px-2.5 whitespace-nowrap bg-slate-100 sticky top-0">TANGGAL</th>
+                  <th className="py-3 px-2.5 whitespace-nowrap bg-slate-100 sticky top-0">PEMASOK</th>
+                  <th className="py-3 px-3 bg-slate-100 sticky top-0 min-w-[140px]">BARANG &amp; TUJUAN</th>
+                  <th className="py-3 px-2.5 text-center whitespace-nowrap bg-slate-100 sticky top-0">TOKO</th>
+                  <th className="py-3 px-2 text-center w-12 bg-slate-100 sticky top-0">QTY</th>
+                  <th className="py-3 px-2.5 text-right whitespace-nowrap bg-slate-100 sticky top-0">H. BELI</th>
+                  <th className="py-3 px-2.5 text-right whitespace-nowrap bg-slate-100 sticky top-0">TOTAL (JUAL)</th>
+                  <th className="py-3 px-2.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 text-amber-800">CASHBACK</th>
+                  <th className="py-3 px-2.5 text-left whitespace-nowrap bg-slate-100 sticky top-0 text-slate-700">CATATAN</th>
+                  <th className="py-3 px-2.5 text-right whitespace-nowrap bg-slate-100 sticky top-0 text-emerald-800">LABA BERSIH</th>
+                  <th className="py-3 px-2.5 text-center whitespace-nowrap bg-slate-100 sticky top-0">STATUS</th>
+                  <th className="py-3 px-2.5 text-center whitespace-nowrap min-w-[95px] bg-slate-100 sticky top-0">AKSI</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-800 bg-white">
@@ -158,6 +158,7 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
             currentPage={currentPage}
             totalPages={totalPages}
             onPageChange={onPageChange}
+            totalItems={filteredBatches.length}
           />
         </>
       )}

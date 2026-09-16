@@ -131,6 +131,7 @@ export interface InvoiceRecord {
 export interface TextParseResult {
   namaBarang: string;
   qty: number;
+  satuan?: string;
   hargaBeli: number;
   hargaJual: number;
   toko?: string;

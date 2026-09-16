@@ -142,7 +142,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
   }, [filteredOrders]);
 
   return (
-    <header className="no-print px-3 pt-3 pb-2 max-w-5xl mx-auto w-full font-sans">
+    <header className="no-print px-3 sm:px-6 lg:px-8 pt-3 pb-2 max-w-7xl xl:max-w-[1536px] mx-auto w-full font-sans">
       {/* Claymorphism Semi-Glass Main Container */}
       <div className="bg-white/95 border border-white/90 p-3 sm:p-4 rounded-3xl shadow-[0_8px_24px_rgba(166,180,200,0.25)] space-y-3">
         

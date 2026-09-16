@@ -592,14 +592,15 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     toko.trim() !== '' &&
     tujuanDapur.trim() !== '' &&
     pemasok.trim() !== '' &&
-    itemRows.length > 0 &&
-    itemRows.every(
-      (r) =>
-        r.namaBarang.trim() !== '' &&
-        Number(r.qty) > 0 &&
-        Number(r.hargaBeli) >= 0 &&
-        Number(r.hargaJual) >= 0
-    );
+    itemRows.some((r) => r.namaBarang && r.namaBarang.trim() !== '') &&
+    itemRows
+      .filter((r) => r.namaBarang && r.namaBarang.trim() !== '')
+      .every(
+        (r) =>
+          Number(r.qty) > 0 &&
+          Number(r.hargaBeli) >= 0 &&
+          Number(r.hargaJual) >= 0
+      );
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -621,24 +622,29 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       return;
     }
 
-    if (!isFormValid) {
-      alert('Mohon lengkapi semua data barang (Nama Barang, Jumlah, Harga Beli, Harga Jual).');
+    // WAJIB: Filter placeholder item kosong dari array sebelum submit
+    const validItemRows = itemRows.filter((r) => r.namaBarang && r.namaBarang.trim() !== '');
+
+    if (validItemRows.length === 0) {
+      alert('Mohon lengkapi minimal satu nama barang.');
       return;
     }
 
-    // VALIDASI CASHBACK (per item):
-    // Kalau cashback diisi: HARUS harga_beli <= cashback <= harga_jual
-    for (let i = 0; i < itemRows.length; i++) {
-      const row = itemRows[i];
+    // Validasi setiap item valid: qty harus > 0 dan validasi cashback
+    for (let i = 0; i < validItemRows.length; i++) {
+      const row = validItemRows[i];
+      if (Number(row.qty) <= 0) {
+        alert(`Jumlah (qty) untuk ${row.namaBarang} harus lebih besar dari 0.`);
+        return;
+      }
+
       const cb = Number(row.cashback) || 0;
       const hb = Number(row.hargaBeli) || 0;
       const hj = Number(row.hargaJual) || 0;
 
       if (cb > 0) {
         if (cb < hb || cb > hj) {
-          const namaBarang = row.namaBarang.trim() || `Item #${i + 1}`;
-          alert(`Cashback ${namaBarang} harus di antara Rp ${formatIDR(hb)} dan Rp ${formatIDR(hj)}`);
-          setActiveItemIndex(i);
+          alert(`Cashback ${row.namaBarang} harus di antara Rp ${formatIDR(hb)} dan Rp ${formatIDR(hj)}`);
           return;
         }
       }
@@ -699,44 +705,20 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       deliveryStatus === 'DONE' && paymentStatus === 'PAID' ? 'selesai' : 'pending';
 
     if (initialData) {
-      const firstRow = itemRows[0];
-      onSave(
-        {
-          namaBarang: firstRow.namaBarang.trim(),
-          qty: Number(firstRow.qty) || 1,
-          satuan: firstRow.satuan || 'Kg',
-          hargaBeli: Math.max(0, Number(firstRow.hargaBeli) || 0),
-          hargaJual: Math.max(0, Number(firstRow.hargaJual) || 0),
-          cashback: Number(firstRow.cashback) > 0 ? Number(firstRow.cashback) : 0,
-          toko: cleanToko,
-          toko_id: finalTokoId,
-          tokoId: finalTokoId,
-          tujuanDapur: finalDapurName,
-          dapur_id: finalDapurId,
-          dapurId: finalDapurId,
-          pemasok: finalPemasokName,
-          pemasok_id: finalPemasokId,
-          pemasokId: finalPemasokId,
-          status: calculatedStatus,
-          paymentStatus,
-          deliveryStatus,
-          tanggal,
-          catatan: catatan.trim(),
-        },
-        initialData.id
-      );
-    } else {
-      const payload = itemRows.map((row) => ({
-        namaBarang: row.namaBarang.trim(),
-        qty: Number(row.qty) || 1,
-        satuan: row.satuan || 'Kg',
-        hargaBeli: Math.max(0, Number(row.hargaBeli) || 0),
-        hargaJual: Math.max(0, Number(row.hargaJual) || 0),
-        cashback: Number(row.cashback) > 0 ? Number(row.cashback) : 0,
+      const firstRow = validItemRows[0];
+      const singleItemPayload = {
+        namaBarang: firstRow.namaBarang.trim(),
+        item: firstRow.namaBarang.trim(),
+        qty: Number(firstRow.qty) > 0 ? Number(firstRow.qty) : 1,
+        satuan: firstRow.satuan?.trim() || 'Kg',
+        hargaBeli: Math.max(0, Number(firstRow.hargaBeli) || 0),
+        hargaJual: Math.max(0, Number(firstRow.hargaJual) || 0),
+        cashback: Number(firstRow.cashback) > 0 ? Number(firstRow.cashback) : 0,
         toko: cleanToko,
         toko_id: finalTokoId,
         tokoId: finalTokoId,
         tujuanDapur: finalDapurName,
+        dapur: finalDapurName,
         dapur_id: finalDapurId,
         dapurId: finalDapurId,
         pemasok: finalPemasokName,
@@ -747,8 +729,67 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         deliveryStatus,
         tanggal,
         catatan: catatan.trim(),
-      }));
-      onSave(payload);
+      };
+
+      const validItems = [singleItemPayload].filter(
+        (it) => it.namaBarang.trim() !== '' && it.tujuanDapur.trim() !== ''
+      );
+
+      console.log('FINAL ITEMS TO INSERT', validItems);
+      console.log('SUBMIT ITEM', singleItemPayload);
+      console.log('PESANAN PAYLOAD', singleItemPayload);
+
+      if (validItems.length === 0) {
+        alert('Nama barang dan Dapur wajib diisi!');
+        setIsSubmitting(false);
+        return;
+      }
+
+      onSave(singleItemPayload, initialData.id);
+    } else {
+      // WAJIB: Filter HANYA item valid (namaBarang tidak kosong & dapur tidak kosong)
+      const validItems = validItemRows
+        .filter((row) => (row.namaBarang || '').trim() !== '' && finalDapurName.trim() !== '')
+        .map((row) => {
+          const itemObj = {
+            namaBarang: row.namaBarang.trim(),
+            item: row.namaBarang.trim(),
+            qty: Number(row.qty) > 0 ? Number(row.qty) : 1,
+            satuan: row.satuan?.trim() || 'Kg',
+            hargaBeli: Math.max(0, Number(row.hargaBeli) || 0),
+            hargaJual: Math.max(0, Number(row.hargaJual) || 0),
+            cashback: Number(row.cashback) > 0 ? Number(row.cashback) : 0,
+            toko: cleanToko,
+            toko_id: finalTokoId,
+            tokoId: finalTokoId,
+            tujuanDapur: finalDapurName,
+            dapur: finalDapurName,
+            dapur_id: finalDapurId,
+            dapurId: finalDapurId,
+            pemasok: finalPemasokName,
+            pemasok_id: finalPemasokId,
+            pemasokId: finalPemasokId,
+            status: calculatedStatus,
+            paymentStatus,
+            deliveryStatus,
+            tanggal,
+            catatan: catatan.trim(),
+          };
+
+          console.log('SUBMIT ITEM', itemObj);
+          return itemObj;
+        });
+
+      console.log('FINAL ITEMS TO INSERT', validItems);
+      console.log('PESANAN PAYLOAD', validItems);
+
+      if (validItems.length === 0) {
+        alert('Nama barang dan Dapur wajib diisi!');
+        setIsSubmitting(false);
+        return;
+      }
+
+      onSave(validItems);
     }
 
     setIsSubmitting(false);

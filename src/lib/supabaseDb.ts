@@ -84,26 +84,34 @@ export function buildPesananPayload(item: Partial<OrderItem>) {
   const payStatus = (item.paymentStatus || (item.status === 'selesai' ? 'PAID' : 'UNPAID')).toUpperCase();
   const delStatus = (item.deliveryStatus || (item.status === 'selesai' ? 'DONE' : 'PENDING')).toUpperCase();
 
-  return {
+  const finalDapur = ((item.tujuanDapur || (item as any).dapur || (item as any).tujuan_dapur || '') as string).trim();
+  const finalItem = ((item.namaBarang || (item as any).item || (item as any).nama_barang || '') as string).trim();
+
+  const payload = {
     ...(item.id ? { id: item.id } : {}),
     toko_id: item.toko_id || item.tokoId || null,
     pemasok_id: item.pemasok_id || item.pemasokId || null,
     dapur_id: item.dapur_id || item.dapurId || null,
-    dapur: item.tujuanDapur || '',
-    item: item.namaBarang || '',
+    dapur: finalDapur,
+    item: finalItem,
     tanggal: item.tanggal || new Date().toISOString().split('T')[0],
-    qty: Number(item.qty) || 1,
-    satuan: item.satuan || 'Kg',
-    toko: item.toko || '',
-    pemasok: item.pemasok || '',
+    qty: Number(item.qty) > 0 ? Number(item.qty) : 1,
+    satuan: (item.satuan || 'Kg').trim(),
+    toko: (item.toko || '').trim(),
+    pemasok: (item.pemasok || '').trim(),
     status_pembayaran: ['PAID', 'UNPAID'].includes(payStatus) ? payStatus : 'UNPAID',
     status_pengiriman: ['DONE', 'PENDING'].includes(delStatus) ? delStatus : 'PENDING',
     status: (payStatus === 'PAID' && delStatus === 'DONE') ? 'selesai' : (item.status || 'pending'),
     harga_jual: Number(item.hargaJual) || 0,
     harga_beli: Number(item.hargaBeli) || 0,
     cashback: Number(item.cashback) || 0,
-    catatan: item.catatan || '',
+    catatan: (item.catatan || '').trim(),
   };
+
+  console.log('SUBMIT ITEM', item);
+  console.log('PESANAN PAYLOAD', payload);
+
+  return payload;
 }
 
 export function mapRawInvoice(row: any): InvoiceRecord {
@@ -262,6 +270,17 @@ export async function fetchOrdersFromDb(params?: {
 
 export async function saveOrderToDb(order: OrderItem): Promise<{ success: boolean; error?: string; data?: OrderItem }> {
   try {
+    const finalItem = ((order.namaBarang || (order as any).item || (order as any).nama_barang || '') as string).trim();
+    const finalDapur = ((order.tujuanDapur || (order as any).dapur || (order as any).tujuan_dapur || '') as string).trim();
+
+    if (!finalItem || !finalDapur) {
+      console.warn('[saveOrderToDb] Dibatalkan: Item atau Dapur kosong.', { finalItem, finalDapur });
+      return { success: false, error: 'Nama barang dan Dapur wajib diisi, tidak boleh kosong.' };
+    }
+
+    const validItems = [order];
+    console.log('FINAL ITEMS TO INSERT', validItems);
+
     const payload = buildPesananPayload(order);
     const res = await fetch('/api/pesanan', {
       method: 'POST',
@@ -285,7 +304,22 @@ export async function saveOrderToDb(order: OrderItem): Promise<{ success: boolea
 export async function saveOrdersBatchToDb(orders: OrderItem[]): Promise<{ success: boolean; error?: string; count?: number }> {
   try {
     if (!orders || orders.length === 0) return { success: true, count: 0 };
-    const payloads = orders.map(buildPesananPayload);
+
+    // WAJIB: Filter / buang placeholder item kosong sebelum submit ke Supabase
+    const validItems = orders.filter((o) => {
+      const finalItem = ((o.namaBarang || (o as any).item || (o as any).nama_barang || '') as string).trim();
+      const finalDapur = ((o.tujuanDapur || (o as any).dapur || (o as any).tujuan_dapur || '') as string).trim();
+      return finalItem.length > 0 && finalDapur.length > 0;
+    });
+
+    console.log('FINAL ITEMS TO INSERT', validItems);
+
+    if (validItems.length === 0) {
+      console.warn('[saveOrdersBatchToDb] Dibatalkan: Tidak ada item valid dengan namaBarang dan dapur.', orders);
+      return { success: false, error: 'Tidak ada item pesanan yang valid untuk disimpan.' };
+    }
+
+    const payloads = validItems.map(buildPesananPayload);
     const res = await fetch('/api/pesanan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -297,7 +331,7 @@ export async function saveOrdersBatchToDb(orders: OrderItem[]): Promise<{ succes
     }
     invalidateCache('pesanan');
     invalidateCache('summary');
-    return { success: true, count: json.count || orders.length };
+    return { success: true, count: json.count || validItems.length };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Error saat menyimpan batch pesanan' };
   }

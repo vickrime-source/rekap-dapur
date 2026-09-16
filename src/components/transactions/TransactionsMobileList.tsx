@@ -60,34 +60,35 @@ export const TransactionsMobileList: React.FC<TransactionsMobileListProps> = ({
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 tablet-landscape-grid-2 gap-3">
-          {paginatedBatches.map((batch) => (
-            <TransactionsMobileCard
-              key={`mobile-batch-card-${batch.id}`}
-              batch={batch}
-              isExpanded={expandedBatchIds.has(batch.id)}
-              onToggleExpand={() => onToggleExpandBatch(batch.id)}
-              isMenuOpen={activeMenuId === batch.id}
-              onToggleBatchPayment={onToggleBatchPayment}
-              onToggleBatchDelivery={onToggleBatchDelivery}
-              onViewInvoice={onViewInvoice}
-              onOpenInvoiceModal={onOpenInvoiceModal}
-              onExportInvoicePdf={onExportInvoicePdf}
-              onDeleteTransaction={onDeleteTransaction}
-              onDeleteInvoice={onDeleteInvoice}
-              onDeleteOrder={onDeleteOrder}
-              onOpenActionMenu={onOpenActionMenu}
-            />
-          ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 tablet-landscape-grid-2 gap-3">
+            {paginatedBatches.map((batch) => (
+              <TransactionsMobileCard
+                key={`mobile-batch-card-${batch.id}`}
+                batch={batch}
+                isExpanded={expandedBatchIds.has(batch.id)}
+                onToggleExpand={() => onToggleExpandBatch(batch.id)}
+                isMenuOpen={activeMenuId === batch.id}
+                onToggleBatchPayment={onToggleBatchPayment}
+                onToggleBatchDelivery={onToggleBatchDelivery}
+                onViewInvoice={onViewInvoice}
+                onOpenInvoiceModal={onOpenInvoiceModal}
+                onExportInvoicePdf={onExportInvoicePdf}
+                onDeleteTransaction={onDeleteTransaction}
+                onDeleteInvoice={onDeleteInvoice}
+                onDeleteOrder={onDeleteOrder}
+                onOpenActionMenu={onOpenActionMenu}
+              />
+            ))}
+          </div>
 
-          {/* Mobile Pagination */}
-          {totalPages > 1 && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={onPageChange}
-            />
-          )}
+          {/* Mobile Pagination - Always visible & spans full width */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+            totalItems={filteredBatches.length}
+          />
         </div>
       )}
     </div>
