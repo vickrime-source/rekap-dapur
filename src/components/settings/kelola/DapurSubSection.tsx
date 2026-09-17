@@ -91,14 +91,14 @@ export const DapurSubSection: React.FC<DapurSubSectionProps> = ({
 
   return (
     <div className="space-y-4 font-sans">
-      <form onSubmit={handleAddOrUpdateKitchen} className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+      <form onSubmit={handleAddOrUpdateKitchen} className="bg-slate-50 dark:bg-slate-800/80 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-            <Utensils className="w-3.5 h-3.5 text-indigo-600" />
+          <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+            <Utensils className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
             <span>{editingKitchenId ? 'Edit Data Dapur' : 'Tambah Dapur Baru'}</span>
           </h3>
           {editingKitchenId && (
-            <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
+            <span className="text-[10px] bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold">
               Mode Edit
             </span>
           )}
@@ -110,14 +110,14 @@ export const DapurSubSection: React.FC<DapurSubSectionProps> = ({
             required
             value={newKitchenName}
             onChange={(e) => setNewKitchenName(e.target.value)}
-            className="p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
+            className="p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
           />
           <input
             type="text"
             placeholder="Lokasi / Keterangan (Opsional)"
             value={newKitchenLocation}
             onChange={(e) => setNewKitchenLocation(e.target.value)}
-            className="p-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
+            className="p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-600 focus:outline-none font-semibold"
           />
         </div>
         <div className="flex gap-2 justify-end pt-1">
@@ -129,7 +129,7 @@ export const DapurSubSection: React.FC<DapurSubSectionProps> = ({
                 setNewKitchenName('');
                 setNewKitchenLocation('');
               }}
-              className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
             >
               Batal
             </button>
@@ -147,25 +147,25 @@ export const DapurSubSection: React.FC<DapurSubSectionProps> = ({
       {/* Search & List */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-black text-slate-700 uppercase tracking-wider block">
+          <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
             Daftar Dapur ({kitchens.length})
           </span>
           {kitchens.length > 4 && (
             <div className="relative w-44">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
               <input
                 type="text"
                 placeholder="Cari dapur..."
                 value={searchDapur}
                 onChange={(e) => setSearchDapur(e.target.value)}
-                className="w-full pl-8 pr-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-indigo-600 font-medium"
+                className="w-full pl-8 pr-2.5 py-1 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-900 focus:outline-indigo-600 font-medium"
               />
             </div>
           )}
         </div>
 
         {kitchens.length === 0 ? (
-          <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+          <div className="p-6 text-center text-xs text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
             Belum ada data dapur. Silakan tambahkan dapur di atas.
           </div>
         ) : (
@@ -178,17 +178,17 @@ export const DapurSubSection: React.FC<DapurSubSectionProps> = ({
               .map((k) => (
                 <div
                   key={k.id}
-                  className="p-3 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-between shadow-2xs hover:border-indigo-300 transition-all"
+                  className="p-3 bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700 rounded-2xl flex items-center justify-between shadow-2xs hover:border-indigo-300 dark:hover:border-indigo-500 transition-all"
                 >
                   <div>
-                    <div className="font-bold text-xs text-slate-900">{k.nama}</div>
-                    {k.lokasi && <div className="text-[11px] text-slate-500 font-medium">{k.lokasi}</div>}
+                    <div className="font-bold text-xs text-slate-900 dark:text-slate-100">{k.nama}</div>
+                    {k.lokasi && <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{k.lokasi}</div>}
                   </div>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => handleEditKitchen(k)}
-                      className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                      className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
                       title="Edit Dapur"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
@@ -196,7 +196,7 @@ export const DapurSubSection: React.FC<DapurSubSectionProps> = ({
                     <button
                       type="button"
                       onClick={() => handleDeleteKitchen(k.id)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                      className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition-colors cursor-pointer"
                       title="Hapus Dapur"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

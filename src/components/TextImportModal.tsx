@@ -81,7 +81,7 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="clay-card bg-white/95 w-full max-w-3xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh] border border-white"
+          className="clay-card bg-white/95 dark:bg-slate-900 w-full max-w-3xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh] border border-white dark:border-slate-800"
         >
           {/* Header */}
           <div className="px-6 py-4 bg-gradient-to-r from-[#4f46e5] to-[#6366f1] text-white flex items-center justify-between border-b border-white/30">
@@ -96,15 +96,15 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
             </button>
           </div>
 
-          <div className="p-6 overflow-y-auto flex-1 space-y-5">
+          <div className="p-6 overflow-y-auto flex-1 space-y-5 bg-white dark:bg-slate-900">
             {/* Step 1: Input Controls & Textarea */}
             {!isParsed ? (
               <div className="space-y-4">
-                <div className="clay-card-flat p-4 rounded-2xl flex items-start gap-3 text-xs text-indigo-900">
-                  <Sparkles className="w-5 h-5 text-[#4f46e5] flex-shrink-0 mt-0.5" />
+                <div className="clay-card-flat bg-indigo-50/70 dark:bg-indigo-950/40 p-4 rounded-2xl flex items-start gap-3 text-xs text-indigo-900 dark:text-indigo-200 border border-indigo-100 dark:border-indigo-900/60">
+                  <Sparkles className="w-5 h-5 text-[#4f46e5] dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-extrabold mb-0.5 text-slate-800">Parser Teks Otomatis</p>
-                    <p className="text-slate-600 font-medium">
+                    <p className="font-extrabold mb-0.5 text-slate-800 dark:text-slate-100">Parser Teks Otomatis</p>
+                    <p className="text-slate-600 dark:text-slate-300 font-medium">
                       Paste teks pesan/catatan WhatsApp di bawah ini. Sistem akan mengekstrak nama barang, jumlah qty, dan harga secara otomatis.
                     </p>
                   </div>
@@ -113,47 +113,47 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                 {/* Default Selectors for Bulk Assign */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div>
-                    <label className="block font-extrabold text-slate-700 mb-1">Tanggal Pesanan</label>
+                    <label className="block font-extrabold text-slate-700 dark:text-slate-300 mb-1">Tanggal Pesanan</label>
                     <input
                       type="date"
                       value={targetDate}
                       onChange={(e) => setTargetDate(e.target.value)}
-                      className="w-full p-2.5 clay-input text-xs font-bold"
+                      className="w-full p-2.5 clay-input text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
                     />
                   </div>
                   <div>
-                    <label className="block font-extrabold text-slate-700 mb-1">Default Toko</label>
+                    <label className="block font-extrabold text-slate-700 dark:text-slate-300 mb-1">Default Toko</label>
                     <select
                       value={defaultToko}
                       onChange={(e) => setDefaultToko(e.target.value)}
-                      className="w-full p-2.5 clay-input text-xs font-bold"
+                      className="w-full p-2.5 clay-input text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
                     >
                       {stores.map((s) => (
-                        <option key={s.id} value={s.nama}>{s.nama}</option>
+                        <option key={s.id} value={s.nama} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">{s.nama}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block font-extrabold text-slate-700 mb-1">Default Dapur</label>
+                    <label className="block font-extrabold text-slate-700 dark:text-slate-300 mb-1">Default Dapur</label>
                     <select
                       value={defaultDapur}
                       onChange={(e) => setDefaultDapur(e.target.value)}
-                      className="w-full p-2.5 clay-input text-xs font-bold"
+                      className="w-full p-2.5 clay-input text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
                     >
                       {kitchens.map((k) => (
-                        <option key={k.id} value={k.nama}>{k.nama}</option>
+                        <option key={k.id} value={k.nama} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">{k.nama}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="block font-extrabold text-slate-700 mb-1">Default Pemasok</label>
+                    <label className="block font-extrabold text-slate-700 dark:text-slate-300 mb-1">Default Pemasok</label>
                     <select
                       value={defaultPemasok}
                       onChange={(e) => setDefaultPemasok(e.target.value)}
-                      className="w-full p-2.5 clay-input text-xs font-bold"
+                      className="w-full p-2.5 clay-input text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
                     >
                       {pemasokList.map((p) => (
-                        <option key={p} value={p}>{p}</option>
+                        <option key={p} value={p} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">{p}</option>
                       ))}
                     </select>
                   </div>
@@ -162,13 +162,13 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                 {/* Textarea */}
                 <div>
                   <div className="flex justify-between items-center mb-1">
-                    <label className="block text-xs font-extrabold text-slate-700 uppercase">
+                    <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase">
                       Paste Teks Pesanan
                     </label>
                     <button
                       type="button"
                       onClick={() => setRawText(sampleTemplate)}
-                      className="text-[11px] font-extrabold text-[#4f46e5] hover:underline"
+                      className="text-[11px] font-extrabold text-[#4f46e5] dark:text-indigo-400 hover:underline cursor-pointer"
                     >
                       Gunakan Contoh Teks
                     </button>
@@ -178,14 +178,14 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                     placeholder="Contoh: 1. Beras 5kg @ 14000 / 16500..."
                     value={rawText}
                     onChange={(e) => setRawText(e.target.value)}
-                    className="w-full p-3.5 clay-input font-mono text-xs font-bold text-slate-800"
+                    className="w-full p-3.5 clay-input font-mono text-xs font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700"
                   />
                 </div>
 
                 <button
                   type="button"
                   onClick={handleParse}
-                  className="w-full py-3.5 px-4 clay-btn-primary text-white font-extrabold text-sm transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3.5 px-4 clay-btn-primary text-white font-extrabold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4 text-indigo-200" />
                   Proses & Ekstrak Data
@@ -195,14 +195,14 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
               /* Step 2: Confirmation & Preview Table */
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-600" />
+                  <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                     Hasil Ekstraksi ({parsedItems.length} Item)
                   </h3>
                   <button
                     type="button"
                     onClick={() => setIsParsed(false)}
-                    className="text-xs font-extrabold text-[#4f46e5] hover:underline"
+                    className="text-xs font-extrabold text-[#4f46e5] dark:text-indigo-400 hover:underline cursor-pointer"
                   >
                     Edit Teks Kembali
                   </button>
@@ -214,10 +214,10 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                     Tidak ada data barang yang terdeteksi. Silakan periksa kembali teks yang di-paste.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto clay-card-flat p-2">
+                  <div className="overflow-x-auto clay-card-flat dark:bg-slate-800 p-2 rounded-2xl border border-slate-200 dark:border-slate-700">
                     <table className="w-full text-left text-xs">
                       <thead>
-                        <tr className="border-b border-indigo-100 font-extrabold text-slate-700">
+                        <tr className="border-b border-indigo-100 dark:border-slate-700 font-extrabold text-slate-700 dark:text-slate-300">
                           <th className="p-2.5">Nama Barang</th>
                           <th className="p-2.5 text-center">Qty</th>
                           <th className="p-2.5">Harga Beli</th>
@@ -226,15 +226,15 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                           <th className="p-2.5 text-center">Aksi</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-200">
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                         {parsedItems.map((item, idx) => (
-                          <tr key={idx} className="hover:bg-white/60">
+                          <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                             <td className="p-2">
                               <input
                                 type="text"
                                 value={item.namaBarang}
                                 onChange={(e) => handleItemChange(idx, 'namaBarang', e.target.value)}
-                                className="w-full p-1.5 clay-input text-xs font-bold"
+                                className="w-full p-1.5 clay-input text-xs font-bold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
                               />
                             </td>
                             <td className="p-2 w-16">
@@ -243,7 +243,7 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                                 min="1"
                                 value={item.qty}
                                 onChange={(e) => handleItemChange(idx, 'qty', parseInt(e.target.value) || 1)}
-                                className="w-full p-1.5 clay-input text-xs font-bold text-center"
+                                className="w-full p-1.5 clay-input text-xs font-bold text-center bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
                               />
                             </td>
                             <td className="p-2 w-28">
@@ -251,7 +251,7 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                                 type="number"
                                 value={item.hargaBeli}
                                 onChange={(e) => handleItemChange(idx, 'hargaBeli', parseInt(e.target.value) || 0)}
-                                className="w-full p-1.5 clay-input text-xs font-bold"
+                                className="w-full p-1.5 clay-input text-xs font-bold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
                               />
                             </td>
                             <td className="p-2 w-28">
@@ -259,17 +259,17 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                                 type="number"
                                 value={item.hargaJual}
                                 onChange={(e) => handleItemChange(idx, 'hargaJual', parseInt(e.target.value) || 0)}
-                                className="w-full p-1.5 clay-input text-xs font-bold"
+                                className="w-full p-1.5 clay-input text-xs font-bold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
                               />
                             </td>
                             <td className="p-2 w-36">
                               <select
                                 value={item.tujuanDapur}
                                 onChange={(e) => handleItemChange(idx, 'tujuanDapur', e.target.value)}
-                                className="w-full p-1.5 clay-input text-xs font-bold"
+                                className="w-full p-1.5 clay-input text-xs font-bold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
                               >
                                 {kitchens.map((k) => (
-                                  <option key={k.id} value={k.nama}>{k.nama}</option>
+                                  <option key={k.id} value={k.nama} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">{k.nama}</option>
                                 ))}
                               </select>
                             </td>
@@ -277,7 +277,7 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleRemoveItem(idx)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg cursor-pointer"
                               >
                                 <X className="w-4 h-4" />
                               </button>
@@ -293,7 +293,7 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsParsed(false)}
-                    className="px-4 py-2.5 clay-btn text-xs font-bold text-slate-700"
+                    className="px-4 py-2.5 clay-btn text-xs font-bold text-slate-700 dark:text-slate-300 dark:bg-slate-800 dark:border-slate-700 cursor-pointer"
                   >
                     Batal
                   </button>

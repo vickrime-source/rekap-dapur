@@ -336,6 +336,17 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                 </div>
               </div>
             </div>
+
+            {totalOrders === 0 && orders.length > 0 && activePeriod !== 'all_time' && (
+              <button
+                type="button"
+                onClick={() => handleSetPeriod('all_time')}
+                className="text-[10.5px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 border border-indigo-200 dark:border-indigo-800 rounded-xl px-2.5 py-1.5 text-center cursor-pointer transition-colors shadow-2xs w-full"
+                title="Klik untuk melihat semua pesanan yang tersimpan di database"
+              >
+                Data aman: Ada {orders.length} pesanan di All Time &rarr;
+              </button>
+            )}
           </div>
 
           {/* Right Column: HIGHLIGHT FOLLOW UP */}

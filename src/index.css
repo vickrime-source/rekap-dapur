@@ -39,6 +39,27 @@ html.dark {
     min-height: 100vh;
     transition: background-color 0.2s ease, color 0.2s ease;
   }
+
+  /* Form controls color-scheme & option styling for reliable dark mode dropdowns */
+  select, option, optgroup {
+    color-scheme: light;
+  }
+
+  html.dark select,
+  html.dark option,
+  html.dark optgroup {
+    color-scheme: dark !important;
+    background-color: #0f172a !important;
+    color: #f8fafc !important;
+  }
+
+  html:not(.dark) select,
+  html:not(.dark) option,
+  html:not(.dark) optgroup {
+    color-scheme: light !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
 }
 
 /* Typography for all numbers & prices (Plus Jakarta Sans with tabular lining figures for clear readability) */

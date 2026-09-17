@@ -51,12 +51,12 @@ export const TransactionsFilterToolbar: React.FC<TransactionsFilterToolbarProps>
           <select
             value={selectedStoreFilter}
             onChange={(e) => onSelectStoreFilter(e.target.value)}
-            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs"
+            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
             aria-label="Filter Toko"
           >
-            <option value="all">Semua Toko ({storeNames.length})</option>
+            <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="all">Semua Toko ({storeNames.length})</option>
             {storeNames.map((st) => (
-              <option key={st} value={st}>
+              <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" key={st} value={st}>
                 Toko {st}
               </option>
             ))}
@@ -94,12 +94,12 @@ export const TransactionsFilterToolbar: React.FC<TransactionsFilterToolbarProps>
           <select
             value={selectedPemasok}
             onChange={(e) => onSelectPemasok(e.target.value)}
-            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs"
+            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
             aria-label="Filter Pemasok"
           >
-            <option value="all">Semua Pemasok ({pemasokList.length})</option>
+            <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="all">Semua Pemasok ({pemasokList.length})</option>
             {pemasokList.map((p) => (
-              <option key={p} value={p}>
+              <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" key={p} value={p}>
                 Pemasok: {p}
               </option>
             ))}
@@ -159,12 +159,12 @@ export const TransactionsFilterToolbar: React.FC<TransactionsFilterToolbarProps>
           <select
             value={selectedStatusFilter}
             onChange={(e) => onSelectStatusFilter(e.target.value as any)}
-            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs"
+            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
             aria-label="Filter Status"
           >
-            <option value="all">Semua Status (PAID &amp; UNPAID)</option>
-            <option value="UNPAID">UNPAID (Belum Lunas)</option>
-            <option value="PAID">PAID (Lunas)</option>
+            <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="all">Semua Status (PAID &amp; UNPAID)</option>
+            <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="UNPAID">UNPAID (Belum Lunas)</option>
+            <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="PAID">PAID (Lunas)</option>
           </select>
         </div>
       </div>

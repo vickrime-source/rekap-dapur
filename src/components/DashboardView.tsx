@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   Store as StoreIcon, 
@@ -87,6 +87,13 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
     return 'mingguan';
   });
 
+  // Sinkronisasi otomatis saat period dari HeaderBanner / App berubah
+  useEffect(() => {
+    if (period && (period === 'mingguan' || period === 'hari_ini' || period === 'bulan_ini' || period === 'all_time')) {
+      setTimeFilter(period);
+    }
+  }, [period]);
+
   const weekRange = useMemo(() => getWeekRange(selectedDate), [selectedDate]);
 
   // Filter orders according to timeFilter, store, kitchen, and search
@@ -158,12 +165,12 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
             <select
               value={selectedStoreFilter}
               onChange={(e) => setSelectedStoreFilter(e.target.value)}
-              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs"
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
               aria-label="Filter Toko"
             >
-              <option value="all">Semua Toko ({stores.length})</option>
+              <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="all">Semua Toko ({stores.length})</option>
               {stores.map((st) => (
-                <option key={st.id} value={st.nama}>
+                <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" key={st.id} value={st.nama}>
                   Toko {st.nama}
                 </option>
               ))}
@@ -186,12 +193,12 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
             <select
               value={selectedKitchenFilter}
               onChange={(e) => setSelectedKitchenFilter(e.target.value)}
-              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs"
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
               aria-label="Filter Dapur"
             >
-              <option value="all">Semua Dapur ({kitchens.length})</option>
+              <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="all">Semua Dapur ({kitchens.length})</option>
               {kitchens.map((k) => (
-                <option key={k.id} value={k.nama}>
+                <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" key={k.id} value={k.nama}>
                   Dapur {k.nama}
                 </option>
               ))}
@@ -226,13 +233,13 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
                   onPeriodChange(val);
                 }
               }}
-              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs"
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
               aria-label="Filter Waktu Pesanan"
             >
-              <option value="all_time">All Time</option>
-              <option value="hari_ini">Hari Ini</option>
-              <option value="mingguan">Minggu Ini</option>
-              <option value="bulan_ini">Bulan Ini</option>
+              <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="all_time">All Time</option>
+              <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="hari_ini">Hari Ini</option>
+              <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="mingguan">Minggu Ini</option>
+              <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="bulan_ini">Bulan Ini</option>
             </select>
           </div>
 
@@ -274,6 +281,22 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
       {/* Orders Table View */}
       <OrdersTableView
         orders={filteredOrders}
+        totalUnfilteredOrders={orders.length}
+        currentFilterLabel={
+          timeFilter === 'hari_ini'
+            ? 'Hari Ini'
+            : timeFilter === 'mingguan'
+            ? 'Minggu Ini'
+            : timeFilter === 'bulan_ini'
+            ? 'Bulan Ini'
+            : 'All Time'
+        }
+        onResetFilter={() => {
+          setTimeFilter('all_time');
+          if (onPeriodChange) {
+            onPeriodChange('all_time');
+          }
+        }}
         isLoading={isLoading}
         onUpdatePaymentStatus={onUpdatePaymentStatus}
         onUpdateDeliveryStatus={onUpdateDeliveryStatus}

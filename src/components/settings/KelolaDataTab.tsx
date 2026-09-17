@@ -48,20 +48,22 @@ export const KelolaDataTab: React.FC<KelolaDataTabProps> = ({
   return (
     <div className="space-y-4 font-sans">
       {/* Sub-Tabs Switcher: Toko | Pemasok | Dapur */}
-      <div className="flex items-center p-1 bg-slate-100 rounded-2xl gap-1">
+      <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl gap-1">
         <button
           type="button"
           onClick={() => onSubTabChange('toko')}
           className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
             subTab === 'toko'
-              ? 'bg-white text-indigo-700 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-700/50'
           }`}
         >
           <StoreIcon className="w-3.5 h-3.5" />
           <span>Toko</span>
           <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-            subTab === 'toko' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'
+            subTab === 'toko'
+              ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
+              : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
           }`}>
             {stores.length}
           </span>
@@ -72,14 +74,16 @@ export const KelolaDataTab: React.FC<KelolaDataTabProps> = ({
           onClick={() => onSubTabChange('pemasok')}
           className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
             subTab === 'pemasok'
-              ? 'bg-white text-indigo-700 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-700/50'
           }`}
         >
           <Truck className="w-3.5 h-3.5" />
           <span>Pemasok</span>
           <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-            subTab === 'pemasok' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'
+            subTab === 'pemasok'
+              ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
+              : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
           }`}>
             {pemasokList.length}
           </span>
@@ -90,14 +94,16 @@ export const KelolaDataTab: React.FC<KelolaDataTabProps> = ({
           onClick={() => onSubTabChange('dapur')}
           className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
             subTab === 'dapur'
-              ? 'bg-white text-indigo-700 shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              ? 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-700/50'
           }`}
         >
           <Utensils className="w-3.5 h-3.5" />
           <span>Dapur</span>
           <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-            subTab === 'dapur' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'
+            subTab === 'dapur'
+              ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
+              : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
           }`}>
             {kitchens.length}
           </span>
@@ -105,16 +111,16 @@ export const KelolaDataTab: React.FC<KelolaDataTabProps> = ({
       </div>
 
       {/* Database SQL Helper Banner */}
-      <div className="flex items-center justify-between p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200/80">
+      <div className="flex items-center justify-between p-3 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-900/60">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
             <Database className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <h4 className="text-xs font-black text-indigo-950 truncate">
+            <h4 className="text-xs font-black text-indigo-950 dark:text-indigo-200 truncate">
               Skrip SQL Database (Supabase / Postgres)
             </h4>
-            <p className="text-[10px] text-indigo-700 font-medium truncate">
+            <p className="text-[10px] text-indigo-700 dark:text-indigo-400 font-medium truncate">
               Tabel &amp; data master dapur, toko, pemasok
             </p>
           </div>
@@ -123,13 +129,13 @@ export const KelolaDataTab: React.FC<KelolaDataTabProps> = ({
           <button
             type="button"
             onClick={onCopySql}
-            className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-indigo-700 border border-indigo-200 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
+            className="px-2.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
             title="Salin query SQL ke clipboard"
           >
             {copiedSql ? (
               <>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="text-emerald-700">Tersalin!</span>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-emerald-700 dark:text-emerald-300">Tersalin!</span>
               </>
             ) : (
               <>

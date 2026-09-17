@@ -565,9 +565,9 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                   touched.toko && !isStoreValid ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300 dark:border-slate-700'
                 }`}
               >
-                <option value="">-- Pilih Toko --</option>
+                <option value="" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">-- Pilih Toko --</option>
                 {availableStores.map((s) => (
-                  <option key={s} value={s}>
+                  <option key={s} value={s} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                     {s}
                   </option>
                 ))}

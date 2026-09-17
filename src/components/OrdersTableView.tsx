@@ -304,6 +304,9 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
 
 interface OrdersTableViewProps {
   orders: OrderItem[];
+  totalUnfilteredOrders?: number;
+  currentFilterLabel?: string;
+  onResetFilter?: () => void;
   isLoading?: boolean;
   onUpdatePaymentStatus: (id: string, status: PaymentStatus) => void;
   onUpdateDeliveryStatus: (id: string, status: DeliveryStatus) => void;
@@ -320,6 +323,9 @@ interface OrdersTableViewProps {
 
 export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
   orders,
+  totalUnfilteredOrders = 0,
+  currentFilterLabel,
+  onResetFilter,
   isLoading = false,
   onUpdatePaymentStatus,
   onUpdateDeliveryStatus,
@@ -467,6 +473,35 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
   }
 
   if (!hasAnyOrders) {
+    if (totalUnfilteredOrders > 0) {
+      return (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 text-center my-4 space-y-3 shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto border border-indigo-100 dark:border-indigo-800/60">
+            <Package className="w-6 h-6" />
+          </div>
+          <div className="max-w-md mx-auto space-y-1">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              Tidak Ada Pesanan untuk Filter {currentFilterLabel ? `"${currentFilterLabel}"` : 'Ini'}
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              Data Anda tersimpan aman di Supabase! Ada <strong className="text-indigo-600 dark:text-indigo-400 font-bold">{totalUnfilteredOrders} pesanan</strong> pada tanggal/periode lain.
+            </p>
+          </div>
+          {onResetFilter && (
+            <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={onResetFilter}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+              >
+                <span>Tampilkan Semua Pesanan (All Time)</span>
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 text-center my-4 space-y-2 shadow-xs">
         <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400 dark:text-slate-500">

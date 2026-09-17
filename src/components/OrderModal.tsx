@@ -1204,19 +1204,19 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                       }}
                       className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
                     >
-                      <option value="">-- Pilih Toko --</option>
+                      <option value="" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">-- Pilih Toko --</option>
                       <option value="__ADD_NEW__" className="text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-950">
                         + Tambah Toko Baru...
                       </option>
                       {masterToko.length > 0 ? (
                         masterToko.map((t) => (
-                          <option key={t.id} value={t.id}>
+                          <option key={t.id} value={t.id} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                             {t.nama}
                           </option>
                         ))
                       ) : (
                         availableStores.map((s) => (
-                          <option key={s} value={s}>
+                          <option key={s} value={s} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                             {s}
                           </option>
                         ))
