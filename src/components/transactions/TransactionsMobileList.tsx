@@ -1,5 +1,5 @@
 import React from 'react';
-import { OrderItem } from '../../types';
+import { OrderItem, InvoicePriceVariant } from '../../types';
 import { TableSkeleton } from '../TableSkeleton';
 import { Pagination } from '../Pagination';
 import { TransactionsMobileCard } from './TransactionsMobileCard';
@@ -17,7 +17,7 @@ interface TransactionsMobileListProps {
   onToggleBatchDelivery: (batch: TransactionBatch) => void;
   onViewInvoice?: (items: OrderItem[], kitchenName?: string, storeName?: string, dateStr?: string) => void;
   onOpenInvoiceModal?: (items: OrderItem[], kitchenName?: string, storeName?: string) => void;
-  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string, variant?: InvoicePriceVariant) => void;
   onDeleteTransaction?: (batch: TransactionBatch) => void;
   onDeleteInvoice?: (id: string) => void;
   onDeleteOrder: (id: string) => void;

@@ -218,7 +218,7 @@ async function startServer() {
         dapur: dapur as string,
         pemasok: pemasok as string,
         status: status as string,
-        limit: limit ? Number(limit) : 100,
+        limit: limit ? Number(limit) : undefined,
         page: page ? Number(page) : undefined,
         offset: offset ? Number(offset) : undefined,
       });
@@ -371,7 +371,7 @@ async function startServer() {
       res.json({
         success: true,
         ...result,
-        message: `${result.deletedCount} pesanan berhasil dihapus dari Supabase`,
+        message: `${result.deletedCount} pesanan berhasil ${(result as any).softDeleted ? 'dibatalkan' : 'dihapus'}`,
       });
     } catch (error) {
       console.error(error);
@@ -388,7 +388,7 @@ async function startServer() {
   // 3. Transactions (transaksi) Endpoints
   const handleGetTransactions = async (req: express.Request, res: express.Response) => {
     try {
-      const limit = req.query.limit ? Number(req.query.limit) : 50;
+      const limit = req.query.limit ? Number(req.query.limit) : 500;
       const page = req.query.page ? Number(req.query.page) : 1;
       const txs = await getTransactionsFromDb(limit, page);
       res.json({

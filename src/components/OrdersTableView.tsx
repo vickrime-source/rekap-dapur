@@ -10,12 +10,13 @@ import {
   ChevronUp,
   Eye
 } from 'lucide-react';
-import { OrderItem, PaymentStatus, DeliveryStatus } from '../types';
+import { OrderItem, PaymentStatus, DeliveryStatus, InvoicePriceVariant } from '../types';
 import { formatRupiah, formatTanggalDisatuin, getTokoBadgeStyle, parseIndonesianNumber, formatJam } from '../lib/formatters';
 import { motion, AnimatePresence } from 'motion/react';
 import { Pagination } from './Pagination';
 import { TableSkeleton } from './TableSkeleton';
 import { ActionMenuPortal } from './ActionMenuPortal';
+import { PrintVariantDropdownPortal } from './PrintVariantDropdownPortal';
 
 interface OrderGroup {
   id: string;
@@ -39,7 +40,7 @@ interface OrderRowProps {
   onGroupPaymentChange: (groupItems: OrderItem[], status: PaymentStatus) => void;
   onGroupDeliveryChange: (groupItems: OrderItem[], status: DeliveryStatus) => void;
   onOpenInvoiceModal: (items: OrderItem[], kitchenName: string, storeName: string) => void;
-  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string, variant?: InvoicePriceVariant) => void;
   onViewInvoice?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
 }
 
@@ -56,8 +57,28 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
   onExportInvoicePdf,
   onViewInvoice,
 }) => {
+  const [printMenuRect, setPrintMenuRect] = useState<DOMRect | null>(null);
   const isFirst = itemIdx === 0;
   const isLastInGroup = itemIdx === rowSpan - 1;
+  const hasCashback = group.items.some((it) => Number(it.cashback) > 0);
+
+  const handleExportVariant = (variant: InvoicePriceVariant) => {
+    if (onExportInvoicePdf) {
+      onExportInvoicePdf(group.items, group.tujuanDapur, group.toko, group.tanggal, variant);
+    } else {
+      onOpenInvoiceModal(group.items, group.tujuanDapur, group.toko);
+    }
+  };
+
+  const handlePrintClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (hasCashback) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setPrintMenuRect(rect);
+    } else {
+      handleExportVariant('ori');
+    }
+  };
 
   return (
     <tr
@@ -118,8 +139,25 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
       )}
 
       {/* 5. QTY (PER ROW ITEM) */}
-      <td className="py-2.5 px-2 text-center font-black font-nominal text-xs sm:text-[13px] text-slate-900 dark:text-slate-100 align-middle border-r border-slate-100 dark:border-slate-800">
-        {item.qty}
+      <td className="py-2.5 px-2 text-center align-middle border-r border-slate-100 dark:border-slate-800">
+        {Number(item.retur) > 0 ? (
+          <div className="flex flex-col items-center justify-center gap-0.5">
+            <div className="flex items-center gap-1 font-nominal text-xs sm:text-[12px] leading-tight">
+              <span className="line-through text-slate-400 dark:text-slate-500 font-semibold">{item.qty}</span>
+              <span className="text-slate-400 text-[10px]">→</span>
+              <span className="font-extrabold text-slate-900 dark:text-slate-100">
+                Final {Math.max(0, (parseIndonesianNumber(item.qty) || 0) - (Number(item.retur) || 0))}
+              </span>
+            </div>
+            <span className="inline-block px-1.5 py-0.2 rounded text-[8.5px] font-black uppercase tracking-wider bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+              RETUR {item.retur}
+            </span>
+          </div>
+        ) : (
+          <span className="font-black font-nominal text-xs sm:text-[13px] text-slate-900 dark:text-slate-100">
+            {item.qty}
+          </span>
+        )}
       </td>
 
       {/* 6. TOKO (MERGED PER GROUP) */}
@@ -183,35 +221,56 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
       )}
 
       {/* 9. H. JUAL (PER ROW ITEM) */}
-      <td className="py-2.5 px-3 text-right whitespace-nowrap align-middle">
-        <div className="font-bold text-slate-900 dark:text-slate-100 font-nominal text-xs sm:text-[12.5px]">
-          {formatRupiah(
-            (parseIndonesianNumber(item.qty) || 0) * (parseIndonesianNumber(item.hargaJual) || 0)
-          )}
-        </div>
-        <div className="text-[10px] text-slate-400 dark:text-slate-500 font-nominal">
-          @{formatRupiah(parseIndonesianNumber(item.hargaJual) || 0)}
-        </div>
-      </td>
+      {(() => {
+        const rawQty = parseIndonesianNumber(item.qty) || 0;
+        const returQty = Math.min(rawQty, Math.max(0, Number(item.retur) || 0));
+        const finalQty = Math.max(0, rawQty - returQty);
+        const hjNum = parseIndonesianNumber(item.hargaJual) || 0;
+        const totalJual = finalQty * hjNum;
+
+        return (
+          <td className="py-2.5 px-3 text-right whitespace-nowrap align-middle">
+            <div className="font-bold text-slate-900 dark:text-slate-100 font-nominal text-xs sm:text-[12.5px]">
+              {formatRupiah(totalJual)}
+            </div>
+            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-nominal">
+              @{formatRupiah(hjNum)}
+            </div>
+          </td>
+        );
+      })()}
 
       {/* 10. H. BELI (PER ROW ITEM) */}
-      <td className="py-2.5 px-3 text-right whitespace-nowrap align-middle">
-        <div className="font-semibold text-slate-600 dark:text-slate-300 font-nominal text-xs sm:text-[12.5px]">
-          {formatRupiah(
-            (parseIndonesianNumber(item.qty) || 0) * (parseIndonesianNumber(item.hargaBeli) || 0)
-          )}
-        </div>
-        <div className="text-[10px] text-slate-400 dark:text-slate-500 font-nominal">
-          @{formatRupiah(parseIndonesianNumber(item.hargaBeli) || 0)}
-        </div>
-      </td>
+      {(() => {
+        const rawQtyJual = parseIndonesianNumber(item.qty) || 0;
+        const rawQtyBeli = item.qtyBeli !== undefined && item.qtyBeli !== null
+          ? parseIndonesianNumber(item.qtyBeli)
+          : (item.qty_beli !== undefined && item.qty_beli !== null ? parseIndonesianNumber(item.qty_beli) : rawQtyJual);
+        const returQty = Math.max(0, Number(item.retur) || 0);
+        const qtyBeliEfektif = Math.max(0, rawQtyBeli - returQty);
+        const hbNum = parseIndonesianNumber(item.hargaBeli) || 0;
+        const totalBeli = qtyBeliEfektif * hbNum;
+
+        return (
+          <td className="py-2.5 px-3 text-right whitespace-nowrap align-middle">
+            <div className="font-semibold text-slate-600 dark:text-slate-300 font-nominal text-xs sm:text-[12.5px]">
+              {formatRupiah(totalBeli)}
+            </div>
+            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-nominal">
+              @{formatRupiah(hbNum)}
+            </div>
+          </td>
+        );
+      })()}
 
       {/* 11. CASHBACK / KE KOPERASI (PER ROW ITEM) */}
       {(() => {
-        const qtyNum = parseIndonesianNumber(item.qty) || 0;
+        const rawQty = parseIndonesianNumber(item.qty) || 0;
+        const returQty = Math.min(rawQty, Math.max(0, Number(item.retur) || 0));
+        const finalQty = Math.max(0, rawQty - returQty);
         const hjNum = parseIndonesianNumber(item.hargaJual) || 0;
         const cbNum = parseIndonesianNumber(item.cashback) || 0;
-        const keKoperasi = cbNum > 0 ? (hjNum - cbNum) * qtyNum : 0;
+        const keKoperasi = cbNum > 0 ? (hjNum - cbNum) * finalQty : 0;
 
         return (
           <td className="py-2.5 px-2 text-right whitespace-nowrap align-middle">
@@ -263,18 +322,12 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
               <Eye className="w-4 h-4 stroke-[2.2]" />
             </button>
 
-            {/* Tombol Cetak / Export PDF (Tetap ada) */}
+            {/* Tombol Cetak / Export PDF: Ada cashback -> popup varian, tidak ada -> langsung cetak Ori */}
             <button
               type="button"
-              onClick={() => {
-                if (onExportInvoicePdf) {
-                  onExportInvoicePdf(group.items, group.tujuanDapur, group.toko, group.tanggal);
-                } else {
-                  onOpenInvoiceModal(group.items, group.tujuanDapur, group.toko);
-                }
-              }}
+              onClick={handlePrintClick}
               className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold shadow-2xs transition-all active:scale-95 border border-amber-500/80 cursor-pointer"
-              title={`1-Click Export Invoice PDF Dapur ${group.tujuanDapur}`}
+              title={hasCashback ? `Pilih Varian Invoice Dapur ${group.tujuanDapur} (Ada Cashback)` : `Cetak Invoice PDF Dapur ${group.tujuanDapur}`}
             >
               <Printer className="w-4 h-4 stroke-[2.2]" />
             </button>
@@ -296,6 +349,15 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
               <MoreVertical className="w-4 h-4" />
             </button>
           </div>
+
+          {/* Portal Popup Pilihan Varian */}
+          <PrintVariantDropdownPortal
+            isOpen={!!printMenuRect}
+            targetRect={printMenuRect}
+            onClose={() => setPrintMenuRect(null)}
+            onSelectVariant={handleExportVariant}
+            hasCashbackItem={hasCashback}
+          />
         </td>
       )}
     </tr>
@@ -317,7 +379,7 @@ interface OrdersTableViewProps {
   onDeleteOrder: (id: string) => void;
   onDeleteBatchOrders?: (items: OrderItem[]) => void;
   onOpenInvoiceModal: (items: OrderItem[], kitchenName: string, storeName: string) => void;
-  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string, variant?: InvoicePriceVariant) => void;
   onViewInvoice?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
 }
 

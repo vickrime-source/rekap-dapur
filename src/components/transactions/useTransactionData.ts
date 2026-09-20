@@ -117,17 +117,35 @@ export function useTransactionData({
     const globalBatchKeys = new Set<string>();
 
     for (const item of periodOrders) {
-      const qty = parseIndonesianNumber(item.qty) || 0;
+      if (item.status === 'CANCELLED') continue;
+
+      const rawQtyJual = parseIndonesianNumber(item.qty) || 0;
+      const rawQtyBeli = item.qtyBeli !== undefined && item.qtyBeli !== null
+        ? parseIndonesianNumber(item.qtyBeli)
+        : (item.qty_beli !== undefined && item.qty_beli !== null ? parseIndonesianNumber(item.qty_beli) : rawQtyJual);
+      const returQty = Math.max(0, Number(item.retur) || 0);
+      const qtyFinal = Math.max(0, rawQtyJual - returQty);
+      const qtyBeliEfektif = Math.max(0, rawQtyBeli - returQty);
       const beli = parseIndonesianNumber(item.hargaBeli) || 0;
       const jual = parseIndonesianNumber(item.hargaJual) || 0;
       const cb = parseIndonesianNumber(item.cashback) || 0;
 
-      const labaBersihItem = cb > 0 ? (cb - beli) * qty : (jual - beli) * qty;
-      const keKoperasiItem = cb > 0 ? (jual - cb) * qty : 0;
+      // FORMULA BISNIS FINAL:
+      // omzet = harga_jual * qty_final
+      // modal = harga_beli * qty_beli_efektif
+      // cashback <= 0: laba_bersih = omzet - modal, ke_koperasi = 0
+      // cashback > 0: laba_bersih = (cashback - harga_beli) * qty_final, ke_koperasi = (harga_jual - cashback) * qty_final
+      const modalItem = qtyBeliEfektif * beli;
+      const omzetItem = qtyFinal * jual;
+      const labaBersihItem = cb > 0 ? ((cb - beli) * qtyFinal) : (omzetItem - modalItem);
+      const keKoperasiItem = cb > 0 ? ((jual - cb) * qtyFinal) : 0;
 
-      totalQty += qty;
-      totalPendapatan += qty * jual;
-      totalPengeluaran += qty * beli;
+      // Retur ditanggung PENUH oleh PEMASOK, TIDAK membebani modal toko.
+      const modalTokoItem = rawQtyBeli * beli;
+
+      totalQty += qtyFinal;
+      totalPendapatan += omzetItem;
+      totalPengeluaran += modalItem;
       totalLabaBersih += labaBersihItem;
       totalKeKoperasi += keKoperasiItem;
 
@@ -144,9 +162,9 @@ export function useTransactionData({
           batchKeys: new Set<string>(),
         };
       }
-      storeMap[tokoKey].totalQty += qty;
-      storeMap[tokoKey].totalBeli += qty * beli;
-      storeMap[tokoKey].totalJual += qty * jual;
+      storeMap[tokoKey].totalQty += qtyFinal;
+      storeMap[tokoKey].totalBeli += modalTokoItem;
+      storeMap[tokoKey].totalJual += omzetItem;
       storeMap[tokoKey].totalLabaBersih += labaBersihItem;
       storeMap[tokoKey].totalKeKoperasi += keKoperasiItem;
       storeMap[tokoKey].count += 1;
@@ -214,27 +232,55 @@ export function useTransactionData({
       const [tanggal, tujuanDapur, toko, pemasok] = key.split('||');
       const allPaid = items.every((i) => (i.paymentStatus || '').toUpperCase() === 'PAID');
       const allDelivered = items.every((i) => (i.deliveryStatus || '').toUpperCase() === 'DONE');
+      const isBatchCancelled = items.length > 0 && items.every((i) => i.status === 'CANCELLED');
 
-      const totalQty = items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
-      const totalBeli = items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.hargaBeli) || 0), 0);
-      const totalJual = items.reduce(
-        (sum, i) => sum + (Number(i.qty) || 0) * (Number(i.hargaJual || i.hargaBeli) || 0),
+      const nonCancelledItems = items.filter((i) => i.status !== 'CANCELLED');
+      const calculationItems = nonCancelledItems.length > 0 ? nonCancelledItems : items;
+
+      const totalQty = calculationItems.reduce((sum, i) => {
+        const rawQ = Number(i.qty) || 0;
+        const ret = Math.max(0, Number(i.retur) || 0);
+        return sum + Math.max(0, rawQ - ret);
+      }, 0);
+      const totalBeli = calculationItems.reduce((sum, i) => {
+        const rawQBeli = i.qtyBeli !== undefined && i.qtyBeli !== null
+          ? Number(i.qtyBeli)
+          : (i.qty_beli !== undefined && i.qty_beli !== null ? Number(i.qty_beli) : (Number(i.qty) || 0));
+        const ret = Math.max(0, Number(i.retur) || 0);
+        const qBeliEfektif = Math.max(0, rawQBeli - ret);
+        return sum + qBeliEfektif * (Number(i.hargaBeli) || 0);
+      }, 0);
+      const totalJual = calculationItems.reduce(
+        (sum, i) => {
+          const rawQ = Number(i.qty) || 0;
+          const ret = Math.max(0, Number(i.retur) || 0);
+          const qFinal = Math.max(0, rawQ - ret);
+          return sum + qFinal * (Number(i.hargaJual || i.hargaBeli) || 0);
+        },
         0
       );
 
       let totalLabaBersih = 0;
       let totalKeKoperasi = 0;
-      items.forEach((i) => {
-        const q = Number(i.qty) || 0;
+      calculationItems.forEach((i) => {
+        const rawQ = Number(i.qty) || 0;
+        const rawQBeli = i.qtyBeli !== undefined && i.qtyBeli !== null
+          ? Number(i.qtyBeli)
+          : (i.qty_beli !== undefined && i.qty_beli !== null ? Number(i.qty_beli) : rawQ);
+        const ret = Math.max(0, Number(i.retur) || 0);
+        const qFinal = Math.max(0, rawQ - ret);
+        const qBeliEfektif = Math.max(0, rawQBeli - ret);
         const hb = Number(i.hargaBeli) || 0;
         const hj = Number(i.hargaJual || i.hargaBeli) || 0;
         const cb = Number(i.cashback) || 0;
+        const modal = qBeliEfektif * hb;
+        const omzet = qFinal * hj;
 
         if (cb > 0) {
-          totalLabaBersih += (cb - hb) * q;
-          totalKeKoperasi += (hj - cb) * q;
+          totalLabaBersih += ((cb - hb) * qFinal);
+          totalKeKoperasi += ((hj - cb) * qFinal);
         } else {
-          totalLabaBersih += (hj - hb) * q;
+          totalLabaBersih += (omzet - modal);
         }
       });
 
@@ -248,11 +294,13 @@ export function useTransactionData({
         pemasok,
         payStatus: allPaid ? 'PAID' : 'UNPAID',
         delStatus: allDelivered ? 'DONE' : 'PENDING',
-        totalQty,
-        totalBeli,
-        totalJual,
-        totalLabaBersih,
-        totalKeKoperasi,
+        totalQty: isBatchCancelled ? 0 : totalQty,
+        totalBeli: isBatchCancelled ? 0 : totalBeli,
+        totalJual: isBatchCancelled ? 0 : totalJual,
+        totalLabaBersih: isBatchCancelled ? 0 : totalLabaBersih,
+        totalKeKoperasi: isBatchCancelled ? 0 : totalKeKoperasi,
+        isCancelled: isBatchCancelled,
+        status: isBatchCancelled ? 'CANCELLED' : undefined,
         items,
         catatan: items.map((i) => i.catatan).filter(Boolean).join('; ') || '',
         rowIndex: items[0]?.rowIndex,
@@ -277,28 +325,52 @@ export function useTransactionData({
           const payStatus: PaymentStatus = isPaid ? 'PAID' : 'UNPAID';
           const items: OrderItem[] = inv.items && inv.items.length > 0 ? inv.items : [];
           const totalQty =
-            items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0) || Number(inv.qty || inv.QTY || 1);
+            items.reduce((sum, i) => {
+              const rq = Number(i.qty) || 0;
+              const rt = Math.min(rq, Math.max(0, Number(i.retur) || 0));
+              return sum + Math.max(0, rq - rt);
+            }, 0) || Number(inv.qty || inv.QTY || 1);
           const totalBeli =
             Number(inv.totalBeli || inv['H. BELI'] || 0) ||
-            items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.hargaBeli) || 0), 0);
+            items.reduce((sum, i) => {
+              const rq = Number(i.qty) || 0;
+              const rawQBeli = i.qtyBeli !== undefined && i.qtyBeli !== null
+                ? Number(i.qtyBeli)
+                : (i.qty_beli !== undefined && i.qty_beli !== null ? Number(i.qty_beli) : rq);
+              const rt = Math.max(0, Number(i.retur) || 0);
+              const qBeliEfektif = Math.max(0, rawQBeli - rt);
+              return sum + qBeliEfektif * (Number(i.hargaBeli) || 0);
+            }, 0);
           const totalJual =
             Number(inv.totalAmount || inv.totalJual || inv.TOTAL || 0) ||
-            items.reduce((sum, i) => sum + (Number(i.qty) || 0) * (Number(i.hargaJual || i.hargaBeli) || 0), 0) ||
+            items.reduce((sum, i) => {
+              const rq = Number(i.qty) || 0;
+              const rt = Math.max(0, Number(i.retur) || 0);
+              const qf = Math.max(0, rq - rt);
+              return sum + qf * (Number(i.hargaJual || i.hargaBeli) || 0);
+            }, 0) ||
             totalBeli;
 
           let totalLabaBersih = 0;
           let totalKeKoperasi = 0;
           if (items.length > 0) {
             items.forEach((i) => {
-              const q = Number(i.qty) || 0;
+              const rq = Number(i.qty) || 0;
+              const rawQBeli = i.qtyBeli !== undefined && i.qtyBeli !== null
+                ? Number(i.qtyBeli)
+                : (i.qty_beli !== undefined && i.qty_beli !== null ? Number(i.qty_beli) : rq);
+              const rt = Math.max(0, Number(i.retur) || 0);
+              const q = Math.max(0, rq - rt);
+              const qBeliEfektif = Math.max(0, rawQBeli - rt);
               const hb = Number(i.hargaBeli) || 0;
               const hj = Number(i.hargaJual || i.hargaBeli) || 0;
               const cb = Number(i.cashback) || 0;
+              const modal = qBeliEfektif * hb;
               if (cb > 0) {
-                totalLabaBersih += (cb - hb) * q;
+                totalLabaBersih += (cb * q - modal);
                 totalKeKoperasi += (hj - cb) * q;
               } else {
-                totalLabaBersih += (hj - hb) * q;
+                totalLabaBersih += (hj * q - modal);
               }
             });
           } else {
@@ -430,9 +502,11 @@ export function useTransactionData({
   }, [filteredBatches, currentPage, pageSize]);
 
   // Rekap Total Akumulasi Transaksi Terfilter (termasuk Total Ke Koperasi & Total Laba Bersih)
+  // Transaksi CANCELLED tidak masuk ke hitungan finansial
   const summaryTotals = useMemo<SummaryTotals>(() => {
     return filteredBatches.reduce(
       (acc, b) => {
+        if (b.isCancelled || b.status === 'CANCELLED') return acc;
         acc.totalQty += b.totalQty || 0;
         acc.totalBeli += b.totalBeli || 0;
         acc.totalJual += b.totalJual || b.totalBeli || 0;

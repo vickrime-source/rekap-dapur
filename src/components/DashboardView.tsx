@@ -14,7 +14,8 @@ import {
   PaymentStatus, 
   DeliveryStatus,
   InvoiceRecord,
-  DashboardPeriod
+  DashboardPeriod,
+  InvoicePriceVariant
 } from '../types';
 import { OrdersTableView } from './OrdersTableView';
 import { 
@@ -45,7 +46,7 @@ interface DashboardViewProps {
   onDeleteKitchenOrders?: (kitchenName: string, date: string) => void;
   onOpenAddModal: (prefilledKitchen?: string) => void;
   onOpenInvoiceModal: (items: OrderItem[], kitchenName?: string, storeName?: string) => void;
-  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string, variant?: InvoicePriceVariant) => void;
   onViewInvoice?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
   onOpenTextImport?: () => void;
   onOpenExportModal?: () => void;
@@ -84,7 +85,7 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
     if (period === 'mingguan' || period === 'hari_ini' || period === 'bulan_ini' || period === 'all_time') {
       return period;
     }
-    return 'mingguan';
+    return 'all_time';
   });
 
   // Sinkronisasi otomatis saat period dari HeaderBanner / App berubah

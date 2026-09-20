@@ -82,8 +82,8 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
   onStopVoiceHold,
   isVoiceActive = false,
 }) => {
-  // Default to 'mingguan' if uncontrolled
-  const [internalPeriod, setInternalPeriod] = useState<DashboardPeriod>('mingguan');
+  // Default to 'all_time' if uncontrolled
+  const [internalPeriod, setInternalPeriod] = useState<DashboardPeriod>('all_time');
   const activePeriod = periodProp ?? internalPeriod;
   const handleSetPeriod = (newP: DashboardPeriod) => {
     if (onPeriodChange) {
@@ -99,19 +99,22 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
   const filteredOrders = useMemo(() => {
     if (!orders || orders.length === 0) return [];
     
+    // Exclude cancelled orders from dashboard header counts and metrics
+    const nonCancelled = orders.filter((o) => o.status !== 'CANCELLED');
+
     if (activePeriod === 'all_time') {
-      return orders;
+      return nonCancelled;
     }
 
     if (activePeriod === 'hari_ini') {
-      return orders.filter((o) => isOrderToday(o, selectedDate));
+      return nonCancelled.filter((o) => isOrderToday(o, selectedDate));
     } else if (activePeriod === 'mingguan') {
-      return orders.filter((o) => isOrderThisWeek(o, weekRange));
+      return nonCancelled.filter((o) => isOrderThisWeek(o, weekRange));
     } else if (activePeriod === 'bulan_ini') {
-      return orders.filter((o) => isOrderThisMonth(o, selectedDate));
+      return nonCancelled.filter((o) => isOrderThisMonth(o, selectedDate));
     }
 
-    return orders;
+    return nonCancelled;
   }, [orders, activePeriod, selectedDate, weekRange]);
 
   // Dynamic memoized calculations for operational metrics: Pesanan, Laba Bersih & Pending
@@ -127,11 +130,21 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
         pendingCount++;
       }
 
-      const qty = parseIndonesianNumber(item.qty);
+      const rawQtyJual = parseIndonesianNumber(item.qty);
+      const rawQtyBeli = (item as any).qtyBeli !== undefined && (item as any).qtyBeli !== null
+        ? parseIndonesianNumber((item as any).qtyBeli)
+        : ((item as any).qty_beli !== undefined && (item as any).qty_beli !== null
+          ? parseIndonesianNumber((item as any).qty_beli)
+          : rawQtyJual);
+      const returQty = Math.max(0, Number(item.retur) || 0);
+      const qtyFinal = Math.max(0, rawQtyJual - returQty);
+      const qtyBeliEfektif = Math.max(0, rawQtyBeli - returQty);
       const beli = parseIndonesianNumber(item.hargaBeli);
       const jual = parseIndonesianNumber(item.hargaJual || item.hargaBeli);
       const cb = parseIndonesianNumber(item.cashback);
-      const labaItem = cb > 0 ? (cb - beli) * qty : (jual - beli) * qty;
+      const modalItem = qtyBeliEfektif * beli;
+      const omzetItem = qtyFinal * jual;
+      const labaItem = cb > 0 ? ((cb - beli) * qtyFinal) : (omzetItem - modalItem);
       labaBersih += labaItem;
     }
 
@@ -421,6 +434,13 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                             <span>{note.pemasok}</span>
                           </span>
                         ) : null}
+
+                        {/* Multi-Item Count Badge */}
+                        {note.items && note.items.length > 1 && (
+                          <span className="flex-shrink-0 text-[8.5px] font-black px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/70 text-indigo-800 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-700">
+                            {note.items.length} Item
+                          </span>
+                        )}
 
                         {/* Nama Barang */}
                         {note.namaBarang && (

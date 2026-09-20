@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { 
   OrderItem, 
@@ -30,7 +30,7 @@ import { ConfirmModal } from './components/ConfirmModal';
 import { ExportHistorySheet } from './components/ExportHistorySheet';
 import { SmartVoiceOrderOverlay } from './components/SmartVoiceOrderOverlay';
 import { Toast, ToastMessage, ToastType } from './components/Toast';
-import { getTodayWIB } from './lib/formatters';
+import { getTodayWIB, isOrderToday, isOrderThisWeek, getWeekRange } from './lib/formatters';
 import { sendNewOrderNotification } from './lib/notificationManager';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -43,15 +43,15 @@ import { useInvoiceFlow } from './hooks/useInvoiceFlow';
 import { useOrderOperations } from './hooks/useOrderOperations';
 
 export default function App() {
-  // Pure in-memory orders state populated ONLY from Supabase (never from localStorage)
+  // Pure in-memory orders and invoices state populated from Supabase as single source of truth
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [kitchens, setKitchens] = useLocalStorage<Kitchen[]>('dapur_tracker_kitchens_v4', INITIAL_KITCHENS);
   const [stores, setStores] = useLocalStorage<StoreType[]>('dapur_tracker_stores_v4', INITIAL_STORES);
   const [pemasokList, setPemasokList] = useLocalStorage<string[]>('dapur_tracker_pemasok_v4', INITIAL_PEMASOK);
-  const [invoices, setInvoices] = useLocalStorage<InvoiceRecord[]>('dapur_tracker_invoices_v4', []);
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [exportHistory, setExportHistory] = useLocalStorage<ExportHistoryItem[]>('dapur_export_history_v1', []);
   const [notes, setNotes] = useLocalStorage<NoteItem[]>('dapur_highlight_notes_v1', []);
-  const [dashboardPeriod, setDashboardPeriod] = useLocalStorage<DashboardPeriod>('dapur_dashboard_period_v2', 'mingguan');
+  const [dashboardPeriod, setDashboardPeriod] = useLocalStorage<DashboardPeriod>('dapur_dashboard_period_v3', 'all_time');
 
   // Navigation State
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
@@ -103,6 +103,26 @@ export default function App() {
     setNotes,
     showToast,
   });
+
+  // Smart Initializer: Saat pesanan dimuat dari Supabase, jika filter aktif menghasilkan 0 pesanan
+  // (misal 'hari_ini' tapi hari ini belum ada order baru), otomatis tampilkan 'all_time' agar seluruh data langsung tampil.
+  const hasCheckedInitialPeriod = useRef(false);
+  useEffect(() => {
+    if (orders.length > 0 && !hasCheckedInitialPeriod.current) {
+      hasCheckedInitialPeriod.current = true;
+      if (dashboardPeriod === 'hari_ini') {
+        const hasToday = orders.some((o) => isOrderToday(o, selectedDate));
+        if (!hasToday) {
+          setDashboardPeriod('all_time');
+        }
+      } else if (dashboardPeriod === 'mingguan') {
+        const hasWeek = orders.some((o) => isOrderThisWeek(o, getWeekRange(selectedDate)));
+        if (!hasWeek) {
+          setDashboardPeriod('all_time');
+        }
+      }
+    }
+  }, [orders, dashboardPeriod, selectedDate, setDashboardPeriod]);
 
   // Daily Report Notification Hook
   useDailyNotification(orders);
@@ -316,7 +336,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#eef2f6] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white pb-36 sm:pb-24 transition-colors duration-200">
+    <div className="min-h-screen bg-[#eef2f6] dark:bg-[#090a0c] text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white pb-36 sm:pb-24 transition-colors duration-200">
       {/* Top Header Banner */}
       {activeTab === 'dashboard' && (
         <HeaderBanner

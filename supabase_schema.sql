@@ -55,7 +55,10 @@ CREATE TABLE IF NOT EXISTS public.pesanan (
   toko_id TEXT REFERENCES public.toko(id) ON DELETE RESTRICT,
   status_pembayaran TEXT NOT NULL DEFAULT 'UNPAID' CHECK (status_pembayaran IN ('UNPAID', 'PAID')),
   status_pengiriman TEXT NOT NULL DEFAULT 'PENDING' CHECK (status_pengiriman IN ('PENDING', 'DONE')),
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'selesai')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'selesai', 'CANCELLED')),
+  status_pembatalan TEXT,
+  cancelled_at TIMESTAMPTZ,
+  cancelled_reason TEXT,
   harga_jual NUMERIC(15, 2) NOT NULL DEFAULT 0,
   harga_beli NUMERIC(15, 2) NOT NULL DEFAULT 0,
   cashback NUMERIC(15, 2) NOT NULL DEFAULT 0,
@@ -71,8 +74,18 @@ ALTER TABLE public.pesanan ADD COLUMN IF NOT EXISTS toko_id TEXT REFERENCES publ
 ALTER TABLE public.pesanan ADD COLUMN IF NOT EXISTS pemasok_id TEXT REFERENCES public.pemasok(id) ON DELETE RESTRICT;
 ALTER TABLE public.pesanan ADD COLUMN IF NOT EXISTS dapur_id TEXT REFERENCES public.dapur(id) ON DELETE RESTRICT;
 ALTER TABLE public.pesanan ADD COLUMN IF NOT EXISTS cashback NUMERIC(15, 2) NOT NULL DEFAULT 0;
+ALTER TABLE public.pesanan ADD COLUMN IF NOT EXISTS retur NUMERIC(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE public.pesanan ADD COLUMN IF NOT EXISTS qty_beli NUMERIC(12, 2);
+ALTER TABLE public.pesanan ADD COLUMN IF NOT EXISTS nota_id TEXT;
+-- Kolom soft-delete / pembatalan pesanan
+ALTER TABLE public.pesanan ADD COLUMN IF NOT EXISTS status_pembatalan TEXT;
+ALTER TABLE public.pesanan ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+ALTER TABLE public.pesanan ADD COLUMN IF NOT EXISTS cancelled_reason TEXT;
+-- Update constraint status jika sebelumnya hanya 'pending' dan 'selesai'
+ALTER TABLE public.pesanan DROP CONSTRAINT IF EXISTS pesanan_status_check;
+ALTER TABLE public.pesanan ADD CONSTRAINT pesanan_status_check CHECK (status IN ('pending', 'selesai', 'CANCELLED'));
 
--- Indexing untuk query cepat berdasarkan tanggal, toko, dapur, dan status
+-- Indexing untuk query cepat berdasarkan tanggal, toko, dapur, status, nota_id, dan pembatalan
 CREATE INDEX IF NOT EXISTS idx_pesanan_tanggal ON public.pesanan (tanggal);
 CREATE INDEX IF NOT EXISTS idx_pesanan_toko ON public.pesanan (toko);
 CREATE INDEX IF NOT EXISTS idx_pesanan_toko_id ON public.pesanan (toko_id);
@@ -81,6 +94,8 @@ CREATE INDEX IF NOT EXISTS idx_pesanan_dapur_id ON public.pesanan (dapur_id);
 CREATE INDEX IF NOT EXISTS idx_pesanan_pemasok ON public.pesanan (pemasok);
 CREATE INDEX IF NOT EXISTS idx_pesanan_pemasok_id ON public.pesanan (pemasok_id);
 CREATE INDEX IF NOT EXISTS idx_pesanan_status ON public.pesanan (status_pembayaran, status_pengiriman, status);
+CREATE INDEX IF NOT EXISTS idx_pesanan_nota_id ON public.pesanan (nota_id);
+CREATE INDEX IF NOT EXISTS idx_pesanan_cancelled ON public.pesanan (status, cancelled_at);
 
 -- -----------------------------------------------------------------------------
 -- 3. TABEL: transaksi
@@ -269,6 +284,16 @@ CREATE POLICY "Public access notes" ON public.notes FOR ALL USING (true) WITH CH
 
 -- -----------------------------------------------------------------------------
 -- 7. FUNCTION AGREGASI DATABASE: get_period_summary
+-- REVENUE RECOGNITION (BASIS AKRUAL):
+-- Omzet diakui saat pesanan dibuat/dikirim ke dapur (seluruh pesanan non-CANCELLED, baik status PAID maupun UNPAID).
+-- Formula Keuangan Terpadu:
+--   qty_final        = GREATEST(0, qty - COALESCE(retur, 0))
+--   qty_beli_efektif = GREATEST(0, COALESCE(qty_beli, qty) - COALESCE(retur, 0))
+--   omzet            = harga_jual * qty_final
+--   modal            = harga_beli * qty_beli_efektif
+--   cashback = 0     -> laba_bersih = omzet - modal, ke_koperasi = 0
+--   cashback > 0     -> laba_bersih = (cashback - harga_beli) * qty_final, ke_koperasi = (harga_jual - cashback) * qty_final
+-- Retur ditanggung penuh pemasok: tidak memotong modal toko pada breakdown Toko.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_period_summary(
   p_period TEXT,
@@ -298,30 +323,55 @@ BEGIN
   END IF;
 
   WITH filtered_pesanan AS (
-    SELECT *
+    SELECT 
+      *,
+      GREATEST(0, qty - COALESCE(retur, 0)) AS v_qty_final,
+      GREATEST(0, COALESCE(qty_beli, qty) - COALESCE(retur, 0)) AS v_qty_beli_efektif,
+      COALESCE(qty_beli, qty) AS v_raw_qty_beli
     FROM public.pesanan
-    WHERE tanggal >= v_start_date AND tanggal <= v_end_date
+    WHERE tanggal >= v_start_date 
+      AND tanggal <= v_end_date
+      AND (status IS NULL OR status <> 'CANCELLED')
+  ),
+  calculated_pesanan AS (
+    SELECT
+      *,
+      (harga_jual * v_qty_final) AS v_omzet,
+      (harga_beli * v_qty_beli_efektif) AS v_modal,
+      (harga_beli * v_raw_qty_beli) AS v_modal_toko,
+      CASE 
+        WHEN COALESCE(cashback, 0) > 0 THEN ((cashback - harga_beli) * v_qty_final)
+        ELSE ((harga_jual * v_qty_final) - (harga_beli * v_qty_beli_efektif))
+      END AS v_laba_bersih,
+      CASE 
+        WHEN COALESCE(cashback, 0) > 0 THEN ((harga_jual - cashback) * v_qty_final)
+        ELSE 0
+      END AS v_ke_koperasi
+    FROM filtered_pesanan
   ),
   totals AS (
     SELECT
-      COALESCE(SUM(qty), 0) AS total_qty,
+      COALESCE(SUM(v_qty_final), 0) AS total_qty,
       COUNT(id) AS total_transactions,
-      COALESCE(SUM(harga_jual * qty), 0) AS total_pendapatan,
-      COALESCE(SUM(harga_beli * qty), 0) AS total_pengeluaran,
-      COALESCE(SUM((harga_jual - harga_beli) * qty), 0) AS profit_bersih
-    FROM filtered_pesanan
+      COALESCE(SUM(v_omzet), 0) AS total_pendapatan,
+      COALESCE(SUM(v_modal), 0) AS total_pengeluaran,
+      COALESCE(SUM(v_laba_bersih), 0) AS profit_bersih,
+      COALESCE(SUM(v_laba_bersih), 0) AS total_laba_bersih,
+      COALESCE(SUM(v_ke_koperasi), 0) AS total_ke_koperasi
+    FROM calculated_pesanan
   ),
   store_agg AS (
     SELECT
       COALESCE(NULLIF(toko, ''), 'Tanpa Toko') AS toko,
-      COALESCE(SUM(qty), 0) AS total_qty,
-      COALESCE(SUM(harga_beli * qty), 0) AS total_beli,
-      COALESCE(SUM(harga_jual * qty), 0) AS total_jual,
-      COALESCE(SUM((harga_jual - harga_beli) * qty), 0) AS profit,
+      COALESCE(SUM(v_qty_final), 0) AS total_qty,
+      COALESCE(SUM(v_modal_toko), 0) AS total_beli,
+      COALESCE(SUM(v_omzet), 0) AS total_jual,
+      COALESCE(SUM(v_laba_bersih), 0) AS profit,
+      COALESCE(SUM(v_ke_koperasi), 0) AS total_ke_koperasi,
       COUNT(id) AS order_count,
       COUNT(id) AS transaction_count,
       ARRAY_AGG(DISTINCT pemasok) FILTER (WHERE pemasok IS NOT NULL AND pemasok <> '') AS pemasok_list
-    FROM filtered_pesanan
+    FROM calculated_pesanan
     GROUP BY COALESCE(NULLIF(toko, ''), 'Tanpa Toko')
   )
   SELECT jsonb_build_object(
@@ -330,6 +380,8 @@ BEGIN
     'totalPendapatan', (SELECT total_pendapatan FROM totals),
     'totalPengeluaran', (SELECT total_pengeluaran FROM totals),
     'profitBersih', (SELECT profit_bersih FROM totals),
+    'totalLabaBersih', (SELECT total_laba_bersih FROM totals),
+    'totalKeKoperasi', (SELECT total_ke_koperasi FROM totals),
     'storeBreakdowns', COALESCE((
       SELECT jsonb_agg(
         jsonb_build_object(
@@ -338,6 +390,7 @@ BEGIN
           'totalBeli', s.total_beli,
           'totalJual', s.total_jual,
           'profit', s.profit,
+          'totalKeKoperasi', s.total_ke_koperasi,
           'orderCount', s.order_count,
           'transactionCount', s.transaction_count,
           'pemasokList', s.pemasok_list,

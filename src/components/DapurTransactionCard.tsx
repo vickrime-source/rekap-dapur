@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   Trash2, 
   Plus, 
@@ -10,9 +10,10 @@ import {
   Printer,
   Eye
 } from 'lucide-react';
-import { OrderItem } from '../types';
+import { OrderItem, InvoicePriceVariant } from '../types';
 import { formatRupiah, formatTanggalDisatuin, parseIndonesianNumber } from '../lib/formatters';
 import { motion } from 'motion/react';
+import { PrintVariantDropdownPortal } from './PrintVariantDropdownPortal';
 
 interface DapurTransactionCardProps {
   storeName: string;
@@ -24,7 +25,7 @@ interface DapurTransactionCardProps {
   onDeleteOrder: (id: string) => void;
   onDeleteKitchenOrders: (storeName: string, date: string) => void;
   onOpenInvoiceModal: (items: OrderItem[], kitchenName?: string, storeName?: string) => void;
-  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string, variant?: InvoicePriceVariant) => void;
   onViewInvoice?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
   onAddItemToKitchen: (storeName: string) => void;
 }
@@ -42,6 +43,12 @@ export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = React.m
   onViewInvoice,
   onAddItemToKitchen,
 }) => {
+  const [activePrintGroup, setActivePrintGroup] = useState<{
+    rect: DOMRect;
+    kitchenItems: OrderItem[];
+    kitchenName: string;
+    hasCashback: boolean;
+  } | null>(null);
   // Calculate Totals for this Store (Memoized in single pass)
   const { totalJual, totalBeli, totalProfit, isAllDone } = useMemo(() => {
     let jual = 0;
@@ -49,9 +56,19 @@ export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = React.m
     let allDone = items.length > 0;
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      const q = parseIndonesianNumber(item.qty);
-      jual += q * parseIndonesianNumber(item.hargaJual);
-      beli += q * parseIndonesianNumber(item.hargaBeli);
+      const rawQJual = parseIndonesianNumber(item.qty);
+      const rawQBeli = (item as any).qtyBeli !== undefined && (item as any).qtyBeli !== null
+        ? parseIndonesianNumber((item as any).qtyBeli)
+        : ((item as any).qty_beli !== undefined && (item as any).qty_beli !== null
+          ? parseIndonesianNumber((item as any).qty_beli)
+          : rawQJual);
+      const returQty = Math.max(0, Number(item.retur) || 0);
+      const qFinal = Math.max(0, rawQJual - returQty);
+      const qBeliEfektif = Math.max(0, rawQBeli - returQty);
+      const hj = parseIndonesianNumber(item.hargaJual);
+      const hb = parseIndonesianNumber(item.hargaBeli);
+      jual += qFinal * hj;
+      beli += qBeliEfektif * hb;
       if (item.status !== 'selesai') {
         allDone = false;
       }
@@ -155,11 +172,19 @@ export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = React.m
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
             {items.map((item) => {
-              const q = parseIndonesianNumber(item.qty);
+              const rawQJual = parseIndonesianNumber(item.qty);
+              const rawQBeli = (item as any).qtyBeli !== undefined && (item as any).qtyBeli !== null
+                ? parseIndonesianNumber((item as any).qtyBeli)
+                : ((item as any).qty_beli !== undefined && (item as any).qty_beli !== null
+                  ? parseIndonesianNumber((item as any).qty_beli)
+                  : rawQJual);
+              const returQty = Math.max(0, Number(item.retur) || 0);
+              const qFinal = Math.max(0, rawQJual - returQty);
+              const qBeliEfektif = Math.max(0, rawQBeli - returQty);
               const hj = parseIndonesianNumber(item.hargaJual);
               const hb = parseIndonesianNumber(item.hargaBeli);
-              const itemTotalJual = q * hj;
-              const itemTotalBeli = q * hb;
+              const itemTotalJual = qFinal * hj;
+              const itemTotalBeli = qBeliEfektif * hb;
 
               return (
                 <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
@@ -194,7 +219,14 @@ export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = React.m
                   {/* QTY Column */}
                   <td className="py-2 px-1 text-center font-bold text-slate-900 dark:text-slate-100">
                     <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 font-mono text-xs text-slate-900 dark:text-slate-100">
-                      {item.qty}
+                      {returQty > 0 ? (
+                        <span title={`Qty Awal: ${rawQJual}, Retur: ${returQty}, Ditagihkan: ${qFinal}`}>
+                          <span className="line-through text-slate-400 text-[10px] mr-1">{rawQJual}</span>
+                          <span>{qFinal}</span>
+                        </span>
+                      ) : (
+                        item.qty
+                      )}
                     </span>
                   </td>
 
@@ -254,12 +286,23 @@ export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = React.m
 
                       {/* IKON CETAK (Export PDF Invoice) */}
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
                           const kitchenItems = items.filter((it) => it.tujuanDapur === item.tujuanDapur);
-                          if (onExportInvoicePdf) {
-                            onExportInvoicePdf(kitchenItems, item.tujuanDapur, storeName, item.tanggal);
+                          const hasCashback = kitchenItems.some((it) => Number(it.cashback) > 0);
+                          if (hasCashback) {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setActivePrintGroup({
+                              rect,
+                              kitchenItems,
+                              kitchenName: item.tujuanDapur,
+                              hasCashback,
+                            });
                           } else {
-                            onOpenInvoiceModal(kitchenItems, item.tujuanDapur, storeName);
+                            if (onExportInvoicePdf) {
+                              onExportInvoicePdf(kitchenItems, item.tujuanDapur, storeName, item.tanggal, 'ori');
+                            } else {
+                              onOpenInvoiceModal(kitchenItems, item.tujuanDapur, storeName);
+                            }
                           }
                         }}
                         className="p-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold shadow-2xs transition-all active:scale-95 border border-amber-500/80 cursor-pointer"
@@ -275,6 +318,28 @@ export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = React.m
           </tbody>
         </table>
       </div>
+
+      {/* Portal Popup Pilihan Varian */}
+      <PrintVariantDropdownPortal
+        isOpen={!!activePrintGroup}
+        targetRect={activePrintGroup?.rect || null}
+        onClose={() => setActivePrintGroup(null)}
+        onSelectVariant={(variant) => {
+          if (!activePrintGroup) return;
+          if (onExportInvoicePdf) {
+            onExportInvoicePdf(
+              activePrintGroup.kitchenItems,
+              activePrintGroup.kitchenName,
+              storeName,
+              date,
+              variant
+            );
+          } else {
+            onOpenInvoiceModal(activePrintGroup.kitchenItems, activePrintGroup.kitchenName, storeName);
+          }
+        }}
+        hasCashbackItem={activePrintGroup?.hasCashback}
+      />
 
       {/* 3. ADD ITEM BUTTON - Dynamic to Store Name */}
       <button

@@ -7,9 +7,11 @@ import {
   Image as ImageIcon,
   Loader2,
   Maximize2,
-  Minimize2
+  Minimize2,
+  FileText,
+  Coins
 } from 'lucide-react';
-import { OrderItem } from '../types';
+import { OrderItem, InvoicePriceVariant } from '../types';
 import { formatRupiah, formatTanggalInvoice, resolveRecipientSppgName, parseIndonesianNumber } from '../lib/formatters';
 import { getStoreProfile } from '../lib/storeProfiles';
 import { getStoreInvoiceConfig } from '../lib/invoiceStyles';
@@ -38,7 +40,9 @@ interface InvoiceModalProps {
     customNama: string;
     customAlamat: string;
     customNomor: string;
+    customTanggal?: string;
     type: 'pdf' | 'docx';
+    priceVariant?: InvoicePriceVariant;
   }) => void;
   onSaveInvoiceRecord?: () => void;
 }
@@ -59,6 +63,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   onSaveInvoiceRecord,
 }) => {
   const [bayar, setBayar] = useState<number>(bayarAmount);
+  const [priceVariant, setPriceVariant] = useState<InvoicePriceVariant>('ori');
   const [isViewFull, setIsViewFull] = useState(false);
   const [isGeneratingPng, setIsGeneratingPng] = useState(false);
   const invoicePaperRef = useRef<HTMLDivElement>(null);
@@ -67,6 +72,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setBayar(bayarAmount);
+      setPriceVariant('ori');
       setIsViewFull(false);
     }
   }, [isOpen, bayarAmount]);
@@ -87,10 +93,15 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   });
 
   const displayItems = items && items.length > 0 ? items : (scopedItems.length > 0 ? scopedItems : []);
+  const hasCashbackItem = displayItems.some((it) => Number(it.cashback) > 0);
 
   const totalJual = displayItems.reduce((sum, item) => {
-    const q = parseIndonesianNumber(item.qty);
-    const p = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+    const rawQ = parseIndonesianNumber(item.qty);
+    const retQ = Math.min(rawQ, Math.max(0, Number(item.retur) || 0));
+    const q = Math.max(0, rawQ - retQ);
+    const hj = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+    const cb = Number(item.cashback) || 0;
+    const p = (priceVariant === 'cashback' && cb > 0) ? cb : hj;
     return sum + q * p;
   }, 0);
   const sisa = Math.max(0, totalJual - parseIndonesianNumber(bayar));
@@ -119,6 +130,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         customNomor: recipientPhone || '-',
         customTanggal: invoiceDate,
         type: 'pdf',
+        priceVariant,
       });
     }
     onClose();
@@ -142,11 +154,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         customAlamat: recipientAddress || '-',
         customNomor: recipientPhone || '-',
         customTanggal: invoiceDate,
+        priceVariant,
       };
-
-      console.log('PNG EXPORT OPTIONS', options);
-      console.log('PNG ITEMS LENGTH', options.items?.length);
-      console.log('PNG FIRST ITEM', options.items?.[0]);
 
       await exportHtmlInvoicePng(options);
     } catch (err: any) {
@@ -204,6 +213,39 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
+              {/* Varian Harga Selector */}
+              <div className="inline-flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setPriceVariant('ori')}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    priceVariant === 'ori'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                  }`}
+                  title="Cetak dengan Harga Jual Normal (Ori)"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Ori</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPriceVariant('cashback')}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    priceVariant === 'cashback'
+                      ? 'bg-amber-400 text-slate-900 shadow-2xs font-extrabold'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                  }`}
+                  title="Cetak dengan Nilai Cashback (Fallback Harga Jual bila kosong)"
+                >
+                  <Coins className="w-3.5 h-3.5" />
+                  <span>Cashback</span>
+                  {hasCashbackItem && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 inline-block ml-0.5 animate-pulse" />
+                  )}
+                </button>
+              </div>
+
               <button
                 onClick={onClose}
                 type="button"
@@ -231,6 +273,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                     totalJual={totalJual}
                     bayar={bayar}
                     sisa={sisa}
+                    priceVariant={priceVariant}
                     id="invoice-paper-preview"
                   />
                 </div>
@@ -325,6 +368,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                     totalJual={totalJual}
                     bayar={bayar}
                     sisa={sisa}
+                    priceVariant={priceVariant}
                     id="invoice-paper-fullview"
                   />
                 </div>

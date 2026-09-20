@@ -28,12 +28,21 @@ export const OrderItemCard: React.FC<OrderItemCardProps> = React.memo(({
   onDelete,
 }) => {
   const isDone = item.status === 'selesai';
-  const q = parseIndonesianNumber(item.qty);
+  const rawQ = parseIndonesianNumber(item.qty);
+  const rawQBeli = (item as any).qtyBeli !== undefined && (item as any).qtyBeli !== null
+    ? parseIndonesianNumber((item as any).qtyBeli)
+    : ((item as any).qty_beli !== undefined && (item as any).qty_beli !== null
+      ? parseIndonesianNumber((item as any).qty_beli)
+      : rawQ);
+  const retQ = Math.min(rawQ, Math.max(0, Number(item.retur) || 0));
+  const q = Math.max(0, rawQ - retQ);
+  const qBeliEfektif = Math.max(0, rawQBeli - retQ);
   const hb = parseIndonesianNumber(item.hargaBeli);
   const hj = parseIndonesianNumber(item.hargaJual);
-  const totalBeli = q * hb;
+  const cb = parseIndonesianNumber(item.cashback);
+  const totalBeli = qBeliEfektif * hb;
   const totalJual = q * hj;
-  const profit = totalJual - totalBeli;
+  const profit = cb > 0 ? (cb * q - totalBeli) : (totalJual - totalBeli);
 
   return (
     <motion.div
@@ -79,9 +88,20 @@ export const OrderItemCard: React.FC<OrderItemCardProps> = React.memo(({
           </div>
 
           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium flex-wrap">
-            <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-700 dark:text-slate-300 font-semibold border border-slate-200/80 dark:border-slate-700">
-              {item.qty} Qty
-            </span>
+            {retQ > 0 ? (
+              <span className="flex items-center gap-1.5 flex-wrap">
+                <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-700 dark:text-slate-300 font-semibold border border-slate-200/80 dark:border-slate-700">
+                  <span className="line-through text-slate-400">{rawQ}</span> → Final {q} {item.satuan || ''}
+                </span>
+                <span className="bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 px-1.5 py-0.5 rounded text-[10px] font-black uppercase border border-rose-200 dark:border-rose-800">
+                  RETUR {retQ}
+                </span>
+              </span>
+            ) : (
+              <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-700 dark:text-slate-300 font-semibold border border-slate-200/80 dark:border-slate-700">
+                {item.qty} {item.satuan || 'Qty'}
+              </span>
+            )}
             <span className="text-slate-300 dark:text-slate-600">•</span>
             <span className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
               <StoreIcon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />

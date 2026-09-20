@@ -68,10 +68,12 @@ interface ItemRow {
   id: string;
   namaBarang: string;
   qty: number;
+  qtyBeli?: number;
   satuan: string;
   hargaBeli: number;
   hargaJual: number;
   cashback?: number;
+  retur?: number;
   pemasok?: string;
   pemasok_id?: string;
 }
@@ -211,10 +213,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           id: initialData.id || '1',
           namaBarang: initialData.namaBarang,
           qty: initialData.qty || 1,
-          satuan: initialData.satuan || 'Kg',
+          qtyBeli: (initialData as any).qtyBeli ?? (initialData as any).qty_beli ?? initialData.qty ?? 1,
+          satuan: initialData.satuan !== undefined ? initialData.satuan : 'Kg',
           hargaBeli: Math.round(initialData.hargaBeli || 0),
           hargaJual: Math.round(initialData.hargaJual || 0),
           cashback: initialData.cashback !== undefined ? Math.round(initialData.cashback) : 0,
+          retur: initialData.retur !== undefined ? Math.round(initialData.retur) : 0,
         },
       ]);
       setActiveItemIndex(0);
@@ -257,6 +261,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           hargaBeli: 0,
           hargaJual: 0,
           cashback: 0,
+          retur: 0,
         },
       ]);
       setActiveItemIndex(0);
@@ -419,15 +424,27 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       if (quickAddType === 'toko') {
         const res = await saveMasterTokoToDb(cleanNama);
         if (!res.success) throw new Error(res.error || 'Gagal menyimpan toko');
-        setToko(cleanNama);
+        const finalNama = res.data?.nama || cleanNama;
+        setToko(finalNama);
+        if (res.data?.id) {
+          setTokoId(res.data.id);
+        }
       } else if (quickAddType === 'pemasok') {
         const res = await saveMasterPemasokToDb(cleanNama);
         if (!res.success) throw new Error(res.error || 'Gagal menyimpan pemasok');
-        setPemasok(cleanNama);
+        const finalNama = res.data?.nama || cleanNama;
+        setPemasok(finalNama);
+        if (res.data?.id) {
+          setPemasokId(res.data.id);
+        }
       } else if (quickAddType === 'dapur') {
         const res = await saveMasterDapurToDb(cleanNama, quickAddAlamat.trim());
         if (!res.success) throw new Error(res.error || 'Gagal menyimpan dapur');
-        setTujuanDapur(cleanNama);
+        const finalNama = res.data?.nama || cleanNama;
+        setTujuanDapur(finalNama);
+        if (res.data?.id) {
+          setTujuanDapurId(res.data.id);
+        }
       }
 
       await onRefreshMaster?.();
@@ -449,6 +466,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     hargaBeli: 0,
     hargaJual: 0,
     cashback: 0,
+    retur: 0,
   };
 
   const updateCurrentItem = (field: keyof ItemRow, value: any) => {
@@ -472,6 +490,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       hargaBeli: 0,
       hargaJual: 0,
       cashback: 0,
+      retur: 0,
     };
     setItemRows((prev) => [...prev, newItem]);
     setActiveItemIndex(itemRows.length);
@@ -555,14 +574,25 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   // Grand totals across all items (memoized)
   const totalModalSemua = useMemo(() => {
     return itemRows.reduce(
-      (sum, r) => sum + (Number(r.qty) || 0) * (Number(r.hargaBeli) || 0),
+      (sum, r) => {
+        const rawQJual = Number(r.qty) || 0;
+        const rawQBeli = r.qtyBeli !== undefined && r.qtyBeli !== null ? Number(r.qtyBeli) : rawQJual;
+        const ret = Math.max(0, Number(r.retur) || 0);
+        const qBeliEfektif = Math.max(0, rawQBeli - ret);
+        return sum + qBeliEfektif * (Number(r.hargaBeli) || 0);
+      },
       0
     );
   }, [itemRows]);
 
   const totalPenjualanSemua = useMemo(() => {
     return itemRows.reduce(
-      (sum, r) => sum + (Number(r.qty) || 0) * (Number(r.hargaJual) || 0),
+      (sum, r) => {
+        const rawQ = Number(r.qty) || 0;
+        const ret = Math.max(0, Number(r.retur) || 0);
+        const qFinal = Math.max(0, rawQ - ret);
+        return sum + qFinal * (Number(r.hargaJual) || 0);
+      },
       0
     );
   }, [itemRows]);
@@ -572,15 +602,21 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     let laba = 0;
     let kop = 0;
     itemRows.forEach((r) => {
-      const q = Number(r.qty) || 0;
+      const rawQJual = Number(r.qty) || 0;
+      const rawQBeli = r.qtyBeli !== undefined && r.qtyBeli !== null ? Number(r.qtyBeli) : rawQJual;
+      const ret = Math.max(0, Number(r.retur) || 0);
+      const qFinal = Math.max(0, rawQJual - ret);
+      const qBeliEfektif = Math.max(0, rawQBeli - ret);
       const hb = Number(r.hargaBeli) || 0;
       const hj = Number(r.hargaJual) || 0;
       const cb = Number(r.cashback) || 0;
+      const modal = qBeliEfektif * hb;
+      const omzet = qFinal * hj;
       if (cb > 0) {
-        laba += (cb - hb) * q;
-        kop += (hj - cb) * q;
+        laba += ((cb - hb) * qFinal);
+        kop += (hj - cb) * qFinal;
       } else {
-        laba += (hj - hb) * q;
+        laba += (omzet - modal);
       }
     });
     return { totalLabaBersihSemua: laba, totalKeKoperasiSemua: kop };
@@ -599,7 +635,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         (r) =>
           Number(r.qty) > 0 &&
           Number(r.hargaBeli) >= 0 &&
-          Number(r.hargaJual) >= 0
+          Number(r.hargaJual) >= 0 &&
+          (Number(r.retur) || 0) >= 0 &&
+          (Number(r.retur) || 0) <= Number(r.qty)
       );
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -630,11 +668,22 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       return;
     }
 
-    // Validasi setiap item valid: qty harus > 0 dan validasi cashback
+    // Validasi setiap item valid: qty harus > 0, validasi retur, dan validasi cashback
     for (let i = 0; i < validItemRows.length; i++) {
       const row = validItemRows[i];
-      if (Number(row.qty) <= 0) {
+      const q = Number(row.qty) || 0;
+      if (q <= 0) {
         alert(`Jumlah (qty) untuk ${row.namaBarang} harus lebih besar dari 0.`);
+        return;
+      }
+
+      const ret = Number(row.retur) || 0;
+      if (ret < 0) {
+        alert(`Retur untuk ${row.namaBarang} tidak boleh bernilai negatif.`);
+        return;
+      }
+      if (ret > q) {
+        alert(`Retur untuk ${row.namaBarang} (${ret}) tidak boleh lebih besar dari Qty Jual (${q}).`);
         return;
       }
 
@@ -705,15 +754,29 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       deliveryStatus === 'DONE' && paymentStatus === 'PAID' ? 'selesai' : 'pending';
 
     if (initialData) {
+      if (!finalDapurName.trim()) {
+        alert('Dapur tujuan wajib diisi!');
+        setIsSubmitting(false);
+        return;
+      }
+
       const firstRow = validItemRows[0];
+      const singleNotaId = initialData.notaId || initialData.nota_id || `nota-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const singleQty = Number(firstRow.qty) || 0;
+
       const singleItemPayload = {
         namaBarang: firstRow.namaBarang.trim(),
         item: firstRow.namaBarang.trim(),
-        qty: Number(firstRow.qty) > 0 ? Number(firstRow.qty) : 1,
+        qty: singleQty,
+        qtyBeli: singleQty,
+        qty_beli: singleQty,
+        notaId: singleNotaId,
+        nota_id: singleNotaId,
         satuan: firstRow.satuan?.trim() || 'Kg',
         hargaBeli: Math.max(0, Number(firstRow.hargaBeli) || 0),
         hargaJual: Math.max(0, Number(firstRow.hargaJual) || 0),
         cashback: Number(firstRow.cashback) > 0 ? Number(firstRow.cashback) : 0,
+        retur: Math.max(0, Number(firstRow.retur) || 0),
         toko: cleanToko,
         toko_id: finalTokoId,
         tokoId: finalTokoId,
@@ -747,18 +810,33 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
       onSave(singleItemPayload, initialData.id);
     } else {
+      if (!finalDapurName.trim()) {
+        alert('Dapur tujuan wajib diisi!');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 2. NOTA_ID: Semua item dalam 1 batch form pesanan memiliki nota_id yang sama
+      const batchNotaId = `nota-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
       // WAJIB: Filter HANYA item valid (namaBarang tidak kosong & dapur tidak kosong)
       const validItems = validItemRows
         .filter((row) => (row.namaBarang || '').trim() !== '' && finalDapurName.trim() !== '')
         .map((row) => {
+          const rowQty = Number(row.qty) || 0;
           const itemObj = {
             namaBarang: row.namaBarang.trim(),
             item: row.namaBarang.trim(),
-            qty: Number(row.qty) > 0 ? Number(row.qty) : 1,
+            qty: rowQty,
+            qtyBeli: rowQty,
+            qty_beli: rowQty,
+            notaId: batchNotaId,
+            nota_id: batchNotaId,
             satuan: row.satuan?.trim() || 'Kg',
             hargaBeli: Math.max(0, Number(row.hargaBeli) || 0),
             hargaJual: Math.max(0, Number(row.hargaJual) || 0),
             cashback: Number(row.cashback) > 0 ? Number(row.cashback) : 0,
+            retur: Math.max(0, Number(row.retur) || 0),
             toko: cleanToko,
             toko_id: finalTokoId,
             tokoId: finalTokoId,
@@ -1004,11 +1082,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   )}
                 </div>
 
-                {/* Field 2: Qty & Satuan */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* Field 2: Qty, Retur & Satuan */}
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                      Qty
+                      Qty Awal
                     </label>
                     <input
                       type="number"
@@ -1024,7 +1102,39 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
                         )
                       }
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all text-center"
+                      className="w-full px-2.5 sm:px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all text-center"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Retur
+                      </label>
+                      {Number(currentItem.retur) > 0 && (
+                        <span className="text-[8.5px] font-black uppercase text-rose-600 bg-rose-50 dark:bg-rose-950/60 px-1 py-0.2 rounded border border-rose-200 dark:border-rose-800">
+                          RETUR {currentItem.retur}
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      id="input-retur-barang"
+                      placeholder="0"
+                      value={currentItem.retur === undefined || currentItem.retur === 0 ? '' : currentItem.retur}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                        updateCurrentItem('retur', Math.max(0, val));
+                      }}
+                      className={`w-full px-2.5 sm:px-3 py-2 bg-white dark:bg-slate-800 border rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 transition-all text-center ${
+                        Number(currentItem.retur) > (Number(currentItem.qty) || 0)
+                          ? 'border-rose-500 focus:ring-rose-500/20 focus:border-rose-600 text-rose-600'
+                          : Number(currentItem.retur) > 0
+                          ? 'border-rose-300 dark:border-rose-700 bg-rose-50/30 dark:bg-rose-950/20 text-rose-700 dark:text-rose-300'
+                          : 'border-slate-300 dark:border-slate-700 focus:ring-indigo-500/20 focus:border-indigo-600'
+                      }`}
                     />
                   </div>
 
@@ -1034,13 +1144,36 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     </label>
                     <SatuanAutocomplete
                       id="select-satuan-barang"
-                      value={currentItem.satuan || 'Kg'}
+                      value={currentItem.satuan !== undefined ? currentItem.satuan : ''}
                       onChange={(newSatuan) => updateCurrentItem('satuan', newSatuan)}
                       masterSatuan={masterSatuan}
                       onAddMasterSatuan={handleAddMasterSatuanInternal}
                     />
                   </div>
                 </div>
+
+                {/* Indikator Real-time Retur: jika retur > 0 */}
+                {Number(currentItem.retur) > 0 && (
+                  <div className="p-2.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/80 flex items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[9.5px] font-black uppercase tracking-wider bg-rose-100 dark:bg-rose-900 text-rose-700 dark:text-rose-200 border border-rose-300 dark:border-rose-700">
+                        RETUR {currentItem.retur}
+                      </span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        {currentItem.qty} {currentItem.satuan || 'Kg'} → <strong className="font-extrabold text-emerald-700 dark:text-emerald-400">Final {Math.max(0, (Number(currentItem.qty) || 0) - Number(currentItem.retur))} {currentItem.satuan || 'Kg'}</strong>
+                      </span>
+                    </div>
+                    {Number(currentItem.retur) > (Number(currentItem.qty) || 0) ? (
+                      <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                        Retur &gt; Qty!
+                      </span>
+                    ) : (
+                      <span className="text-[10.5px] font-mono font-bold text-slate-500 dark:text-slate-400">
+                        qty_final = {currentItem.qty} - {currentItem.retur}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Field 3: Harga Beli & Harga Jual */}
                 <div className="grid grid-cols-2 gap-3">
@@ -1104,6 +1237,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 {/* Estimasi Laba Bersih & Ke Koperasi Live Preview */}
                 <ProfitPreview
                   quantity={currentItem.qty}
+                  qtyBeli={currentItem.qtyBeli}
+                  retur={currentItem.retur}
                   purchasePrice={currentItem.hargaBeli}
                   sellingPrice={currentItem.hargaJual}
                   cashback={currentItem.cashback}
@@ -1130,37 +1265,56 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                         Daftar Barang ({itemRows.length} Item):
                       </div>
                       <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                        {itemRows.map((r, idx) => (
-                          <div
-                            key={r.id}
-                            onClick={() => setActiveItemIndex(idx)}
-                            className={`py-1.5 px-2 rounded-lg flex items-center justify-between text-xs cursor-pointer ${
-                              idx === activeItemIndex ? 'bg-indigo-50 dark:bg-indigo-950/60 font-bold text-indigo-900 dark:text-indigo-300' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'
-                            }`}
-                          >
-                            <div>
-                              <span className="font-semibold block text-slate-900 dark:text-slate-100">
-                                #{idx + 1} {r.namaBarang || 'Tanpa Nama'}
-                              </span>
-                              <span className="text-[10.5px] text-slate-500 dark:text-slate-400 font-normal">
-                                {r.qty} {r.satuan || 'Kg'}
-                              </span>
-                            </div>
-                            <div className="text-right">
-                              <span className="font-mono font-bold block text-slate-900 dark:text-slate-100">
-                                {formatIDR((r.qty || 0) * (r.hargaJual || 0))}
-                              </span>
-                              <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-mono block">
-                                Beli: {formatIDR((r.qty || 0) * (r.hargaBeli || 0))}
-                              </span>
-                              {Boolean(r.cashback && r.cashback > 0) && (
-                                <span className="text-[9.5px] font-bold text-amber-700 dark:text-amber-400 font-mono block">
-                                  CB: {formatIDR(r.cashback)}
+                        {itemRows.map((r, idx) => {
+                          const rQty = Number(r.qty) || 0;
+                          const rQtyBeli = r.qtyBeli !== undefined && r.qtyBeli !== null ? Number(r.qtyBeli) : rQty;
+                          const rRetur = Math.max(0, Number(r.retur) || 0);
+                          const rFinal = Math.max(0, rQty - rRetur);
+                          const rBeliEfektif = Math.max(0, rQtyBeli - rRetur);
+                          return (
+                            <div
+                              key={r.id}
+                              onClick={() => setActiveItemIndex(idx)}
+                              className={`py-1.5 px-2 rounded-lg flex items-center justify-between text-xs cursor-pointer ${
+                                idx === activeItemIndex ? 'bg-indigo-50 dark:bg-indigo-950/60 font-bold text-indigo-900 dark:text-indigo-300' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'
+                              }`}
+                            >
+                              <div>
+                                <span className="font-semibold block text-slate-900 dark:text-slate-100">
+                                  #{idx + 1} {r.namaBarang || 'Tanpa Nama'}
                                 </span>
-                              )}
+                                <div className="text-[10.5px] text-slate-500 dark:text-slate-400 font-normal flex items-center gap-1.5 flex-wrap">
+                                  {rRetur > 0 ? (
+                                    <>
+                                      <span className="line-through">{rQty} {r.satuan || 'Kg'}</span>
+                                      <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                                        Final {rFinal} {r.satuan || 'Kg'}
+                                      </span>
+                                      <span className="px-1 py-0.2 rounded text-[8.5px] font-black uppercase bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                                        RETUR {rRetur}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span>{rQty} {r.satuan || 'Kg'}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className="font-mono font-bold block text-slate-900 dark:text-slate-100">
+                                  {formatIDR(rFinal * (r.hargaJual || 0))}
+                                </span>
+                                <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-mono block">
+                                  Beli: {formatIDR(rBeliEfektif * (r.hargaBeli || 0))}
+                                </span>
+                                {Boolean(r.cashback && r.cashback > 0) && (
+                                  <span className="text-[9.5px] font-bold text-amber-700 dark:text-amber-400 font-mono block">
+                                    CB: {formatIDR(r.cashback)}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -1226,9 +1380,21 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
                   {/* Pemasok Autocomplete */}
                   <div className="relative">
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                      Pemasok
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Pemasok
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickAddType('pemasok');
+                          setQuickAddNama(pemasok.trim());
+                        }}
+                        className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                      >
+                        + Tambah Baru
+                      </button>
+                    </div>
                     <div className="relative">
                       <input
                         type="text"
@@ -1291,13 +1457,21 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                               </button>
                             ))
                           ) : (
-                            <div className="p-3 text-center">
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
+                            <div className="p-3 text-center space-y-2">
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
                                 Belum ada pemasok "<span className="font-semibold text-slate-700 dark:text-slate-300">{pemasok}</span>"
                               </p>
-                              <span className="inline-block text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg">
-                                + Otomatis disimpan ke Master saat pesanan dibuat
-                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsPemasokOpen(false);
+                                  setQuickAddType('pemasok');
+                                  setQuickAddNama(pemasok.trim());
+                                }}
+                                className="inline-block text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 cursor-pointer"
+                              >
+                                + Tambah "{pemasok}" ke Master
+                              </button>
                             </div>
                           )}
                         </div>
@@ -1307,9 +1481,21 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
                   {/* Dapur Autocomplete */}
                   <div className="relative">
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                      Dapur <span className="text-rose-500">*</span>
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Dapur <span className="text-rose-500">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickAddType('dapur');
+                          setQuickAddNama(tujuanDapur.trim());
+                        }}
+                        className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                      >
+                        + Tambah Baru
+                      </button>
+                    </div>
                     <div className="relative">
                       <input
                         type="text"
@@ -1384,13 +1570,21 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                               </button>
                             ))
                           ) : (
-                            <div className="p-3 text-center">
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
+                            <div className="p-3 text-center space-y-2">
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
                                 Belum ada dapur "<span className="font-semibold text-slate-700 dark:text-slate-300">{tujuanDapur}</span>"
                               </p>
-                              <span className="inline-block text-[10.5px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg">
-                                + Otomatis disimpan ke Master saat pesanan dibuat
-                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsDapurOpen(false);
+                                  setQuickAddType('dapur');
+                                  setQuickAddNama(tujuanDapur.trim().replace(/^dapur\s+/i, ''));
+                                }}
+                                className="inline-block text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 cursor-pointer"
+                              >
+                                + Tambah "{tujuanDapur}" ke Master
+                              </button>
                             </div>
                           )}
                         </div>

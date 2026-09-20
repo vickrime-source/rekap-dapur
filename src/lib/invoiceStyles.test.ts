@@ -93,7 +93,7 @@ describe('Invoice Store Styling & Layout Configuration', () => {
 
       expect(html).toContain('font-family: Arial');
       expect(html).toContain('background-color: #d9e2f3');
-      expect(html).toContain('padding: 8px 12px');
+      expect(html).toContain('padding: 7px 12px');
       expect(html).toContain('vertical-align: middle');
       expect(html).toContain('border: 1px solid #000000');
 
@@ -146,7 +146,7 @@ describe('Invoice Store Styling & Layout Configuration', () => {
       expect(html).toContain('Swapped Layout (LB & LA)');
     });
 
-    it('guarantees explicit 8px 12px padding, vertical-align middle, and normal font-weight on BAYAR & SISA', () => {
+    it('guarantees explicit 7px 12px padding, vertical-align middle, and proper styling on BAYAR & SISA', () => {
       const html = generateInvoiceHtmlString({
         storeName: 'HTG',
         kitchenName: 'Genteng',
@@ -156,20 +156,115 @@ describe('Invoice Store Styling & Layout Configuration', () => {
       });
 
       // Explicit padding and vertical-align
-      expect(html).toContain('padding: 8px 12px');
+      expect(html).toContain('padding: 7px 12px');
       expect(html).toContain('vertical-align: middle');
 
-      // Table body cells must have font-weight: normal
-      expect(html).toContain('font-weight: normal');
+      // Table body cells must have vertical-align: middle
+      expect(html).toContain('vertical-align: middle');
 
       // TOTAL must be bold
       expect(html).toContain('TOTAL');
-      expect(html).toContain('class="is-bold"');
+      expect(html).toContain('is-bold');
 
-      // BAYAR and SISA must be normal font-weight
-      expect(html).toContain('class="is-normal"');
+      // BAYAR is normal, SISA is bold and red
+      expect(html).toContain('is-normal');
       expect(html).toContain('BAYAR');
+      expect(html).toContain('is-sisa');
       expect(html).toContain('SISA');
+      expect(html).toContain('#be123c');
+    });
+
+    it('renders retur format "70 - 20 = 50" with red 20 in BANYAKNYA and red Retur label in NAMA ITEM', () => {
+      const html = generateInvoiceHtmlString({
+        storeName: 'HTG',
+        kitchenName: 'Genteng',
+        items: [
+          {
+            id: 'item-retur-1',
+            namaBarang: 'Beras Super Rojo',
+            qty: 70,
+            retur: 20,
+            hargaJual: 10000,
+            toko: 'HTG',
+            tujuanDapur: 'Genteng',
+            tanggal: '2026-07-27',
+          } as any,
+        ],
+        invoiceNumber: 'INV/HTG/RETUR',
+      });
+
+      // Kolom BANYAKNYA: shows 70 - 20 = 50 with red 20
+      expect(html).toContain('>70</span>');
+      expect(html).toContain('color: #dc2626; font-size: 10pt; font-weight: bold;">20</span>');
+      expect(html).toContain('>50</span>');
+      expect(html).not.toContain('line-through');
+      expect(html).not.toContain('&gt;');
+
+      // Kolom NAMA ITEM: shows item name and red "Retur" label without big background
+      expect(html).toContain('Beras Super Rojo');
+      expect(html).toContain('color: #dc2626; font-size: 8.5pt; font-weight: bold; vertical-align: middle; white-space: nowrap; margin-left: 8px;">Retur</span>');
+
+      // Total must be 50 * 10000 = 500.000
+      expect(html).toContain('500.000');
+    });
+
+    it('guarantees table headers are centered horizontally and vertically', () => {
+      const html = generateInvoiceHtmlString({
+        storeName: 'HTG',
+        kitchenName: 'Genteng',
+        items: mockItems,
+        invoiceNumber: 'INV/HTG/003',
+      });
+
+      expect(html).toContain('vertical-align: middle');
+      expect(html).toContain('text-align: center');
+      expect(html).toContain('>NO</th>');
+      expect(html).toContain('>BANYAKNYA</th>');
+      expect(html).toContain('>NAMA ITEM</th>');
+      expect(html).toContain('>HARGA</th>');
+      expect(html).toContain('>JUMLAH</th>');
+    });
+
+    it('supports priceVariant cashback: uses cashback if >0 else fallback to hargaJual', () => {
+      const html = generateInvoiceHtmlString({
+        storeName: 'HTG',
+        kitchenName: 'Genteng',
+        items: [
+          {
+            id: 'cb-1',
+            namaBarang: 'Beras Cashback',
+            qty: 10,
+            hargaJual: 15000,
+            cashback: 12000,
+            toko: 'HTG',
+            tujuanDapur: 'Genteng',
+            tanggal: '2026-07-27',
+          } as any,
+          {
+            id: 'cb-2',
+            namaBarang: 'Beras Normal',
+            qty: 5,
+            hargaJual: 20000,
+            cashback: 0,
+            toko: 'HTG',
+            tujuanDapur: 'Genteng',
+            tanggal: '2026-07-27',
+          } as any,
+        ],
+        invoiceNumber: 'INV/HTG/CB',
+        priceVariant: 'cashback',
+      });
+
+      // Item 1 uses cashback 12.000 -> 10 * 12.000 = 120.000
+      expect(html).toContain('12.000');
+      expect(html).toContain('120.000');
+
+      // Item 2 fallback to hargaJual 20.000 -> 5 * 20.000 = 100.000
+      expect(html).toContain('20.000');
+      expect(html).toContain('100.000');
+
+      // Total = 120.000 + 100.000 = 220.000
+      expect(html).toContain('220.000');
     });
   });
 });

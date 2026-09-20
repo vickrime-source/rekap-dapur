@@ -1,5 +1,5 @@
 
-import { OrderItem } from '../types';
+import { OrderItem, InvoicePriceVariant } from '../types';
 import { formatRupiah, formatTanggalInvoice, resolveRecipientSppgName, parseIndonesianNumber } from './formatters';
 import { getStoreProfile, StoreProfile } from './storeProfiles';
 import { getStoreInvoiceConfig, StoreInvoiceStyleConfig } from './invoiceStyles';
@@ -14,6 +14,7 @@ export interface HtmlInvoiceOptions {
   customAlamat?: string;
   customNomor?: string;
   customTanggal?: string;
+  priceVariant?: InvoicePriceVariant;
 }
 
 /**
@@ -26,31 +27,56 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
   const profile = getStoreProfile(options.storeName);
   const styleConfig = getStoreInvoiceConfig(options.storeName);
   const items = options.items;
+  const priceVariant = options.priceVariant || 'ori';
 
-  const totalJual = items.reduce((sum, item) => {
-    const q = parseIndonesianNumber(item.qty);
-    const p = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
-    return sum + q * p;
-  }, 0);
+  const calculatedItems = items.map((item) => {
+    const rawQ = parseIndonesianNumber(item.qty);
+    const retQ = Math.min(rawQ, Math.max(0, Number(item.retur) || 0));
+    const q = Math.max(0, rawQ - retQ);
+    const hargaJual = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+    const cb = Number(item.cashback) || 0;
 
-  const bayar = parseIndonesianNumber(options.bayar || 0);
+    // Varian Ori: HARGA = harga_jual. NILAI = harga_jual * qty.
+    // Varian Cashback: HARGA = nilai cashback jika >0, else fallback ke harga_jual. NILAI = HARGA * qty.
+    const p = (priceVariant === 'cashback' && cb > 0) ? cb : hargaJual;
+    const subtotal = q * p;
+
+    return { rawQ, retQ, q, p, subtotal, item };
+  });
+
+  const totalJual = calculatedItems.reduce((sum, ci) => sum + ci.subtotal, 0);
+  const bayar = options.bayar !== undefined ? parseIndonesianNumber(options.bayar) : totalJual;
   const sisa = Math.max(0, totalJual - bayar);
 
   const recipientName = resolveRecipientSppgName(options.customNama, options.kitchenName, items);
   const invoiceDate = formatTanggalInvoice(options.customTanggal || items[0]?.tanggal || new Date());
 
-  const rowsHtml = items
-    .map((item, idx) => {
-      const q = parseIndonesianNumber(item.qty);
-      const p = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
-      const subtotal = q * p;
+  const rowsHtml = calculatedItems
+    .map(({ rawQ, retQ, q, p, subtotal, item }, idx) => {
+      const qtyCell = retQ > 0 ? `
+        <span style="display: inline-block; vertical-align: middle; line-height: 1.2; text-align: center; white-space: nowrap; font-size: 10pt;">
+          <span style="color: #000000; font-weight: normal;">${rawQ}</span>
+          <span style="color: #64748b; margin: 0 2px;">-</span>
+          <span style="color: #dc2626; font-size: 10pt; font-weight: bold;">${retQ}</span>
+          <span style="color: #64748b; margin: 0 2px;">=</span>
+          <span style="font-size: 10pt; font-weight: bold; color: #000000;">${q}</span>
+        </span>
+      ` : `<span style="display: inline-block; vertical-align: middle; line-height: 1.2; font-size: 10pt; font-weight: bold; color: #000000;">${q}</span>`;
+
+      const nameCell = retQ > 0 ? `
+        <div style="line-height: 1.25; vertical-align: middle;">
+          <span style="vertical-align: middle;">${item.namaBarang}</span>
+          <span style="color: #dc2626; font-size: 8.5pt; font-weight: bold; vertical-align: middle; white-space: nowrap; margin-left: 8px;">Retur</span>
+        </div>
+      ` : `<span style="display: inline-block; line-height: 1.25; vertical-align: middle;">${item.namaBarang}</span>`;
+
       return `
       <tr>
-        <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: center; font-size: 10pt; font-weight: normal; font-family: ${styleConfig.fontFamily}; color: #000000;">${idx + 1}</td>
-        <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: center; font-size: 10pt; font-weight: normal; font-family: ${styleConfig.fontFamily}; color: #000000;">${q}</td>
-        <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: left; font-size: 10pt; font-weight: normal; font-family: ${styleConfig.fontFamily}; color: #000000;">${item.namaBarang}</td>
-        <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: center; font-size: 10pt; font-weight: normal; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(p)}</td>
-        <td style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; text-align: center; font-size: 10pt; font-weight: normal; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(subtotal)}</td>
+        <td class="col-no" style="border: 1px solid #000000; padding: 7px 4px; vertical-align: middle; text-align: center; font-size: 10pt; font-weight: normal; font-family: ${styleConfig.fontFamily}; color: #334155; white-space: nowrap;">${idx + 1}</td>
+        <td class="col-qty" style="border: 1px solid #000000; padding: 7px 4px; vertical-align: middle; text-align: center; font-size: 10pt; font-weight: bold; font-family: ${styleConfig.fontFamily}; color: #000000; white-space: nowrap;">${qtyCell}</td>
+        <td class="col-name" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; text-align: left; font-size: 10pt; font-weight: normal; font-family: ${styleConfig.fontFamily}; color: #000000;">${nameCell}</td>
+        <td class="col-price" style="border: 1px solid #000000; padding: 7px 8px; vertical-align: middle; text-align: center; font-size: 10pt; font-weight: normal; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(p)}</td>
+        <td class="col-total" style="border: 1px solid #000000; padding: 7px 8px; vertical-align: middle; text-align: center; font-size: 10pt; font-weight: bold; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(subtotal)}</td>
       </tr>
     `;
     })
@@ -126,34 +152,84 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
       margin: 0 auto;
     ">
       <style>
+        *, *::before, *::after {
+          box-sizing: border-box !important;
+        }
+        img {
+          display: inline-block !important;
+        }
+        .invoice-container {
+          box-sizing: border-box !important;
+        }
         .invoice-container table {
           border-collapse: collapse !important;
+          border-spacing: 0 !important;
         }
         .invoice-table-main {
-          width: 100%;
+          width: 100% !important;
           border-collapse: collapse !important;
-          margin-top: 10px;
-          margin-bottom: 8px;
+          border-spacing: 0 !important;
+          table-layout: fixed !important;
+          margin-top: 10px !important;
+          margin-bottom: 8px !important;
           border: 1px solid #000000 !important;
         }
         .invoice-table-main th {
           border: 1px solid #000000 !important;
-          padding: 8px 12px !important;
           vertical-align: middle !important;
-          font-weight: bold !important;
           text-align: center !important;
+          font-weight: bold !important;
+          line-height: 1.2 !important;
+          padding: 7px 4px !important;
+          box-sizing: border-box !important;
         }
         .invoice-table-main td {
           border: 1px solid #000000 !important;
-          padding: 8px 12px !important;
           vertical-align: middle !important;
-          font-weight: normal;
+          line-height: 1.35 !important;
+          box-sizing: border-box !important;
+        }
+        .invoice-table-main th.col-no,
+        .invoice-table-main td.col-no {
+          width: 45px !important;
+          text-align: center !important;
+          vertical-align: middle !important;
+        }
+        .invoice-table-main th.col-qty,
+        .invoice-table-main td.col-qty {
+          width: 115px !important;
+          text-align: center !important;
+          vertical-align: middle !important;
+        }
+        .invoice-table-main th.col-name {
+          text-align: center !important;
+          vertical-align: middle !important;
+        }
+        .invoice-table-main td.col-name {
+          text-align: left !important;
+          vertical-align: middle !important;
+        }
+        .invoice-table-main th.col-price,
+        .invoice-table-main td.col-price {
+          width: 125px !important;
+          text-align: center !important;
+          vertical-align: middle !important;
+        }
+        .invoice-table-main th.col-total,
+        .invoice-table-main td.col-total {
+          width: 135px !important;
+          text-align: center !important;
+          vertical-align: middle !important;
         }
         .invoice-table-main td.is-bold {
           font-weight: bold !important;
         }
         .invoice-table-main td.is-normal {
           font-weight: normal !important;
+        }
+        .invoice-table-main td.is-sisa {
+          font-weight: bold !important;
+          color: #be123c !important;
         }
       </style>
 
@@ -198,17 +274,25 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
       <table class="invoice-table-main" style="
         width: 100%;
         border-collapse: collapse;
+        table-layout: fixed;
         margin-top: 10px;
         margin-bottom: 8px;
         border: 1px solid #000000;
       ">
+        <colgroup>
+          <col style="width: 45px;" />
+          <col style="width: 115px;" />
+          <col style="width: auto;" />
+          <col style="width: 125px;" />
+          <col style="width: 135px;" />
+        </colgroup>
         <thead>
           <tr style="background-color: ${styleConfig.headerBg}; color: ${styleConfig.headerText};">
-            <th style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; width: 45px; text-align: center; font-family: ${styleConfig.fontFamily};">NO</th>
-            <th style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; width: 105px; text-align: center; font-family: ${styleConfig.fontFamily};">BANYAKNYA</th>
-            <th style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; text-align: center; font-family: ${styleConfig.fontFamily};">NAMA ITEM</th>
-            <th style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; width: 125px; text-align: center; font-family: ${styleConfig.fontFamily};">HARGA</th>
-            <th style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; width: 135px; text-align: center; font-family: ${styleConfig.fontFamily};">JUMLAH</th>
+            <th class="col-no" style="border: 1px solid #000000; padding: 7px 4px; vertical-align: middle; font-size: 10pt; font-weight: bold; width: 45px; text-align: center; font-family: ${styleConfig.fontFamily}; line-height: 1.2;">NO</th>
+            <th class="col-qty" style="border: 1px solid #000000; padding: 7px 4px; vertical-align: middle; font-size: 10pt; font-weight: bold; width: 115px; text-align: center; font-family: ${styleConfig.fontFamily}; line-height: 1.2;">BANYAKNYA</th>
+            <th class="col-name" style="border: 1px solid #000000; padding: 7px 8px; vertical-align: middle; font-size: 10pt; font-weight: bold; text-align: center; font-family: ${styleConfig.fontFamily}; line-height: 1.2;">NAMA ITEM</th>
+            <th class="col-price" style="border: 1px solid #000000; padding: 7px 4px; vertical-align: middle; font-size: 10pt; font-weight: bold; width: 125px; text-align: center; font-family: ${styleConfig.fontFamily}; line-height: 1.2;">HARGA</th>
+            <th class="col-total" style="border: 1px solid #000000; padding: 7px 4px; vertical-align: middle; font-size: 10pt; font-weight: bold; width: 135px; text-align: center; font-family: ${styleConfig.fontFamily}; line-height: 1.2;">JUMLAH</th>
           </tr>
         </thead>
         <tbody>
@@ -216,19 +300,19 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="3" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-weight: normal; background: #ffffff;"></td>
-            <td class="is-bold" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; text-align: center; letter-spacing: 0.5px; font-family: ${styleConfig.fontFamily}; color: #000000;">TOTAL</td>
-            <td class="is-bold" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; text-align: right; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(totalJual)}</td>
+            <td colspan="3" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-weight: normal; background: #ffffff;"></td>
+            <td class="col-price is-bold" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; text-align: center; letter-spacing: 0.5px; font-family: ${styleConfig.fontFamily}; color: #000000; background: #f8fafc;">TOTAL</td>
+            <td class="col-total is-bold" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; text-align: center; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(totalJual)}</td>
           </tr>
           <tr>
-            <td colspan="3" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-weight: normal; background: #ffffff;"></td>
-            <td class="is-normal" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: normal; text-align: center; letter-spacing: 0.5px; font-family: ${styleConfig.fontFamily}; color: #000000;">BAYAR</td>
-            <td class="is-normal" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: normal; text-align: right; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(bayar)}</td>
+            <td colspan="3" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-weight: normal; background: #ffffff;"></td>
+            <td class="col-price is-normal" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-size: 10pt; font-weight: normal; text-align: center; letter-spacing: 0.5px; font-family: ${styleConfig.fontFamily}; color: #000000; background: #f8fafc;">BAYAR</td>
+            <td class="col-total is-normal" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-size: 10pt; font-weight: normal; text-align: center; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(bayar)}</td>
           </tr>
           <tr>
-            <td colspan="3" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-weight: normal; background: #ffffff;"></td>
-            <td class="is-normal" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: normal; text-align: center; letter-spacing: 0.5px; font-family: ${styleConfig.fontFamily}; color: #000000;">SISA</td>
-            <td class="is-normal" style="border: 1px solid #000000; padding: 8px 12px; vertical-align: middle; font-size: 10pt; font-weight: normal; text-align: right; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(sisa)}</td>
+            <td colspan="3" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-weight: normal; background: #ffffff;"></td>
+            <td class="col-price is-sisa" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; text-align: center; letter-spacing: 0.5px; font-family: ${styleConfig.fontFamily}; color: #be123c; background: #f8fafc;">SISA</td>
+            <td class="col-total is-sisa" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; text-align: center; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #be123c;">${formatRupiah(sisa)}</td>
           </tr>
         </tfoot>
       </table>
@@ -358,6 +442,16 @@ export async function exportHtmlInvoicePdf(
             el.style.zIndex = '1';
             el.style.transform = 'none';
           }
+          const fixStyle = clonedDoc.createElement('style');
+          fixStyle.textContent = `
+            img {
+              display: inline !important;
+            }
+            body > div:last-child img {
+              display: inline !important;
+            }
+          `;
+          clonedDoc.head.appendChild(fixStyle);
           clonedDoc.querySelectorAll('style').forEach((st) => {
             if (st.textContent && (st.textContent.includes('oklch') || st.textContent.includes('lab'))) {
               st.textContent = sanitizeCssColorsInString(st.textContent);
@@ -488,10 +582,29 @@ async function withSanitizedComputedStyles<T>(fn: () => Promise<T>): Promise<T> 
     return createProxiedStyle(style);
   } as typeof window.getComputedStyle;
 
+  // Injeksi style untuk html2canvas font metrics di dokumen utama
+  let html2canvasFixStyle: HTMLStyleElement | null = null;
+  if (typeof document !== 'undefined' && document.head) {
+    html2canvasFixStyle = document.createElement('style');
+    html2canvasFixStyle.id = 'html2canvas-global-img-fix';
+    html2canvasFixStyle.textContent = `
+      img {
+        display: inline !important;
+      }
+      body > div:last-child img {
+        display: inline !important;
+      }
+    `;
+    document.head.appendChild(html2canvasFixStyle);
+  }
+
   try {
     return await fn();
   } finally {
     window.getComputedStyle = originalGetComputedStyle;
+    if (html2canvasFixStyle && html2canvasFixStyle.parentNode) {
+      html2canvasFixStyle.parentNode.removeChild(html2canvasFixStyle);
+    }
   }
 }
 
@@ -578,6 +691,16 @@ export async function exportHtmlInvoicePng(
               el.style.margin = '0 auto';
               el.style.borderRadius = '0px';
             }
+            const fixStyle = clonedDoc.createElement('style');
+            fixStyle.textContent = `
+              img {
+                display: inline !important;
+              }
+              body > div:last-child img {
+                display: inline !important;
+              }
+            `;
+            clonedDoc.head.appendChild(fixStyle);
             clonedDoc.querySelectorAll('style').forEach((st) => {
               if (st.textContent && (st.textContent.includes('oklch') || st.textContent.includes('lab'))) {
                 st.textContent = sanitizeCssColorsInString(st.textContent);
@@ -638,6 +761,16 @@ export async function exportHtmlInvoicePng(
             el.style.zIndex = '1';
             el.style.transform = 'none';
           }
+          const fixStyle = clonedDoc.createElement('style');
+          fixStyle.textContent = `
+            img {
+              display: inline !important;
+            }
+            body > div:last-child img {
+              display: inline !important;
+            }
+          `;
+          clonedDoc.head.appendChild(fixStyle);
           clonedDoc.querySelectorAll('style').forEach((st) => {
             if (st.textContent && (st.textContent.includes('oklch') || st.textContent.includes('lab'))) {
               st.textContent = sanitizeCssColorsInString(st.textContent);

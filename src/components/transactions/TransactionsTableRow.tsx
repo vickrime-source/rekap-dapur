@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Truck, Eye, Printer, Trash2, MoreVertical } from 'lucide-react';
-import { OrderItem } from '../../types';
+import { OrderItem, InvoicePriceVariant } from '../../types';
 import { formatRupiah, formatTanggalDisatuin, getTokoBadgeStyle } from '../../lib/formatters';
 import { TransactionBatch } from './types';
+import { PrintVariantDropdownPortal } from '../PrintVariantDropdownPortal';
 
 interface TransactionsTableRowProps {
   batch: TransactionBatch;
@@ -10,7 +11,7 @@ interface TransactionsTableRowProps {
   onToggleBatchPayment: (batch: TransactionBatch) => void;
   onViewInvoice?: (items: OrderItem[], kitchenName?: string, storeName?: string, dateStr?: string) => void;
   onOpenInvoiceModal?: (items: OrderItem[], kitchenName?: string, storeName?: string) => void;
-  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string, variant?: InvoicePriceVariant) => void;
   onDeleteTransaction?: (batch: TransactionBatch) => void;
   onDeleteInvoice?: (id: string) => void;
   onDeleteOrder: (id: string) => void;
@@ -29,10 +30,12 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
   onDeleteOrder,
   onOpenActionMenu,
 }) => {
+  const [printMenuRect, setPrintMenuRect] = useState<DOMRect | null>(null);
   const isPaid = batch.payStatus === 'PAID';
   const labaBersih =
     batch.totalLabaBersih !== undefined ? batch.totalLabaBersih : (batch.totalJual || 0) - batch.totalBeli;
   const keKoperasi = batch.totalKeKoperasi || 0;
+  const hasCashback = batch.items.some((it) => Number(it.cashback) > 0);
 
   const handleView = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -43,12 +46,21 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
     }
   };
 
-  const handleExportPdf = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleExportVariant = (variant: InvoicePriceVariant) => {
     if (onExportInvoicePdf) {
-      onExportInvoicePdf(batch.items, batch.tujuanDapur, batch.toko, batch.tanggal);
+      onExportInvoicePdf(batch.items, batch.tujuanDapur, batch.toko, batch.tanggal, variant);
     } else if (onOpenInvoiceModal) {
       onOpenInvoiceModal(batch.items, batch.tujuanDapur, batch.toko);
+    }
+  };
+
+  const handlePrintClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (hasCashback) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setPrintMenuRect(rect);
+    } else {
+      handleExportVariant('ori');
     }
   };
 
@@ -64,7 +76,7 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
   };
 
   return (
-    <tr className="hover:bg-slate-50/90 dark:hover:bg-slate-800/60 transition-colors">
+    <tr className={`transition-colors ${batch.isCancelled ? 'opacity-60 bg-slate-100/60 dark:bg-slate-900/60' : 'hover:bg-slate-50/90 dark:hover:bg-slate-800/60'}`}>
       {/* 1. NO */}
       <td className="py-2.5 px-1.5 text-center font-mono text-[9px] font-bold text-slate-400 dark:text-slate-500 align-middle">
         {batch.batchIndex}
@@ -91,26 +103,49 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
           <span className="inline-block bg-indigo-50 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-300 font-black px-1.5 py-0.5 rounded text-[8.5px] border border-indigo-200 dark:border-indigo-800">
             Dapur {batch.tujuanDapur}
           </span>
+          {batch.isCancelled && (
+            <span className="inline-block bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-black px-1.5 py-0.5 rounded text-[8px] border border-slate-300 dark:border-slate-600 uppercase">
+              Dibatalkan
+            </span>
+          )}
         </div>
         <div className="space-y-1">
-          {batch.items.map((it, itIdx) => (
-            <div key={it.id || itIdx} className="flex items-center justify-between gap-2 text-[9.5px]">
-              <div className="font-bold text-slate-900 dark:text-slate-100 truncate">• {it.namaBarang}</div>
-              <div className="text-[8.5px] font-nominal font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap flex items-center gap-1">
-                <span>
-                  {it.qty} × {formatRupiah(it.hargaBeli)}
-                </span>
-                {it.cashback && Number(it.cashback) > 0 ? (
-                  <span
-                    className="text-[8px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-1 py-0.5 rounded border border-amber-200 dark:border-amber-800"
-                    title={`Cashback: ${formatRupiah(it.cashback)}`}
-                  >
-                    CB: {formatRupiah(it.cashback)}
-                  </span>
-                ) : null}
+          {batch.items.map((it, itIdx) => {
+            const rawQ = Number(it.qty) || 0;
+            const retQ = Math.min(rawQ, Math.max(0, Number(it.retur) || 0));
+            const finQ = Math.max(0, rawQ - retQ);
+            return (
+              <div key={it.id || itIdx} className="flex items-center justify-between gap-2 text-[9.5px]">
+                <div className="font-bold text-slate-900 dark:text-slate-100 truncate flex items-center gap-1">
+                  <span>• {it.namaBarang}</span>
+                  {retQ > 0 && (
+                    <span className="text-[8px] font-black uppercase text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 px-1 py-0.2 rounded border border-rose-200 dark:border-rose-800">
+                      RETUR {retQ}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[8.5px] font-nominal font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap flex items-center gap-1">
+                  {retQ > 0 ? (
+                    <span title={`Qty Awal: ${rawQ}, Retur: ${retQ}, Ditagihkan: ${finQ}`}>
+                      <span className="line-through text-slate-400">{rawQ}</span> → <strong className="font-bold text-slate-800 dark:text-slate-200">Ditagihkan {finQ}</strong> × {formatRupiah(it.hargaBeli)}
+                    </span>
+                  ) : (
+                    <span>
+                      {it.qty} × {formatRupiah(it.hargaBeli)}
+                    </span>
+                  )}
+                  {it.cashback && Number(it.cashback) > 0 ? (
+                    <span
+                      className="text-[8px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-1 py-0.5 rounded border border-amber-200 dark:border-amber-800"
+                      title={`Cashback: ${formatRupiah(it.cashback)}`}
+                    >
+                      CB: {formatRupiah(it.cashback)}
+                    </span>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </td>
 
@@ -170,18 +205,24 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
 
       {/* 11. STATUS PAYMENT 1-CLICK TOGGLE */}
       <td className="py-2.5 px-2 text-center whitespace-nowrap align-middle">
-        <button
-          type="button"
-          onClick={() => onToggleBatchPayment(batch)}
-          className={`px-2.5 py-1 rounded-md text-[8.5px] font-black cursor-pointer transition-all active:scale-95 border ${
-            isPaid
-              ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
-              : 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-700 hover:bg-rose-100 dark:hover:bg-rose-900/60'
-          }`}
-          title="Klik untuk ubah status Payment (PAID / UNPAID)"
-        >
-          {isPaid ? 'PAID' : 'UNPAID'}
-        </button>
+        {batch.isCancelled ? (
+          <span className="px-2.5 py-1 rounded-md text-[8.5px] font-black bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 inline-block">
+            CANCELLED
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onToggleBatchPayment(batch)}
+            className={`px-2.5 py-1 rounded-md text-[8.5px] font-black cursor-pointer transition-all active:scale-95 border ${
+              isPaid
+                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
+                : 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-700 hover:bg-rose-100 dark:hover:bg-rose-900/60'
+            }`}
+            title="Klik untuk ubah status Payment (PAID / UNPAID)"
+          >
+            {isPaid ? 'PAID' : 'UNPAID'}
+          </button>
+        )}
       </td>
 
       {/* 12. AKSI */}
@@ -195,14 +236,16 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
           >
             <Eye className="w-3.5 h-3.5 stroke-[2.5]" />
           </button>
+          {/* Tombol Cetak: Ada cashback -> popup varian, tidak ada -> langsung cetak Ori */}
           <button
             type="button"
-            onClick={handleExportPdf}
+            onClick={handlePrintClick}
             className="w-7 h-7 flex items-center justify-center rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold shadow-2xs transition-all active:scale-95 border border-amber-500/80 cursor-pointer"
-            title={`1-Click Export Invoice PDF Dapur ${batch.tujuanDapur}`}
+            title={hasCashback ? `Pilih Varian Invoice Dapur ${batch.tujuanDapur} (Ada Cashback)` : `Cetak Invoice PDF Dapur ${batch.tujuanDapur}`}
           >
             <Printer className="w-3.5 h-3.5 stroke-[2.5]" />
           </button>
+
           <button
             type="button"
             onClick={handleDelete}
@@ -228,6 +271,15 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
             <MoreVertical className="w-3.5 h-3.5" />
           </button>
         </div>
+
+        {/* Portal Popup Pilihan Varian */}
+        <PrintVariantDropdownPortal
+          isOpen={!!printMenuRect}
+          targetRect={printMenuRect}
+          onClose={() => setPrintMenuRect(null)}
+          onSelectVariant={handleExportVariant}
+          hasCashbackItem={hasCashback}
+        />
       </td>
     </tr>
   );

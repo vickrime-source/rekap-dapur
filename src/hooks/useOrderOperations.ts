@@ -291,6 +291,10 @@ export function useOrderOperations({
     }
 
     const createdDate = getNowWIBISOString();
+    const sharedNotaId =
+      validItems.find((i: any) => i.nota_id || i.notaId)?.nota_id ||
+      validItems.find((i: any) => i.nota_id || i.notaId)?.notaId ||
+      `nota-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
     const newOrdersAdded: OrderItem[] = validItems.map((item, idx) => {
       const curToko = ((item as any).toko || '').trim();
@@ -302,6 +306,9 @@ export function useOrderOperations({
       const fTokoId = (item as any).toko_id || (item as any).tokoId || masterToko.find((t) => t.nama.toLowerCase() === curToko.toLowerCase())?.id || '';
       const fPemasokId = (item as any).pemasok_id || (item as any).pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === curPemasok.toLowerCase())?.id || '';
       const fDapurId = (item as any).dapur_id || (item as any).dapurId || masterDapur.find((d) => d.nama.toLowerCase() === curDapur.toLowerCase() || d.nama.toLowerCase() === cleanD)?.id || '';
+
+      const rawQ = Number(item.qty) || 0;
+      const rawQBeli = (item as any).qty_beli !== undefined ? Number((item as any).qty_beli) : ((item as any).qtyBeli !== undefined ? Number((item as any).qtyBeli) : rawQ);
 
       const mappedOrder: OrderItem = {
         ...item,
@@ -315,6 +322,11 @@ export function useOrderOperations({
         pemasokId: fPemasokId,
         dapur_id: fDapurId,
         dapurId: fDapurId,
+        qty: rawQ,
+        qtyBeli: rawQBeli,
+        qty_beli: rawQBeli,
+        notaId: sharedNotaId,
+        nota_id: sharedNotaId,
         id: `ord-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
         createdAt: createdDate,
       };
@@ -339,8 +351,23 @@ export function useOrderOperations({
 
     if (newOrdersAdded.length > 0) {
       const firstItem = newOrdersAdded[0];
-      const totalBeli = newOrdersAdded.reduce((sum, it) => sum + Number(it.qty || 0) * Number(it.hargaBeli || 0), 0);
-      const totalJual = newOrdersAdded.reduce((sum, it) => sum + Number(it.qty || 0) * Number(it.hargaJual || it.hargaBeli || 0), 0);
+      const totalBeli = newOrdersAdded.reduce((sum, it) => {
+        const rawQJ = Number(it.qty || 0);
+        const rawQB = (it as any).qtyBeli !== undefined && (it as any).qtyBeli !== null
+          ? Number((it as any).qtyBeli)
+          : ((it as any).qty_beli !== undefined && (it as any).qty_beli !== null
+            ? Number((it as any).qty_beli)
+            : rawQJ);
+        const rt = Math.max(0, Number(it.retur) || 0);
+        const qbe = Math.max(0, rawQB - rt);
+        return sum + qbe * Number(it.hargaBeli || 0);
+      }, 0);
+      const totalJual = newOrdersAdded.reduce((sum, it) => {
+        const rawQJ = Number(it.qty || 0);
+        const rt = Math.max(0, Number(it.retur) || 0);
+        const qf = Math.max(0, rawQJ - rt);
+        return sum + qf * Number(it.hargaJual || it.hargaBeli || 0);
+      }, 0);
       const newInvoiceRec: InvoiceRecord = {
         id: `tx-${Date.now()}`,
         invoiceNumber: `TRX-${Date.now().toString().slice(-6)}`,
@@ -394,11 +421,24 @@ export function useOrderOperations({
           if (targetOrder) {
             const res = await deleteOrderFromDb(targetOrder.id);
             if (!res.success) {
-              showToast(`Gagal menghapus dari database: ${res.error || 'Terjadi kesalahan'}`, 'error');
-              setDbError(res.error || 'Gagal menghapus data');
+              showToast(`Gagal membatalkan di database: ${res.error || 'Terjadi kesalahan'}`, 'error');
+              setDbError(res.error || 'Gagal membatalkan data');
               return;
             }
-            setOrders((prev) => prev.filter((o) => o.id !== id));
+            setOrders((prev) =>
+              prev.map((o) =>
+                o.id === id
+                  ? {
+                      ...o,
+                      status: 'CANCELLED',
+                      statusPembatalan: 'DIBATALKAN',
+                      status_pembatalan: 'DIBATALKAN',
+                      cancelledAt: new Date().toISOString(),
+                      cancelled_at: new Date().toISOString(),
+                    }
+                  : o
+              )
+            );
 
             const remainingOrdersInBatch = orders.filter(
               (o) =>
@@ -439,8 +479,23 @@ export function useOrderOperations({
                 prev.map((inv) => {
                   if (inv.items && Array.isArray(inv.items) && inv.items.some((it) => it.id === id)) {
                     const filteredItems = inv.items.filter((it) => it.id !== id);
-                    const newTotalBeli = filteredItems.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.hargaBeli) || 0), 0);
-                    const newTotalJual = filteredItems.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.hargaJual || it.hargaBeli) || 0), 0);
+                    const newTotalBeli = filteredItems.reduce((s, it) => {
+                      const rawQJ = Number(it.qty || 0);
+                      const rawQB = (it as any).qtyBeli !== undefined && (it as any).qtyBeli !== null
+                        ? Number((it as any).qtyBeli)
+                        : ((it as any).qty_beli !== undefined && (it as any).qty_beli !== null
+                          ? Number((it as any).qty_beli)
+                          : rawQJ);
+                      const rt = Math.max(0, Number(it.retur) || 0);
+                      const qbe = Math.max(0, rawQB - rt);
+                      return s + qbe * (Number(it.hargaBeli) || 0);
+                    }, 0);
+                    const newTotalJual = filteredItems.reduce((s, it) => {
+                      const rawQJ = Number(it.qty || 0);
+                      const rt = Math.max(0, Number(it.retur) || 0);
+                      const qf = Math.max(0, rawQJ - rt);
+                      return s + qf * (Number(it.hargaJual || it.hargaBeli) || 0);
+                    }, 0);
                     return {
                       ...inv,
                       items: filteredItems,
@@ -501,7 +556,20 @@ export function useOrderOperations({
           }
 
           const itemIds = new Set(ids);
-          setOrders((prev) => prev.filter((o) => !itemIds.has(o.id)));
+          setOrders((prev) =>
+            prev.map((o) =>
+              itemIds.has(o.id)
+                ? {
+                    ...o,
+                    status: 'CANCELLED',
+                    statusPembatalan: 'DIBATALKAN',
+                    status_pembatalan: 'DIBATALKAN',
+                    cancelledAt: new Date().toISOString(),
+                    cancelled_at: new Date().toISOString(),
+                  }
+                : o
+            )
+          );
 
           const batchTanggal = first.tanggal;
           const batchToko = first.toko || '';

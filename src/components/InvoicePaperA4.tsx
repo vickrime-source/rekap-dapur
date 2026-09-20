@@ -16,6 +16,7 @@ interface InvoicePaperA4Props {
   sisa: number;
   scale?: number;
   id?: string;
+  priceVariant?: 'ori' | 'cashback';
 }
 
 export const InvoicePaperA4 = React.forwardRef<HTMLDivElement, InvoicePaperA4Props>(({
@@ -30,6 +31,7 @@ export const InvoicePaperA4 = React.forwardRef<HTMLDivElement, InvoicePaperA4Pro
   sisa,
   scale = 1,
   id = 'invoice-paper-a4',
+  priceVariant = 'ori',
 }, ref) => {
   return (
     <div
@@ -85,52 +87,94 @@ export const InvoicePaperA4 = React.forwardRef<HTMLDivElement, InvoicePaperA4Pro
       </div>
 
       {/* TABLE SECTION */}
-      <table className="w-full border-collapse border border-slate-900 text-xs mb-5">
+      <table className="w-full border-collapse border border-slate-900 text-xs mb-5" style={{ tableLayout: 'fixed' }}>
+        <colgroup>
+          <col style={{ width: '45px' }} />
+          <col style={{ width: '115px' }} />
+          <col style={{ width: 'auto' }} />
+          <col style={{ width: '125px' }} />
+          <col style={{ width: '135px' }} />
+        </colgroup>
         <thead>
           <tr
             style={{
               backgroundColor: styleConfig.headerBg,
               color: styleConfig.headerText,
             }}
-            className="font-extrabold text-center text-[11px]"
+            className="font-extrabold text-[11px]"
           >
-            <th className="border border-slate-900 px-2 py-2 w-10 text-center align-middle">NO</th>
-            <th className="border border-slate-900 px-2 py-2 w-24 text-center align-middle">BANYAKNYA</th>
-            <th className="border border-slate-900 px-3 py-2 text-center align-middle">NAMA ITEM</th>
-            <th className="border border-slate-900 px-3 py-2 w-28 text-center align-middle">HARGA</th>
-            <th className="border border-slate-900 px-3 py-2 w-32 text-center align-middle">JUMLAH</th>
+            <th className="border border-slate-900 px-1 py-2 text-center align-middle leading-normal" style={{ verticalAlign: 'middle', textAlign: 'center' }}>
+              NO
+            </th>
+            <th className="border border-slate-900 px-2 py-2 text-center align-middle leading-normal" style={{ verticalAlign: 'middle', textAlign: 'center' }}>
+              BANYAKNYA
+            </th>
+            <th className="border border-slate-900 px-2 py-2 text-center align-middle leading-normal" style={{ verticalAlign: 'middle', textAlign: 'center' }}>
+              NAMA ITEM
+            </th>
+            <th className="border border-slate-900 px-2 py-2 text-center align-middle leading-normal" style={{ verticalAlign: 'middle', textAlign: 'center' }}>
+              HARGA
+            </th>
+            <th className="border border-slate-900 px-2 py-2 text-center align-middle leading-normal" style={{ verticalAlign: 'middle', textAlign: 'center' }}>
+              JUMLAH
+            </th>
           </tr>
         </thead>
         <tbody>
           {items.map((item, idx) => {
-            const q = parseIndonesianNumber(item.qty);
-            const p = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+            const rawQ = parseIndonesianNumber(item.qty);
+            const retQ = Math.min(rawQ, Math.max(0, Number(item.retur) || 0));
+            const q = Math.max(0, rawQ - retQ);
+            const hargaJual = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+            const cb = Number(item.cashback) || 0;
+            const p = (priceVariant === 'cashback' && cb > 0) ? cb : hargaJual;
             return (
               <tr key={idx} className="border border-slate-900 text-[11px]">
-                <td className="border border-slate-900 px-2 py-2 text-center align-middle text-slate-700">{idx + 1}</td>
-                <td className="border border-slate-900 px-2 py-2 text-center align-middle font-bold">{q}</td>
-                <td className="border border-slate-900 px-3 py-2 text-left align-middle font-medium">{item.namaBarang}</td>
-                <td className="border border-slate-900 px-3 py-2 text-center align-middle tabular-nums whitespace-nowrap">{formatRupiah(p)}</td>
-                <td className="border border-slate-900 px-3 py-2 text-center align-middle font-bold tabular-nums whitespace-nowrap">{formatRupiah(q * p)}</td>
+                <td className="border border-slate-900 px-1.5 py-2 text-center align-middle text-slate-700" style={{ verticalAlign: 'middle', textAlign: 'center' }}>{idx + 1}</td>
+                <td className="border border-slate-900 px-2 py-2 text-center align-middle font-bold whitespace-nowrap" style={{ verticalAlign: 'middle', textAlign: 'center' }}>
+                  {retQ > 0 ? (
+                    <span className="inline-block align-middle whitespace-nowrap leading-tight text-[11px] text-center">
+                      <span className="text-slate-700 font-normal">{rawQ}</span>
+                      <span className="text-slate-500 font-normal mx-0.5">-</span>
+                      <span className="text-red-600 font-bold">{retQ}</span>
+                      <span className="text-slate-500 font-normal mx-0.5">=</span>
+                      <span className="text-slate-900 font-bold">{q}</span>
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-slate-900 font-bold" style={{ verticalAlign: 'middle', lineHeight: 1 }}>{q}</span>
+                  )}
+                </td>
+                <td className="border border-slate-900 px-3 py-2 text-left align-middle font-medium text-slate-900" style={{ verticalAlign: 'middle', textAlign: 'left' }}>
+                  <div className="leading-tight" style={{ verticalAlign: 'middle' }}>
+                    <span className="align-middle">{item.namaBarang}</span>
+                    {retQ > 0 && (
+                      <span className="text-red-600 font-bold text-[10px] whitespace-nowrap align-middle ml-2">
+                        Retur
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="border border-slate-900 px-3 py-2 text-center align-middle tabular-nums whitespace-nowrap" style={{ verticalAlign: 'middle', textAlign: 'center' }}>{formatRupiah(p)}</td>
+                <td className="border border-slate-900 px-3 py-2 text-center align-middle font-bold tabular-nums whitespace-nowrap" style={{ verticalAlign: 'middle', textAlign: 'center' }}>{formatRupiah(q * p)}</td>
               </tr>
             );
           })}
         </tbody>
         <tfoot>
           <tr className="font-bold text-[11px]">
-            <td colSpan={3} className="border border-slate-900 bg-white"></td>
-            <td className="border border-slate-900 px-2 py-1.5 text-center bg-slate-50 font-extrabold tracking-wider">TOTAL</td>
-            <td className="border border-slate-900 px-3 py-1.5 text-right font-extrabold tabular-nums whitespace-nowrap">{formatRupiah(totalJual)}</td>
+            <td colSpan={3} className="border border-slate-900 bg-white" style={{ verticalAlign: 'middle' }}></td>
+            <td className="border border-slate-900 px-3 py-2 text-center align-middle bg-slate-50 font-extrabold tracking-wider" style={{ verticalAlign: 'middle', textAlign: 'center' }}>TOTAL</td>
+            <td className="border border-slate-900 px-3 py-2 text-center align-middle font-extrabold tabular-nums whitespace-nowrap" style={{ verticalAlign: 'middle', textAlign: 'center' }}>{formatRupiah(totalJual)}</td>
           </tr>
           <tr className="font-bold text-[11px]">
-            <td colSpan={3} className="border border-slate-900 bg-white"></td>
-            <td className="border border-slate-900 px-2 py-1.5 text-center bg-slate-50 font-medium tracking-wider">BAYAR</td>
-            <td className="border border-slate-900 px-3 py-1.5 text-right font-medium tabular-nums whitespace-nowrap">{formatRupiah(bayar)}</td>
+            <td colSpan={3} className="border border-slate-900 bg-white" style={{ verticalAlign: 'middle' }}></td>
+            <td className="border border-slate-900 px-3 py-2 text-center align-middle bg-slate-50 font-medium tracking-wider" style={{ verticalAlign: 'middle', textAlign: 'center' }}>BAYAR</td>
+            <td className="border border-slate-900 px-3 py-2 text-center align-middle font-medium tabular-nums whitespace-nowrap" style={{ verticalAlign: 'middle', textAlign: 'center' }}>{formatRupiah(bayar)}</td>
           </tr>
           <tr className="font-bold text-[11px]">
-            <td colSpan={3} className="border border-slate-900 bg-white"></td>
-            <td className="border border-slate-900 px-2 py-1.5 text-center bg-slate-50 font-extrabold text-rose-700 tracking-wider">SISA</td>
-            <td className="border border-slate-900 px-3 py-1.5 text-right font-black text-rose-700 tabular-nums whitespace-nowrap">{formatRupiah(sisa)}</td>
+            <td colSpan={3} className="border border-slate-900 bg-white" style={{ verticalAlign: 'middle' }}></td>
+            <td className="border border-slate-900 px-3 py-2 text-center align-middle bg-slate-50 font-extrabold text-rose-700 tracking-wider" style={{ verticalAlign: 'middle', textAlign: 'center' }}>SISA</td>
+            <td className="border border-slate-900 px-3 py-2 text-center align-middle font-black text-rose-700 tabular-nums whitespace-nowrap" style={{ verticalAlign: 'middle', textAlign: 'center' }}>{formatRupiah(sisa)}</td>
           </tr>
         </tfoot>
       </table>

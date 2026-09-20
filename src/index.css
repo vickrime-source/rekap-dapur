@@ -2,6 +2,21 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --color-slate-950: #08080a;
+  --color-slate-900: #101114;
+  --color-slate-850: #141519;
+  --color-slate-800: #191a1f;
+  --color-slate-700: #25272e;
+  --color-slate-600: #40434c;
+  --color-slate-500: #686d79;
+  --color-slate-400: #9499a4;
+  --color-slate-300: #c0c4cd;
+  --color-slate-200: #dfe1e6;
+  --color-slate-100: #eff0f3;
+  --color-slate-50: #f8f9fa;
+}
+
 :root {
   --app-bg: #eef2f6;
   --surface-bg: #ffffff;
@@ -15,20 +30,39 @@
 }
 
 html.dark {
-  --app-bg: #090d16;
-  --surface-bg: #0f172a;
-  --surface-card: #131b2e;
-  --surface-secondary: #1a233a;
-  --border-subtle: #1e293b;
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
+  /* Slate neutral dark mapping - replaces Tailwind slate's heavy blue/navy tint with true dark neutral/charcoal tones */
+  --color-slate-950: #08080a;
+  --color-slate-900: #101114;
+  --color-slate-850: #141519;
+  --color-slate-800: #191a1f;
+  --color-slate-700: #25272e;
+  --color-slate-600: #40434c;
+  --color-slate-500: #686d79;
+  --color-slate-400: #9499a4;
+  --color-slate-300: #c0c4cd;
+  --color-slate-200: #dfe1e6;
+  --color-slate-100: #eff0f3;
+  --color-slate-50: #f8f9fa;
+
+  /* App surfaces (True Dark Charcoal) */
+  --app-bg: #090a0c;
+  --surface-bg: #101114;
+  --surface-card: #131418;
+  --surface-secondary: #191a1f;
+  --border-subtle: #24262d;
+  --text-primary: #f3f4f6;
+  --text-secondary: #c0c4cd;
+  --text-muted: #9499a4;
   color-scheme: dark;
 }
 
 @layer base {
   *, ::before, ::after {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  }
+  /* Fix html2canvas FontMetrics bug where Tailwind's img { display: block } causes all text in canvas to shift down */
+  img {
+    display: inline-block;
   }
   body {
     background: var(--app-bg);
@@ -49,8 +83,8 @@ html.dark {
   html.dark option,
   html.dark optgroup {
     color-scheme: dark !important;
-    background-color: #0f172a !important;
-    color: #f8fafc !important;
+    background-color: #101114 !important;
+    color: #f3f4f6 !important;
   }
 
   html:not(.dark) select,
@@ -221,39 +255,39 @@ html.dark {
 
 /* Dark Mode Overrides for Clay Classes */
 html.dark .clay-card {
-  background: #131b2e;
-  border-color: #1e293b;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  background: #131418;
+  border-color: #24262d;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6);
 }
 
 html.dark .clay-card-flat {
-  background: #0f172a;
-  border-color: #1e293b;
-  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.4);
+  background: #101114;
+  border-color: #24262d;
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.6);
 }
 
 html.dark .clay-btn {
-  background: #1e293b;
-  border-color: #334155;
-  color: #f8fafc;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  background: #191a1f;
+  border-color: #2a2d36;
+  color: #f3f4f6;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
 }
 html.dark .clay-btn:hover {
-  background: #334155;
-  border-color: #475569;
+  background: #25272e;
+  border-color: #383c48;
 }
 html.dark .clay-btn:active {
-  background: #0f172a;
+  background: #101114;
 }
 
 html.dark .clay-input {
-  background: #0f172a;
-  border-color: #334155;
-  color: #f8fafc;
-  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.4);
+  background: #101114;
+  border-color: #25272e;
+  color: #f3f4f6;
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.5);
 }
 html.dark .clay-input:focus {
-  background: #131b2e;
+  background: #131418;
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }

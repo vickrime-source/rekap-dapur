@@ -15,6 +15,8 @@ export interface TransactionBatch {
   totalJual?: number;
   totalLabaBersih?: number;
   totalKeKoperasi?: number;
+  isCancelled?: boolean;
+  status?: string;
   items: OrderItem[];
   catatan?: string;
   rowIndex?: number;

@@ -84,6 +84,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
   const [hargaJual, setHargaJual] = useState<number>(0);
   const [tanggal, setTanggal] = useState(selectedDate || getTodayWIB());
   const [catatanAwal, setCatatanAwal] = useState('');
+  const [activeItemIndex, setActiveItemIndex] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -141,12 +142,58 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
     return pool.filter((p) => p.nama.toLowerCase().includes(q));
   }, [pemasok, masterPemasok, availablePemasok]);
 
+  const applyItemData = (itemNama: string, itemQty: number | string, itemSatuan: string, itemPemasok?: string) => {
+    setNamaBarang(itemNama);
+    setQty(itemQty && Number(itemQty) > 0 ? itemQty : 1);
+    setSatuan(itemSatuan || 'Kg');
+
+    // Tentukan Toko
+    let initialToko = note?.toko || '';
+    if (!initialToko && itemNama) {
+      const guessed = guessStoreForItem(itemNama, availableStores);
+      if (guessed) initialToko = guessed;
+    }
+    if (!initialToko && availableStores.length > 0) {
+      initialToko = availableStores[0];
+    }
+    setToko(initialToko);
+
+    // Tentukan Pemasok
+    let initialPemasok = itemPemasok || note?.pemasok || '';
+    if (!initialPemasok && availablePemasok.length > 0) {
+      initialPemasok = availablePemasok[0];
+    }
+    setPemasok(initialPemasok);
+
+    // Cek riwayat harga
+    const match = pastPriceHistory.find(
+      (p) => p.namaBarang.toLowerCase() === itemNama.toLowerCase() && (p.hargaBeli > 0 || p.hargaJual > 0)
+    );
+    if (match) {
+      setHargaBeli(Math.round(match.hargaBeli || 0));
+      setHargaJual(Math.round(match.hargaJual || 0));
+    } else {
+      setHargaBeli(0);
+      setHargaJual(0);
+    }
+  };
+
+  const selectItemIndex = (idx: number) => {
+    if (!note || !note.items || !note.items[idx]) return;
+    setActiveItemIndex(idx);
+    const it = note.items[idx];
+    applyItemData(it.namaBarang, it.qty, it.satuan, it.pemasok);
+  };
+
   useEffect(() => {
     if (note && isOpen) {
-      const item = note.namaBarang || note.catatan || '';
-      setNamaBarang(item);
-      setQty(note.qty && note.qty > 0 ? note.qty : 1);
-      setSatuan(note.satuan || 'Kg');
+      setActiveItemIndex(0);
+      const firstItem = note.items && note.items.length > 0 ? note.items[0] : null;
+      const item = firstItem?.namaBarang || note.namaBarang || note.catatan || '';
+      const initialQty = firstItem?.qty || (note.qty && note.qty > 0 ? note.qty : 1);
+      const initialSatuan = firstItem?.satuan || note.satuan || 'Kg';
+      const initialPemasok = firstItem?.pemasok || note.pemasok || '';
+
       setTujuanDapur(note.tujuanDapur || kitchens[0]?.nama || '');
       setTanggal(selectedDate || getTodayWIB());
       setCatatanAwal(note.catatan || '');
@@ -161,35 +208,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
         hargaJual: false,
       });
 
-      // 1. Tentukan Toko: pakai dari note jika ada, atau tebak dari nama barang
-      let initialToko = note.toko || '';
-      if (!initialToko && item) {
-        const guessed = guessStoreForItem(item, availableStores);
-        if (guessed) initialToko = guessed;
-      }
-      if (!initialToko && availableStores.length > 0) {
-        initialToko = availableStores[0];
-      }
-      setToko(initialToko);
-
-      // 2. Tentukan Pemasok: pakai dari note jika ada, atau default dari pemasokList
-      let initialPemasok = note.pemasok || '';
-      if (!initialPemasok && availablePemasok.length > 0) {
-        initialPemasok = availablePemasok[0];
-      }
-      setPemasok(initialPemasok);
-
-      // 3. Cek riwayat harga jika barang pernah dipesan sebelumnya
-      const match = pastPriceHistory.find(
-        (p) => p.namaBarang.toLowerCase() === item.toLowerCase() && (p.hargaBeli > 0 || p.hargaJual > 0)
-      );
-      if (match) {
-        setHargaBeli(Math.round(match.hargaBeli || 0));
-        setHargaJual(Math.round(match.hargaJual || 0));
-      } else {
-        setHargaBeli(0);
-        setHargaJual(0);
-      }
+      applyItemData(item, initialQty, initialSatuan, initialPemasok);
     }
   }, [note, isOpen, selectedDate]);
 
@@ -382,6 +401,32 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
             "{catatanAwal || note.namaBarang || 'Tanpa catatan'}"
           </p>
         </div>
+
+        {/* Multi-Item Selector if note has multiple items */}
+        {note.items && note.items.length > 1 && (
+          <div className="bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/80 rounded-2xl p-3 space-y-2">
+            <div className="flex items-center justify-between text-[10px] font-black uppercase text-indigo-900 dark:text-indigo-300 tracking-wider">
+              <span>Pilih Item untuk Diproses ({note.items.length} Barang):</span>
+              <span className="font-semibold text-slate-500 dark:text-slate-400">Item #{activeItemIndex + 1} aktif</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {note.items.map((it, idx) => (
+                <button
+                  key={it.id || idx}
+                  type="button"
+                  onClick={() => selectItemIndex(idx)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                    activeItemIndex === idx
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/40'
+                  }`}
+                >
+                  {it.namaBarang || `Item #${idx + 1}`} ({it.qty} {it.satuan || 'Kg'})
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* SECTION 1 — DETAIL BARANG */}
         <FormSection

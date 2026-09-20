@@ -37,7 +37,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // Update meta theme-color for mobile browser chrome
       const metaThemeColor = document.querySelector('meta[name="theme-color"]');
       if (metaThemeColor) {
-        metaThemeColor.setAttribute('content', '#090d16');
+        metaThemeColor.setAttribute('content', '#090a0c');
       }
     } else {
       root.classList.remove('dark');

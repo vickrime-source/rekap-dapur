@@ -16,9 +16,10 @@ import {
   Store,
   Truck,
   Search,
-  ChevronDown
+  ChevronDown,
+  Trash2
 } from 'lucide-react';
-import { Kitchen, NoteItem, Store as StoreType, MasterToko, MasterPemasok, MasterDapur, MasterSatuan } from '../types';
+import { Kitchen, NoteItem, FollowUpItemRow, Store as StoreType, MasterToko, MasterPemasok, MasterDapur, MasterSatuan } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { getItemSuggestions } from '../lib/suggestions';
 import { parseVoiceInput } from '../lib/voiceParser';
@@ -64,13 +65,24 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
   const [tujuanDapur, setTujuanDapur] = useState<string>('');
   const [toko, setToko] = useState<string>('');
   const [pemasok, setPemasok] = useState<string>('');
-  const [namaBarang, setNamaBarang] = useState<string>('');
-  const [qty, setQty] = useState<number | string>(1);
-  const [satuan, setSatuan] = useState<string>('Kg');
-  const [catatan, setCatatan] = useState<string>('');
+  
+  // Multi-item items state
+  const [itemRows, setItemRows] = useState<FollowUpItemRow[]>([
+    {
+      id: `item-${Date.now()}`,
+      namaBarang: '',
+      pemasok: '',
+      qty: 1,
+      satuan: 'Kg',
+      catatan: '',
+    },
+  ]);
+  const [catatanUmum, setCatatanUmum] = useState<string>('');
+
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selectedSuggestionIdx, setSelectedSuggestionIdx] = useState<number>(0);
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+  const [activeSuggestionIdx, setActiveSuggestionIdx] = useState<number | null>(null);
 
   const [isDapurOpen, setIsDapurOpen] = useState<boolean>(false);
   const [isPemasokOpen, setIsPemasokOpen] = useState<boolean>(false);
@@ -119,12 +131,20 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
       setTujuanDapur('');
       setToko('');
       setPemasok('');
-      setNamaBarang('');
-      setQty(1);
-      setSatuan('Kg');
-      setCatatan('');
+      setItemRows([
+        {
+          id: `item-${Date.now()}`,
+          namaBarang: '',
+          pemasok: '',
+          qty: 1,
+          satuan: 'Kg',
+          catatan: '',
+        },
+      ]);
+      setCatatanUmum('');
       setSuggestions([]);
       setShowSuggestions(false);
+      setActiveSuggestionIdx(null);
       setVoiceTranscript('');
       setVoiceNotice(null);
       setVoiceError(null);
@@ -145,6 +165,37 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
       stopVoiceRecognition();
     };
   }, [isOpen, kitchens, autoStartVoice]);
+
+  const handleAddItemRow = () => {
+    setItemRows((prev) => [
+      ...prev,
+      {
+        id: `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        namaBarang: '',
+        pemasok: pemasok || '',
+        qty: 1,
+        satuan: 'Kg',
+        catatan: '',
+      },
+    ]);
+  };
+
+  const handleRemoveItemRow = (index: number) => {
+    if (itemRows.length <= 1) return;
+    setItemRows((prev) => prev.filter((_, idx) => idx !== index));
+    if (activeSuggestionIdx === index) {
+      setActiveSuggestionIdx(null);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleUpdateItemRow = (index: number, field: keyof FollowUpItemRow, value: any) => {
+    setItemRows((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
 
   // Clean up speech recognition when unmounting
   const stopVoiceRecognition = () => {
@@ -227,24 +278,31 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
 
     const parsed = parseVoiceInput(text, kitchens);
 
-    // Apply parsed values
-    if (parsed.namaBarang) {
-      setNamaBarang(parsed.namaBarang);
-    }
-    if (parsed.qty) {
-      setQty(parsed.qty);
-    }
-    if (parsed.satuan) {
-      setSatuan(parsed.satuan);
-    }
     if (parsed.tujuanDapur) {
       setTujuanDapur(parsed.tujuanDapur);
     }
-    if (parsed.catatan) {
-      setCatatan(parsed.catatan);
-    } else {
-      setCatatan(`${parsed.namaBarang} ${parsed.qty} ${parsed.satuan}`);
-    }
+
+    setItemRows((prev) => {
+      const emptyIdx = prev.findIndex((r) => !r.namaBarang.trim());
+      const next = [...prev];
+      const newRow: FollowUpItemRow = {
+        id: `item-${Date.now()}`,
+        namaBarang: parsed.namaBarang || text,
+        pemasok: pemasok || '',
+        qty: parsed.qty || 1,
+        satuan: parsed.satuan || 'Kg',
+        catatan: parsed.catatan || '',
+      };
+      if (emptyIdx !== -1) {
+        next[emptyIdx] = newRow;
+      } else {
+        next.push(newRow);
+      }
+      return next;
+    });
+
+    const autoStore = guessStoreForItem(parsed.namaBarang, availableStores);
+    if (autoStore && !toko) setToko(autoStore);
 
     setVoiceNotice(`✓ Berhasil: "${parsed.namaBarang}" sebanyak ${parsed.qty} ${parsed.satuan}`);
   };
@@ -258,12 +316,12 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
     }
   };
 
-  // Update suggestions when user types namaBarang (Debounced 150ms)
-  const handleItemChange = (val: string) => {
-    setNamaBarang(val);
-    // Auto-select toko berdasarkan nama barang (bisa diganti/pilih manual)
+  // Update suggestions when user types namaBarang in a row
+  const handleItemNameChange = (idx: number, val: string) => {
+    handleUpdateItemRow(idx, 'namaBarang', val);
+
     const autoStore = guessStoreForItem(val, availableStores);
-    if (autoStore) {
+    if (autoStore && !toko) {
       setToko(autoStore);
     }
 
@@ -276,17 +334,19 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
         const results = getItemSuggestions(val, existingItemNames, 8);
         setSuggestions(results);
         setSelectedSuggestionIdx(0);
+        setActiveSuggestionIdx(idx);
         setShowSuggestions(results.length > 0);
       }, 150);
     } else {
       setSuggestions([]);
       setShowSuggestions(false);
+      setActiveSuggestionIdx(null);
     }
   };
 
   // Keyboard navigation & Enter selection for suggestions
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (showSuggestions && suggestions.length > 0) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, idx: number) => {
+    if (showSuggestions && activeSuggestionIdx === idx && suggestions.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSelectedSuggestionIdx((prev) => (prev + 1) % suggestions.length);
@@ -297,42 +357,71 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
         e.preventDefault();
         const chosen = suggestions[selectedSuggestionIdx];
         if (chosen) {
-          setNamaBarang(chosen);
-          const autoStore = guessStoreForItem(chosen, availableStores);
-          if (autoStore) setToko(autoStore);
-          setShowSuggestions(false);
+          handleSelectSuggestion(idx, chosen);
         }
       }
     }
   };
 
-  const handleSelectSuggestion = (item: string) => {
-    setNamaBarang(item);
+  const handleSelectSuggestion = (idx: number, item: string) => {
+    handleUpdateItemRow(idx, 'namaBarang', item);
     const autoStore = guessStoreForItem(item, availableStores);
-    if (autoStore) setToko(autoStore);
+    if (autoStore && !toko) setToko(autoStore);
     setShowSuggestions(false);
-    inputRef.current?.focus();
+    setActiveSuggestionIdx(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!catatan.trim() && !namaBarang.trim()) {
-      alert('Mohon isi nama barang atau isi catatan follow up.');
+
+    const validRows = itemRows.filter(
+      (r) => r.namaBarang.trim() !== '' || (r.catatan && r.catatan.trim() !== '')
+    );
+
+    if (validRows.length === 0 && !catatanUmum.trim()) {
+      alert('Mohon lengkapi minimal satu nama barang atau catatan follow up.');
       return;
     }
 
-    const numQty = typeof qty === 'number' ? qty : parseFloat(String(qty).replace(',', '.')) || 1;
-    const itemNama = namaBarang.trim();
-    const finalCatatan = catatan.trim() || (itemNama ? `${itemNama} ${numQty} ${satuan}` : 'Catatan Dapur');
+    const itemsToSave: FollowUpItemRow[] = validRows.length > 0
+      ? validRows.map((r, idx) => ({
+          id: r.id || `item-${idx + 1}`,
+          namaBarang: r.namaBarang.trim(),
+          pemasok: (r.pemasok || pemasok || '').trim(),
+          qty: typeof r.qty === 'number' ? r.qty : parseFloat(String(r.qty).replace(',', '.')) || 1,
+          satuan: (r.satuan || 'Kg').trim(),
+          catatan: (r.catatan || '').trim(),
+        }))
+      : [
+          {
+            id: `item-${Date.now()}`,
+            namaBarang: 'Catatan Dapur',
+            pemasok: pemasok.trim(),
+            qty: 1,
+            satuan: 'Kg',
+            catatan: catatanUmum.trim(),
+          },
+        ];
+
+    const firstItem = itemsToSave[0];
+    const summaryCatatan = catatanUmum.trim() || itemsToSave
+      .map((it) => {
+        let desc = `${it.namaBarang} ${it.qty} ${it.satuan}`;
+        if (it.pemasok) desc += ` (Pemasok: ${it.pemasok})`;
+        if (it.catatan) desc += ` - ${it.catatan}`;
+        return desc;
+      })
+      .join('; ');
 
     onSave({
       tujuanDapur: tujuanDapur || '',
       toko: toko || undefined,
-      pemasok: pemasok || undefined,
-      namaBarang: itemNama || undefined,
-      qty: numQty,
-      satuan: satuan || 'Kg',
-      catatan: finalCatatan,
+      pemasok: firstItem.pemasok || pemasok || undefined,
+      namaBarang: firstItem.namaBarang,
+      qty: firstItem.qty,
+      satuan: firstItem.satuan,
+      catatan: summaryCatatan,
+      items: itemsToSave,
       isDone: false,
     });
 
@@ -556,126 +645,188 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
               </div>
             </div>
 
-            {/* Nama Barang with Smart Autocomplete Engine */}
-            <div className="relative">
-              <label className="block text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-1">
-                <Tag className="w-3 h-3 text-slate-700 dark:text-slate-300" />
-                <span>NAMA BARANG</span>
-              </label>
+            {/* Multi-Item Section */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>DAFTAR ITEM BARANG FOLLOW UP ({itemRows.length})</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleAddItemRow}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 rounded-lg transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>+ Tambah Item Barang</span>
+                </button>
+              </div>
 
-              <input
-                ref={inputRef}
-                type="text"
-                placeholder="Nama barang..."
-                value={namaBarang}
-                onChange={(e) => handleItemChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onFocus={() => {
-                  if (namaBarang.trim().length >= 1) {
-                    const results = getItemSuggestions(namaBarang, existingItemNames, 8);
-                    setSuggestions(results);
-                    setShowSuggestions(results.length > 0);
-                  }
-                }}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition-all"
-              />
-
-              {/* Suggestion Dropdown Popover */}
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-20 overflow-hidden py-1 divide-y divide-slate-100 dark:divide-slate-800 max-h-60 overflow-y-auto">
-                  <div className="sticky top-0 px-2.5 py-1 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-slate-800 flex items-center justify-between z-10">
-                    <span>Saran Otomatis (Tekan Enter / Klik)</span>
-                    <span className="font-mono text-[8px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-1 rounded">↵ Enter</span>
-                  </div>
-                  {suggestions.map((sug, idx) => (
-                    <button
-                      key={sug}
-                      type="button"
-                      onClick={() => handleSelectSuggestion(sug)}
-                      onMouseEnter={() => setSelectedSuggestionIdx(idx)}
-                      className={`w-full px-3 py-1.5 text-left text-xs font-extrabold flex items-center justify-between transition-colors cursor-pointer ${
-                        idx === selectedSuggestionIdx
-                          ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300'
-                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                      }`}
-                    >
-                      <span>{sug}</span>
-                      <span className="text-[9px] text-slate-400 dark:text-slate-500 font-normal">Pilih</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Quick Suggestion Pills */}
-            {!showSuggestions && (
-              <div className="flex flex-wrap gap-1 items-center pt-0.5">
-                <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500">Paling Sering:</span>
-                {['Ayam Potong', 'Ikan Lele', 'Telur Ayam', 'Bawang Merah', 'Bayam', 'Beras'].map((quick) => (
-                  <button
-                    key={quick}
-                    type="button"
-                    onClick={() => handleSelectSuggestion(quick)}
-                    className="text-[9.5px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-700 dark:hover:text-indigo-300 px-2 py-0.5 rounded-lg border border-slate-200/80 dark:border-slate-700 transition-colors cursor-pointer"
+              {/* List of item rows */}
+              <div className="space-y-3">
+                {itemRows.map((row, idx) => (
+                  <div
+                    key={row.id || idx}
+                    className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2.5 relative"
                   >
-                    +{quick}
-                  </button>
+                    <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 dark:border-slate-700/60">
+                      <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        Item #{idx + 1}
+                      </span>
+                      {itemRows.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItemRow(idx)}
+                          className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-md transition-colors cursor-pointer"
+                          title="Hapus Item"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Nama Barang with Autocomplete */}
+                    <div className="relative">
+                      <label className="block text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                        NAMA BARANG
+                      </label>
+                      <input
+                        ref={idx === 0 ? inputRef : undefined}
+                        type="text"
+                        placeholder="Contoh: Ayam Potong, Bawang Merah..."
+                        value={row.namaBarang}
+                        onChange={(e) => handleItemNameChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, idx)}
+                        onFocus={() => {
+                          if (row.namaBarang.trim().length >= 1) {
+                            const results = getItemSuggestions(row.namaBarang, existingItemNames, 8);
+                            setSuggestions(results);
+                            setSelectedSuggestionIdx(0);
+                            setActiveSuggestionIdx(idx);
+                            setShowSuggestions(results.length > 0);
+                          }
+                        }}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 transition-all"
+                      />
+
+                      {/* Autocomplete suggestions popover */}
+                      {showSuggestions && activeSuggestionIdx === idx && suggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-30 overflow-hidden py-1 divide-y divide-slate-100 dark:divide-slate-800 max-h-52 overflow-y-auto">
+                          <div className="sticky top-0 px-2.5 py-1 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-slate-800 flex items-center justify-between z-10">
+                            <span>Saran Otomatis</span>
+                            <span className="font-mono text-[8px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-1 rounded">↵ Enter</span>
+                          </div>
+                          {suggestions.map((sug, sIdx) => (
+                            <button
+                              key={sug}
+                              type="button"
+                              onClick={() => handleSelectSuggestion(idx, sug)}
+                              onMouseEnter={() => setSelectedSuggestionIdx(sIdx)}
+                              className={`w-full px-3 py-1.5 text-left text-xs font-extrabold flex items-center justify-between transition-colors cursor-pointer ${
+                                sIdx === selectedSuggestionIdx
+                                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300'
+                                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              <span>{sug}</span>
+                              <span className="text-[9px] text-slate-400 dark:text-slate-500 font-normal">Pilih</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Qty & Satuan & Pemasok (3-column grid) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {/* Qty */}
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-1">
+                          <Scale className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                          <span>JUMLAH</span>
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0.1"
+                          required
+                          placeholder="1"
+                          value={row.qty}
+                          onChange={(e) => handleUpdateItemRow(idx, 'qty', e.target.value)}
+                          className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500 transition-all"
+                        />
+                      </div>
+
+                      {/* Satuan */}
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                          <span>SATUAN</span>
+                        </label>
+                        <SatuanAutocomplete
+                          value={row.satuan || 'Kg'}
+                          onChange={(val) => handleUpdateItemRow(idx, 'satuan', val)}
+                          masterSatuan={masterSatuan}
+                          onAddMasterSatuan={async (nama) => {
+                            if (onAddMasterSatuan) return await onAddMasterSatuan(nama);
+                            const res = await saveMasterSatuanToDb(nama);
+                            if (res.success && onRefreshMaster) await onRefreshMaster();
+                            return { success: res.success, error: res.error };
+                          }}
+                          onRefreshMaster={onRefreshMaster}
+                        />
+                      </div>
+
+                      {/* Pemasok item */}
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-1">
+                          <Truck className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                          <span>PEMASOK ITEM</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder={pemasok || 'Pemasok barang...'}
+                          value={row.pemasok || ''}
+                          onChange={(e) => handleUpdateItemRow(idx, 'pemasok', e.target.value)}
+                          className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Catatan Per Item */}
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Catatan khusus item ini (opsional, misal: potong 8, tanpa kepala)..."
+                        value={row.catatan || ''}
+                        onChange={(e) => handleUpdateItemRow(idx, 'catatan', e.target.value)}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 transition-all"
+                      />
+                    </div>
+                  </div>
                 ))}
               </div>
-            )}
 
-            {/* INPUT QTY KG DI NOTES DI BAWAH NAMA BARANG (Requirement #3) */}
-            <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
-              <div className="grid grid-cols-2 gap-2.5">
-                {/* Input QTY */}
-                <div>
-                  <label className="block text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-1">
-                    <Scale className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                    <span>JUMLAH / QTY</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0.1"
-                    required
-                    placeholder="Contoh: 4"
-                    value={qty}
-                    onChange={(e) => setQty(e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500 transition-all"
-                  />
-                </div>
-
-                {/* Input SATUAN (kg, pcs, ikat, dll) */}
-                <div>
-                  <label className="block text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-1">
-                    <span>SATUAN</span>
-                  </label>
-                  <SatuanAutocomplete
-                    value={satuan}
-                    onChange={setSatuan}
-                    masterSatuan={masterSatuan}
-                    onAddMasterSatuan={async (nama) => {
-                      if (onAddMasterSatuan) return await onAddMasterSatuan(nama);
-                      const res = await saveMasterSatuanToDb(nama);
-                      if (res.success && onRefreshMaster) await onRefreshMaster();
-                      return { success: res.success, error: res.error };
-                    }}
-                  />
-                </div>
-              </div>
+              {/* Button Tambah Item */}
+              <button
+                type="button"
+                onClick={handleAddItemRow}
+                className="w-full py-2 px-3 border-2 border-dashed border-indigo-200 dark:border-indigo-800 hover:border-indigo-400 dark:hover:border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/30 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 rounded-xl text-xs font-bold text-indigo-700 dark:text-indigo-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Tambah Item Barang Lainnya</span>
+              </button>
             </div>
 
-            {/* Isi Catatan Follow Up */}
+            {/* Isi Catatan Umum Follow Up */}
             <div>
               <label className="block text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-1">
                 <FileText className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                <span>ISI CATATAN / KETERANGAN FOLLOW UP</span>
+                <span>CATATAN UMUM / KETERANGAN FOLLOW UP</span>
               </label>
               <textarea
                 rows={2}
-                placeholder="Isi catatan..."
-                value={catatan}
-                onChange={(e) => setCatatan(e.target.value)}
+                placeholder="Catatan umum follow up (opsional)..."
+                value={catatanUmum}
+                onChange={(e) => setCatatanUmum(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition-all resize-none"
               />
             </div>

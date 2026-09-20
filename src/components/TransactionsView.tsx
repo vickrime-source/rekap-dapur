@@ -6,7 +6,8 @@ import {
   DeliveryStatus, 
   Store as StoreType, 
   DashboardPeriod,
-  PeriodSummaryStats
+  PeriodSummaryStats,
+  InvoicePriceVariant
 } from '../types';
 import { getTodayWIB } from '../lib/formatters';
 import { fetchPeriodSummaryFromDb } from '../lib/supabaseDb';
@@ -43,7 +44,7 @@ interface TransactionsViewProps {
   onDeleteOrder: (id: string) => void;
   onDeleteKitchenOrders: (kitchenName: string, date: string) => void;
   onOpenInvoiceModal?: (items: OrderItem[], kitchenName?: string, storeName?: string) => void;
-  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string, variant?: InvoicePriceVariant) => void;
   onViewInvoice?: (items: OrderItem[], kitchenName?: string, storeName?: string, dateStr?: string) => void;
   onDeleteInvoice?: (id: string) => void;
   onDeleteTransaction?: (batch: TransactionBatch) => void;
@@ -89,7 +90,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     } catch {
       // ignore
     }
-    return 'mingguan';
+    return 'all_time';
   });
 
   const activePeriod = periodProp ?? internalPeriod;

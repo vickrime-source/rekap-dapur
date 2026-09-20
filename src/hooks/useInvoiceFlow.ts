@@ -1,5 +1,5 @@
 import { useState, useCallback, Dispatch, SetStateAction } from 'react';
-import { OrderItem, InvoiceRecord, ExportHistoryItem } from '../types';
+import { OrderItem, InvoiceRecord, ExportHistoryItem, InvoicePriceVariant } from '../types';
 import { generateInvoiceNumber, parseIndonesianNumber } from '../lib/formatters';
 import { exportHtmlInvoicePdf } from '../lib/htmlInvoicePdf';
 import { downloadDocxInvoice } from '../lib/docxTemplate';
@@ -59,7 +59,8 @@ export function useInvoiceFlow({
     items: OrderItem[],
     kitchenName: string,
     storeName: string,
-    dateStr?: string
+    dateStr?: string,
+    variant: InvoicePriceVariant = 'ori'
   ) => {
     if (!items || items.length === 0) {
       showToast('Tidak ada item untuk dibuatkan invoice', 'error');
@@ -71,8 +72,17 @@ export function useInvoiceFlow({
     const targetStore = storeName || items[0]?.toko || 'HTG';
     const invNum = generateInvoiceNumber(targetKitchen);
 
+    // Calculate totalAmount according to variant
     const totalAmount = items.reduce(
-      (sum, item) => sum + parseIndonesianNumber(item.qty) * parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0),
+      (sum, item) => {
+        const rawQJ = parseIndonesianNumber(item.qty);
+        const rt = Math.max(0, Number(item.retur) || 0);
+        const qf = Math.max(0, rawQJ - rt);
+        const hj = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+        const cb = Number(item.cashback) || 0;
+        const p = (variant === 'cashback' && cb > 0) ? cb : hj;
+        return sum + qf * p;
+      },
       0
     );
 
@@ -87,6 +97,7 @@ export function useInvoiceFlow({
         customAlamat: '-',
         customNomor: '-',
         customTanggal: dateStr,
+        priceVariant: variant,
       });
 
       if (res && res.pdfUrl) {
@@ -110,8 +121,23 @@ export function useInvoiceFlow({
         setExportHistory((prev) => [newHistoryItem, ...prev]);
 
         // Auto save invoice record
-        const totalBeli = items.reduce((s, i) => s + i.qty * (i.hargaBeli || 0), 0);
-        const totalJual = items.reduce((s, i) => s + i.qty * (i.hargaJual || i.hargaBeli || 0), 0);
+        const totalBeli = items.reduce((s, i) => {
+          const rawQJ = Number(i.qty || 0);
+          const rawQB = (i as any).qtyBeli !== undefined && (i as any).qtyBeli !== null
+            ? Number((i as any).qtyBeli)
+            : ((i as any).qty_beli !== undefined && (i as any).qty_beli !== null
+              ? Number((i as any).qty_beli)
+              : rawQJ);
+          const rt = Math.max(0, Number(i.retur) || 0);
+          const qbe = Math.max(0, rawQB - rt);
+          return s + qbe * (i.hargaBeli || 0);
+        }, 0);
+        const totalJual = items.reduce((s, i) => {
+          const rawQJ = Number(i.qty || 0);
+          const rt = Math.max(0, Number(i.retur) || 0);
+          const qf = Math.max(0, rawQJ - rt);
+          return s + qf * (i.hargaJual || i.hargaBeli || 0);
+        }, 0);
         const newRecord: InvoiceRecord = {
           id: `inv-rec-${Date.now()}`,
           invoiceNumber: invNum,
@@ -128,11 +154,13 @@ export function useInvoiceFlow({
           totalJual,
           totalProfit: totalJual - totalBeli,
         };
+
         setInvoices((prev) => [newRecord, ...prev]);
 
         saveTransactionToDb(newRecord).catch(() => {});
 
-        showToast(`Invoice Dapur ${targetKitchen} berhasil diunduh (${res.fileName})!`, 'success');
+        const variantBadge = variant === 'cashback' ? ' (Varian Cashback)' : '';
+        showToast(`Invoice Dapur ${targetKitchen}${variantBadge} berhasil diunduh (${res.fileName})!`, 'success');
       }
     } catch (err: any) {
       console.error('Direct PDF export error:', err);
@@ -217,7 +245,12 @@ export function useInvoiceFlow({
     const invNum = generateInvoiceNumber(targetKitchen);
 
     const totalAmount = items.reduce(
-      (sum, item) => sum + parseIndonesianNumber(item.qty) * parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0),
+      (sum, item) => {
+        const rawQJ = parseIndonesianNumber(item.qty);
+        const rt = Math.max(0, Number(item.retur) || 0);
+        const qf = Math.max(0, rawQJ - rt);
+        return sum + qf * parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+      },
       0
     );
 
@@ -236,8 +269,23 @@ export function useInvoiceFlow({
   const handleSaveInvoiceRecord = useCallback(async () => {
     if (invoices.some((inv) => inv.invoiceNumber === invoiceNumber)) return;
 
-    const totalBeli = invoiceItems.reduce((s, i) => s + i.qty * (i.hargaBeli || 0), 0);
-    const totalJual = invoiceItems.reduce((s, i) => s + i.qty * (i.hargaJual || i.hargaBeli || 0), 0);
+    const totalBeli = invoiceItems.reduce((s, i) => {
+      const rawQJ = Number(i.qty || 0);
+      const rawQB = (i as any).qtyBeli !== undefined && (i as any).qtyBeli !== null
+        ? Number((i as any).qtyBeli)
+        : ((i as any).qty_beli !== undefined && (i as any).qty_beli !== null
+          ? Number((i as any).qty_beli)
+          : rawQJ);
+      const rt = Math.max(0, Number(i.retur) || 0);
+      const qbe = Math.max(0, rawQB - rt);
+      return s + qbe * (i.hargaBeli || 0);
+    }, 0);
+    const totalJual = invoiceItems.reduce((s, i) => {
+      const rawQJ = Number(i.qty || 0);
+      const rt = Math.max(0, Number(i.retur) || 0);
+      const qf = Math.max(0, rawQJ - rt);
+      return s + qf * (i.hargaJual || i.hargaBeli || 0);
+    }, 0);
     const newRecord: InvoiceRecord = {
       id: `inv-rec-${Date.now()}`,
       invoiceNumber,
@@ -279,11 +327,21 @@ export function useInvoiceFlow({
     customAlamat: string;
     customNomor: string;
     type: 'pdf' | 'docx';
+    priceVariant?: InvoicePriceVariant;
   }) => {
     setIsExportingActive(true);
+    const variant = options.priceVariant || 'ori';
 
     const totalAmount = options.items.reduce(
-      (sum, item) => sum + parseIndonesianNumber(item.qty) * parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0),
+      (sum, item) => {
+        const rawQJ = parseIndonesianNumber(item.qty);
+        const rt = Math.max(0, Number(item.retur) || 0);
+        const qf = Math.max(0, rawQJ - rt);
+        const hj = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+        const cb = Number(item.cashback) || 0;
+        const p = (variant === 'cashback' && cb > 0) ? cb : hj;
+        return sum + qf * p;
+      },
       0
     );
 
@@ -298,6 +356,7 @@ export function useInvoiceFlow({
           customNama: options.customNama,
           customAlamat: options.customAlamat,
           customNomor: options.customNomor,
+          priceVariant: variant,
         });
 
         if (res && res.pdfUrl) {
@@ -396,16 +455,23 @@ export function useInvoiceFlow({
           );
 
           setOrders((prev) =>
-            prev.filter((o) => {
-              if (batchItemIdsSet.has(o.id)) return false;
-              if (
-                o.tanggal === batch.tanggal &&
-                (o.toko === batch.toko || o.tujuanDapur === batch.tujuanDapur) &&
-                o.pemasok === batch.pemasok
-              ) {
-                return false;
+            prev.map((o) => {
+              const match =
+                batchItemIdsSet.has(o.id) ||
+                (o.tanggal === batch.tanggal &&
+                  (o.toko === batch.toko || o.tujuanDapur === batch.tujuanDapur) &&
+                  o.pemasok === batch.pemasok);
+              if (match) {
+                return {
+                  ...o,
+                  status: 'CANCELLED',
+                  statusPembatalan: 'DIBATALKAN',
+                  status_pembatalan: 'DIBATALKAN',
+                  cancelledAt: new Date().toISOString(),
+                  cancelled_at: new Date().toISOString(),
+                };
               }
-              return true;
+              return o;
             })
           );
 

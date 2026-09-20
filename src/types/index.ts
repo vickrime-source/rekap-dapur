@@ -1,4 +1,4 @@
-export type OrderStatus = "pending" | "selesai";
+export type OrderStatus = "pending" | "selesai" | "CANCELLED";
 export type PaymentStatus = "PAID" | "UNPAID";
 export type DeliveryStatus = "DONE" | "PENDING" | "SHIPPED";
 export type DashboardPeriod = "hari_ini" | "mingguan" | "bulan_ini" | "all_time";
@@ -32,7 +32,11 @@ export interface PeriodSummaryStats {
 export interface OrderItem {
   id: string;
   namaBarang: string;
-  qty: number;
+  qty: number;          // Qty Jual
+  qtyBeli?: number;     // Qty Beli (jika berbeda dari qty jual, default = qty)
+  qty_beli?: number;
+  notaId?: string;      // ID Nota grouping
+  nota_id?: string;
   satuan?: string;
   hargaBeli: number;
   hargaJual: number;
@@ -46,6 +50,12 @@ export interface OrderItem {
   pemasok_id?: string;  // Foreign Key to master pemasok
   pemasokId?: string;
   status: OrderStatus;
+  statusPembatalan?: string;
+  status_pembatalan?: string;
+  cancelledAt?: string;
+  cancelled_at?: string;
+  cancelledReason?: string;
+  cancelled_reason?: string;
   paymentStatus?: PaymentStatus;
   deliveryStatus?: DeliveryStatus;
   tanggal: string;      // YYYY-MM-DD
@@ -53,6 +63,7 @@ export interface OrderItem {
   created_at?: string;
   catatan?: string;
   cashback?: number;   // Nilai cashback per barang (opsional: hargaBeli <= cashback <= hargaJual)
+  retur?: number;      // Retur barang per item (qty_final = qty_jual - retur)
   rowIndex?: number;    // Baris indeks aktual di Google Sheets (sheet "pesanan")
 }
 
@@ -141,6 +152,15 @@ export interface TextParseResult {
 
 export type FollowUpStatus = 'pending' | 'completed' | 'cancelled';
 
+export interface FollowUpItemRow {
+  id: string;
+  namaBarang: string;
+  pemasok?: string;
+  qty: number;
+  satuan: string;
+  catatan?: string;
+}
+
 export interface NoteItem {
   id: string;
   tujuanDapur: string;
@@ -150,6 +170,7 @@ export interface NoteItem {
   qty?: number;
   satuan?: string;
   catatan: string;
+  items?: FollowUpItemRow[];
   isDone: boolean;
   status?: FollowUpStatus | string;
   createdAt: string;
@@ -172,3 +193,5 @@ export interface ExportHistoryItem {
   fileUrl?: string;
   createdAt: string;
 }
+
+export type InvoicePriceVariant = 'ori' | 'cashback';

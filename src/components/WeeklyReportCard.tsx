@@ -88,16 +88,28 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
 
       for (let i = 0; i < periodOrders.length; i++) {
         const item = periodOrders[i];
-        const qty = parseIndonesianNumber(item.qty) || 0;
+        if (item.status === 'CANCELLED') continue;
+
+        const rawQtyJual = parseIndonesianNumber(item.qty) || 0;
+        const rawQtyBeli = (item as any).qtyBeli !== undefined && (item as any).qtyBeli !== null
+          ? parseIndonesianNumber((item as any).qtyBeli)
+          : ((item as any).qty_beli !== undefined && (item as any).qty_beli !== null
+            ? parseIndonesianNumber((item as any).qty_beli)
+            : rawQtyJual);
+        const returQty = Math.max(0, Number(item.retur) || 0);
+        const qtyFinal = Math.max(0, rawQtyJual - returQty);
+        const qtyBeliEfektif = Math.max(0, rawQtyBeli - returQty);
         const beli = parseIndonesianNumber(item.hargaBeli) || 0;
         const jual = parseIndonesianNumber(item.hargaJual) || 0;
         const cb = parseIndonesianNumber(item.cashback) || 0;
 
-        const labaItem = cb > 0 ? (cb - beli) * qty : (jual - beli) * qty;
-        const kopItem = cb > 0 ? (jual - cb) * qty : 0;
+        const modalItem = qtyBeliEfektif * beli;
+        const omzetItem = qtyFinal * jual;
+        const labaItem = cb > 0 ? ((cb - beli) * qtyFinal) : (omzetItem - modalItem);
+        const kopItem = cb > 0 ? ((jual - cb) * qtyFinal) : 0;
 
-        modal += (qty * beli);
-        omset += (qty * jual);
+        modal += modalItem;
+        omset += omzetItem;
         keKoperasi += kopItem;
         labaBersih += labaItem;
       }
@@ -137,14 +149,25 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
       }> = {};
 
       for (const item of periodOrders) {
-        const qty = parseIndonesianNumber(item.qty) || 0;
+        if (item.status === 'CANCELLED') continue;
+
+        const rawQtyJual = parseIndonesianNumber(item.qty) || 0;
+        const rawQtyBeli = (item as any).qtyBeli !== undefined && (item as any).qtyBeli !== null
+          ? parseIndonesianNumber((item as any).qtyBeli)
+          : ((item as any).qty_beli !== undefined && (item as any).qty_beli !== null
+            ? parseIndonesianNumber((item as any).qty_beli)
+            : rawQtyJual);
+        const returQty = Math.max(0, Number(item.retur) || 0);
+        const qtyFinal = Math.max(0, rawQtyJual - returQty);
+        const qtyBeliEfektif = Math.max(0, rawQtyBeli - returQty);
         const beli = parseIndonesianNumber(item.hargaBeli) || 0;
         const jual = parseIndonesianNumber(item.hargaJual) || 0;
         const cb = parseIndonesianNumber(item.cashback) || 0;
-        const itemBeli = qty * beli;
-        const itemJual = qty * jual;
-        const labaBersihItem = cb > 0 ? (cb - beli) * qty : (jual - beli) * qty;
-        const keKoperasiItem = cb > 0 ? (jual - cb) * qty : 0;
+        // Retur ditanggung pemasok, tidak membebani modal toko:
+        const itemBeli = rawQtyBeli * beli;
+        const itemJual = qtyFinal * jual;
+        const labaBersihItem = cb > 0 ? ((cb - beli) * qtyFinal) : (itemJual - (qtyBeliEfektif * beli));
+        const keKoperasiItem = cb > 0 ? ((jual - cb) * qtyFinal) : 0;
 
         totalAllBeli += itemBeli;
         totalAllJual += itemJual;
@@ -162,7 +185,7 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
             pemasokSet: new Set<string>(),
           };
         }
-        map[tokoKey].totalQty += qty;
+        map[tokoKey].totalQty += qtyFinal;
         map[tokoKey].totalBeli += itemBeli;
         map[tokoKey].totalJual += itemJual;
         map[tokoKey].totalLabaBersih += labaBersihItem;
@@ -217,6 +240,9 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
     let totalAllBeli = 0;
     const map: Record<string, {
       totalQty: number;
+      rawQty: number;
+      returQty: number;
+      ditagihkanQty: number;
       totalBeli: number;
       orderCount: number;
       batchKeys: Set<string>;
@@ -225,9 +251,17 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
     }> = {};
 
     for (const item of periodOrders) {
-      const qty = parseIndonesianNumber(item.qty) || 0;
+      if (item.status === 'CANCELLED') continue;
+      const rawQtyJual = parseIndonesianNumber(item.qty) || 0;
+      const rawQtyBeli = (item as any).qtyBeli !== undefined && (item as any).qtyBeli !== null
+        ? parseIndonesianNumber((item as any).qtyBeli)
+        : ((item as any).qty_beli !== undefined && (item as any).qty_beli !== null
+          ? parseIndonesianNumber((item as any).qty_beli)
+          : rawQtyJual);
+      const returQty = Math.max(0, Number(item.retur) || 0);
+      const qBeliEfektif = Math.max(0, rawQtyBeli - returQty);
       const beli = parseIndonesianNumber(item.hargaBeli) || 0;
-      const itemBeli = qty * beli;
+      const itemBeli = qBeliEfektif * beli;
       totalAllBeli += itemBeli;
 
       let pKey = (item.pemasok || '').trim();
@@ -238,6 +272,9 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
       if (!map[pKey]) {
         map[pKey] = {
           totalQty: 0,
+          rawQty: 0,
+          returQty: 0,
+          ditagihkanQty: 0,
           totalBeli: 0,
           orderCount: 0,
           batchKeys: new Set<string>(),
@@ -246,7 +283,10 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
         };
       }
 
-      map[pKey].totalQty += qty;
+      map[pKey].totalQty += qBeliEfektif;
+      map[pKey].rawQty += rawQtyBeli;
+      map[pKey].returQty += returQty;
+      map[pKey].ditagihkanQty += qBeliEfektif;
       map[pKey].totalBeli += itemBeli;
       map[pKey].orderCount += 1;
 
@@ -261,7 +301,7 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
       if (!map[pKey].itemQtyMap[itemName]) {
         map[pKey].itemQtyMap[itemName] = { qty: 0, unit: item.satuan };
       }
-      map[pKey].itemQtyMap[itemName].qty += qty;
+      map[pKey].itemQtyMap[itemName].qty += qBeliEfektif;
     }
 
     return Object.entries(map).map(([pemasok, val]) => {
@@ -282,7 +322,10 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
         totalBeli: val.totalBeli,
         transactionCount: val.batchKeys.size || val.orderCount,
         orderCount: val.orderCount,
-        totalQty: val.totalQty,
+        totalQty: val.ditagihkanQty,
+        rawQty: val.rawQty,
+        returQty: val.returQty,
+        ditagihkanQty: val.ditagihkanQty,
         topItemName,
         topItemQty,
         topItemUnit,
@@ -301,16 +344,28 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
       totalQty: number;
       totalBeli: number;
       totalJual: number;
+      totalLabaBersih: number;
       orderCount: number;
       batchKeys: Set<string>;
     }> = {};
 
     for (const item of periodOrders) {
-      const qty = parseIndonesianNumber(item.qty) || 0;
+      if (item.status === 'CANCELLED') continue;
+      const rawQtyJual = parseIndonesianNumber(item.qty) || 0;
+      const rawQtyBeli = (item as any).qtyBeli !== undefined && (item as any).qtyBeli !== null
+        ? parseIndonesianNumber((item as any).qtyBeli)
+        : ((item as any).qty_beli !== undefined && (item as any).qty_beli !== null
+          ? parseIndonesianNumber((item as any).qty_beli)
+          : rawQtyJual);
+      const returQty = Math.max(0, Number(item.retur) || 0);
+      const qtyFinal = Math.max(0, rawQtyJual - returQty);
+      const qtyBeliEfektif = Math.max(0, rawQtyBeli - returQty);
       const beli = parseIndonesianNumber(item.hargaBeli) || 0;
       const jual = parseIndonesianNumber(item.hargaJual) || 0;
-      const itemBeli = qty * beli;
-      const itemJual = qty * jual;
+      const cb = parseIndonesianNumber(item.cashback) || 0;
+      const itemBeli = qtyBeliEfektif * beli;
+      const itemJual = qtyFinal * jual;
+      const itemLaba = cb > 0 ? ((cb - beli) * qtyFinal) : (itemJual - itemBeli);
 
       totalAllTagihan += itemJual;
 
@@ -320,14 +375,16 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
           totalQty: 0,
           totalBeli: 0,
           totalJual: 0,
+          totalLabaBersih: 0,
           orderCount: 0,
           batchKeys: new Set<string>(),
         };
       }
 
-      map[dapurKey].totalQty += qty;
+      map[dapurKey].totalQty += qtyFinal;
       map[dapurKey].totalBeli += itemBeli;
       map[dapurKey].totalJual += itemJual;
+      map[dapurKey].totalLabaBersih += itemLaba;
       map[dapurKey].orderCount += 1;
 
       const bKey = `${item.tanggal || item.createdAt || ''}_${dapurKey}_${item.toko || ''}`;
@@ -335,7 +392,7 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
     }
 
     return Object.entries(map).map(([dapur, val]) => {
-      const profit = val.totalJual - val.totalBeli;
+      const profit = val.totalLabaBersih;
       const mPercent = val.totalJual > 0 ? Math.round((profit / val.totalJual) * 100) : 0;
 
       return {

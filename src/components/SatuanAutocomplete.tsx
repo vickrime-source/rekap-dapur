@@ -7,6 +7,7 @@ interface SatuanAutocompleteProps {
   onChange: (val: string) => void;
   masterSatuan?: MasterSatuan[];
   onAddMasterSatuan?: (nama: string) => Promise<{ success: boolean; error?: string }>;
+  onRefreshMaster?: () => Promise<void> | void;
   id?: string;
   className?: string;
 }
@@ -16,10 +17,11 @@ const DEFAULT_FALLBACK_UNITS = [
 ];
 
 export const SatuanAutocomplete: React.FC<SatuanAutocompleteProps> = ({
-  value,
+  value = '',
   onChange,
   masterSatuan = [],
   onAddMasterSatuan,
+  onRefreshMaster,
   id = 'input-satuan-autocomplete',
   className = '',
 }) => {
@@ -27,6 +29,7 @@ export const SatuanAutocomplete: React.FC<SatuanAutocompleteProps> = ({
   const [isAdding, setIsAdding] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const displayValue = value !== undefined && value !== null ? value : '';
 
   // Combine masterSatuan from Supabase and default units
   const allUnits = useMemo(() => {
@@ -55,16 +58,16 @@ export const SatuanAutocomplete: React.FC<SatuanAutocompleteProps> = ({
 
   // Filtered suggestions based on typed value
   const filteredUnits = useMemo(() => {
-    const q = (value || '').trim().toLowerCase();
+    const q = (displayValue || '').trim().toLowerCase();
     if (!q) return allUnits;
     return allUnits.filter((u) => u.toLowerCase().includes(q));
-  }, [allUnits, value]);
+  }, [allUnits, displayValue]);
 
   // Check if current value exists in list (exact match case-insensitive)
   const isExactMatch = useMemo(() => {
-    const q = (value || '').trim().toLowerCase();
+    const q = (displayValue || '').trim().toLowerCase();
     return allUnits.some((u) => u.toLowerCase() === q);
-  }, [allUnits, value]);
+  }, [allUnits, displayValue]);
 
   // Handle outside click to close dropdown
   useEffect(() => {
@@ -83,13 +86,18 @@ export const SatuanAutocomplete: React.FC<SatuanAutocompleteProps> = ({
   };
 
   const handleAddNew = async (nameToAdd?: string) => {
-    const cleanName = (nameToAdd || value || '').trim();
+    const cleanName = (nameToAdd || displayValue || '').trim();
     if (!cleanName) return;
 
     setIsAdding(true);
     try {
       if (onAddMasterSatuan) {
         await onAddMasterSatuan(cleanName);
+      }
+      if (onRefreshMaster) {
+        try {
+          await onRefreshMaster();
+        } catch (_) {}
       }
       onChange(cleanName);
       setIsOpen(false);
@@ -110,7 +118,7 @@ export const SatuanAutocomplete: React.FC<SatuanAutocompleteProps> = ({
           ref={inputRef}
           type="text"
           autoComplete="off"
-          value={value}
+          value={displayValue}
           placeholder="Cari satuan (Kg, Krat...)"
           onFocus={() => setIsOpen(true)}
           onChange={(e) => {
@@ -122,8 +130,8 @@ export const SatuanAutocomplete: React.FC<SatuanAutocompleteProps> = ({
               e.preventDefault();
               if (filteredUnits.length > 0) {
                 handleSelect(filteredUnits[0]);
-              } else if (value.trim()) {
-                handleAddNew(value);
+              } else if (displayValue.trim()) {
+                handleAddNew(displayValue);
               }
             } else if (e.key === 'Escape') {
               setIsOpen(false);

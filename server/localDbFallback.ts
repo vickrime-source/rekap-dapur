@@ -37,6 +37,8 @@ export interface FallbackOrder {
   item: string;
   tanggal: string;
   qty: number;
+  qty_beli?: number;
+  nota_id?: string;
   satuan: string;
   toko: string;
   toko_id?: string;
@@ -45,9 +47,13 @@ export interface FallbackOrder {
   status_pembayaran: string;
   status_pengiriman: string;
   status: string;
+  status_pembatalan?: string;
+  cancelled_at?: string;
+  cancelled_reason?: string;
   harga_jual: number;
   harga_beli: number;
   cashback?: number;
+  retur?: number;
   catatan: string;
   created_at: string;
   updated_at: string;
@@ -295,12 +301,16 @@ export function createLocalOrders(records: any[]): FallbackOrder[] {
 
   for (const item of records) {
     const id = item.id ? String(item.id) : `ord_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const rawQty = Number(item.qty) || 0;
+    const rawQtyBeli = item.qty_beli !== undefined ? Number(item.qty_beli) : (item.qtyBeli !== undefined ? Number(item.qtyBeli) : rawQty);
     const newOrd: FallbackOrder = {
       id,
       dapur: item.dapur || item.tujuanDapur || '',
       item: item.item || item.namaBarang || '',
       tanggal: item.tanggal || new Date().toISOString().split('T')[0],
-      qty: Number(item.qty) || 1,
+      qty: rawQty,
+      qty_beli: rawQtyBeli,
+      nota_id: item.nota_id || item.notaId || null,
       satuan: item.satuan || 'Kg',
       toko: item.toko || '',
       pemasok: item.pemasok || '',
@@ -310,6 +320,7 @@ export function createLocalOrders(records: any[]): FallbackOrder[] {
       harga_jual: Number(item.harga_jual !== undefined ? item.harga_jual : item.hargaJual) || 0,
       harga_beli: Number(item.harga_beli !== undefined ? item.harga_beli : item.hargaBeli) || 0,
       cashback: Number(item.cashback) || 0,
+      retur: Math.max(0, Number(item.retur) || 0),
       catatan: item.catatan || '',
       created_at: item.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -358,34 +369,37 @@ export function updateBatchLocalOrders(ids: string[], updates: any): FallbackOrd
   return updated;
 }
 
-export function deleteLocalOrders(ids: string[]): { deletedCount: number } {
+export function deleteLocalOrders(ids: string[]): { deletedCount: number; softDeleted: boolean; status: string } {
   const db = loadDb();
-  const prevCount = db.pesanan.length;
-  db.pesanan = db.pesanan.filter((o) => !ids.includes(o.id));
-  const deletedCount = prevCount - db.pesanan.length;
+  let cancelledCount = 0;
+  const nowIso = new Date().toISOString();
 
-  const idsSet = new Set(ids);
-  db.transaksi = db.transaksi.filter((t) => {
-    if (idsSet.has(t.id)) return false;
-    if (t.items && Array.isArray(t.items)) {
-      const hasRemaining = t.items.some((it: any) => !idsSet.has(it.id));
-      if (!hasRemaining) return false;
+  db.pesanan = db.pesanan.map((o) => {
+    if (ids.includes(o.id)) {
+      cancelledCount++;
+      return {
+        ...o,
+        status: 'CANCELLED',
+        cancelled_at: nowIso,
+        status_pembatalan: 'DIBATALKAN',
+        updated_at: nowIso,
+      };
     }
-    return true;
+    return o;
   });
 
   saveDb();
-  return { deletedCount };
+  return { deletedCount: cancelledCount, softDeleted: true, status: 'CANCELLED' };
 }
 
 // ---------------------------------------------------------------------------
 // TRANSACTIONS (transaksi)
 // ---------------------------------------------------------------------------
-export function getLocalTransactions(limit: number = 200): FallbackTransaction[] {
+export function getLocalTransactions(limit: number = 500): FallbackTransaction[] {
   const db = loadDb();
   const list = [...db.transaksi];
   list.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
-  return list.slice(0, limit);
+  return list.slice(0, Math.min(limit || 500, 5000));
 }
 
 export function createLocalTransaction(tx: any): FallbackTransaction {
@@ -486,6 +500,16 @@ export function deleteLocalNote(id: string): { success: boolean } {
 
 // ---------------------------------------------------------------------------
 // PERIOD SUMMARY FROM LOCAL DB
+// REVENUE RECOGNITION (BASIS AKRUAL):
+// Omzet diakui saat pesanan dibuat/dikirim ke dapur (seluruh pesanan non-CANCELLED, baik status PAID maupun UNPAID).
+// Formula:
+//   qty_final = qty_jual - retur
+//   qty_beli_efektif = qty_beli - retur
+//   omzet = harga_jual * qty_final
+//   modal = harga_beli * qty_beli_efektif
+//   cashback = 0 -> laba_bersih = omzet - modal, ke_koperasi = 0
+//   cashback > 0 -> laba_bersih = (cashback - harga_beli) * qty_final, ke_koperasi = (harga_jual - cashback) * qty_final
+// Retur ditanggung penuh pemasok, tidak memotong modal toko.
 // ---------------------------------------------------------------------------
 export function getLocalPeriodSummary(
   period: string = 'mingguan',
@@ -498,17 +522,41 @@ export function getLocalPeriodSummary(
   let totalQty = 0;
   let totalPendapatan = 0;
   let totalPengeluaran = 0;
+  let totalLabaBersih = 0;
+  let totalKeKoperasi = 0;
   const storeMap: Record<string, any> = {};
   const globalBatchKeys = new Set<string>();
 
   for (const item of orders) {
-    const qty = Number(item.qty) || 0;
+    if (item.status === 'CANCELLED') continue;
+
+    const rawQtyJual = Number(item.qty) || 0;
+    const rawQtyBeli = (item as any).qty_beli !== undefined && (item as any).qty_beli !== null
+      ? Number((item as any).qty_beli)
+      : ((item as any).qtyBeli !== undefined && (item as any).qtyBeli !== null
+        ? Number((item as any).qtyBeli)
+        : rawQtyJual);
+    const ret = Math.max(0, Number(item.retur) || 0);
+    const qtyFinal = Math.max(0, rawQtyJual - ret);
+    const qtyBeliEfektif = Math.max(0, rawQtyBeli - ret);
+
     const beli = Number(item.harga_beli) || 0;
     const jual = Number(item.harga_jual) || 0;
+    const cb = Number(item.cashback) || 0;
 
-    totalQty += qty;
-    totalPendapatan += qty * jual;
-    totalPengeluaran += qty * beli;
+    const modalItem = qtyBeliEfektif * beli;
+    const omzetItem = qtyFinal * jual;
+    const labaBersihItem = cb > 0 ? ((cb - beli) * qtyFinal) : (omzetItem - modalItem);
+    const keKoperasiItem = cb > 0 ? ((jual - cb) * qtyFinal) : 0;
+
+    // Retur ditanggung penuh PEMASOK, TIDAK membebani modal toko
+    const modalTokoItem = rawQtyBeli * beli;
+
+    totalQty += qtyFinal;
+    totalPendapatan += omzetItem;
+    totalPengeluaran += modalItem;
+    totalLabaBersih += labaBersihItem;
+    totalKeKoperasi += keKoperasiItem;
 
     const tokoKey = (item.toko || 'Lainnya').trim() || 'Lainnya';
     if (!storeMap[tokoKey]) {
@@ -516,14 +564,18 @@ export function getLocalPeriodSummary(
         totalQty: 0,
         totalBeli: 0,
         totalJual: 0,
+        totalLabaBersih: 0,
+        totalKeKoperasi: 0,
         count: 0,
         pemasokSet: new Set<string>(),
         batchKeys: new Set<string>(),
       };
     }
-    storeMap[tokoKey].totalQty += qty;
-    storeMap[tokoKey].totalBeli += qty * beli;
-    storeMap[tokoKey].totalJual += qty * jual;
+    storeMap[tokoKey].totalQty += qtyFinal;
+    storeMap[tokoKey].totalBeli += modalTokoItem;
+    storeMap[tokoKey].totalJual += omzetItem;
+    storeMap[tokoKey].totalLabaBersih += labaBersihItem;
+    storeMap[tokoKey].totalKeKoperasi += keKoperasiItem;
     storeMap[tokoKey].count += 1;
     if (item.pemasok && item.pemasok.trim() && item.pemasok.trim() !== '-') {
       storeMap[tokoKey].pemasokSet.add(item.pemasok.trim());
@@ -536,7 +588,7 @@ export function getLocalPeriodSummary(
 
   const storeBreakdowns = Object.entries(storeMap)
     .map(([toko, val]: [string, any]) => {
-      const profit = val.totalJual - val.totalBeli;
+      const profit = val.totalLabaBersih;
       const marginPercent = val.totalJual > 0 ? Math.round((profit / val.totalJual) * 100) : 0;
       return {
         toko,
@@ -544,6 +596,7 @@ export function getLocalPeriodSummary(
         totalBeli: val.totalBeli,
         totalJual: val.totalJual,
         profit,
+        totalKeKoperasi: val.totalKeKoperasi,
         orderCount: val.count,
         transactionCount: val.batchKeys.size || val.count,
         pemasokList: Array.from(val.pemasokSet),
@@ -560,7 +613,9 @@ export function getLocalPeriodSummary(
     totalTransactions: globalBatchKeys.size || orders.length,
     totalPendapatan,
     totalPengeluaran,
-    profitBersih: totalPendapatan - totalPengeluaran,
+    profitBersih: totalLabaBersih,
+    totalLabaBersih,
+    totalKeKoperasi,
     storeBreakdowns,
   };
 }

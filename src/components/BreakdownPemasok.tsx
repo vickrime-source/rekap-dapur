@@ -8,6 +8,9 @@ export interface PemasokBreakdownItem {
   transactionCount: number;
   orderCount: number;
   totalQty: number;
+  rawQty?: number;
+  returQty?: number;
+  ditagihkanQty?: number;
   topItemName: string;
   topItemQty: number;
   topItemUnit?: string;
@@ -102,9 +105,15 @@ export const BreakdownPemasok: React.FC<BreakdownPemasokProps> = ({
                   <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block leading-tight">
                     {item.transactionCount} Transaksi
                   </span>
-                  <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 block mt-0.5">
-                    ({item.totalQty.toLocaleString('id-ID')} Qty total)
-                  </span>
+                  {item.returQty && item.returQty > 0 ? (
+                    <span className="text-[9.5px] font-semibold text-slate-600 dark:text-slate-300 block mt-0.5 whitespace-nowrap">
+                      <span className="line-through text-slate-400">{item.rawQty ?? item.totalQty} Qty</span> → Retur <span className="text-rose-600 dark:text-rose-400 font-bold">{item.returQty}</span> → Ditagihkan <span className="font-bold text-slate-900 dark:text-slate-100">{item.ditagihkanQty ?? ((item.rawQty ?? item.totalQty) - item.returQty)}</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 block mt-0.5">
+                      ({item.totalQty.toLocaleString('id-ID')} Qty total)
+                    </span>
+                  )}
                 </div>
 
                 {/* Total Nilai Pembelian (PO) */}
@@ -158,9 +167,15 @@ export const BreakdownPemasok: React.FC<BreakdownPemasokProps> = ({
                     <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                       Total Qty Barang
                     </span>
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate mt-0.5">
-                      {item.totalQty.toLocaleString('id-ID')} unit
-                    </span>
+                    {item.returQty && item.returQty > 0 ? (
+                      <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 block mt-0.5">
+                        <span className="line-through text-slate-400">{item.rawQty ?? item.totalQty}</span> → Retur <span className="text-rose-600 dark:text-rose-400 font-bold">{item.returQty}</span> → Ditagihkan <span className="font-bold text-slate-900 dark:text-slate-100">{item.ditagihkanQty ?? ((item.rawQty ?? item.totalQty) - item.returQty)}</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate mt-0.5">
+                        {item.totalQty.toLocaleString('id-ID')} unit
+                      </span>
+                    )}
                   </div>
                 </div>
 

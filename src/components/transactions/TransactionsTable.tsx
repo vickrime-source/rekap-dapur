@@ -1,6 +1,6 @@
 import React from 'react';
 import { Receipt, X } from 'lucide-react';
-import { OrderItem } from '../../types';
+import { OrderItem, InvoicePriceVariant } from '../../types';
 import { formatRupiah } from '../../lib/formatters';
 import { TableSkeleton } from '../TableSkeleton';
 import { Pagination } from '../Pagination';
@@ -18,7 +18,7 @@ interface TransactionsTableProps {
   onToggleBatchPayment: (batch: TransactionBatch) => void;
   onViewInvoice?: (items: OrderItem[], kitchenName?: string, storeName?: string, dateStr?: string) => void;
   onOpenInvoiceModal?: (items: OrderItem[], kitchenName?: string, storeName?: string) => void;
-  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string, variant?: InvoicePriceVariant) => void;
   onDeleteTransaction?: (batch: TransactionBatch) => void;
   onDeleteInvoice?: (id: string) => void;
   onDeleteOrder: (id: string) => void;

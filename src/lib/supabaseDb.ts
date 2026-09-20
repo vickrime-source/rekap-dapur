@@ -1,4 +1,4 @@
-import { OrderItem, InvoiceRecord, NoteItem, PeriodSummaryStats, MasterToko, MasterPemasok, MasterDapur } from '../types';
+import { OrderItem, InvoiceRecord, NoteItem, FollowUpItemRow, PeriodSummaryStats, MasterToko, MasterPemasok, MasterDapur, MasterSatuan } from '../types';
 import { getFromCache, setInCache, invalidateCache } from './cacheManager';
 
 export interface SupabaseStatusResult {
@@ -54,10 +54,20 @@ export function mapRawOrder(row: any): OrderItem {
   const pemasokId = row.pemasok_id || row.pemasokId || (typeof row.pemasok === 'object' && row.pemasok !== null ? row.pemasok.id : undefined);
   const dapurId = row.dapur_id || row.dapurId || (typeof row.dapur === 'object' && row.dapur !== null ? row.dapur.id : undefined);
 
+  const rawQty = Number(row.qty) || 0;
+  const rawQtyBeli = row.qty_beli !== undefined && row.qty_beli !== null
+    ? Number(row.qty_beli)
+    : (row.qtyBeli !== undefined && row.qtyBeli !== null ? Number(row.qtyBeli) : rawQty);
+  const rawNotaId = row.nota_id || row.notaId || null;
+
   return {
     id: String(row.id || `ord-${Date.now()}-${Math.floor(Math.random() * 1000)}`),
     namaBarang: row.item || row.namaBarang || row.nama_barang || '',
-    qty: Number(row.qty) || 0,
+    qty: rawQty,
+    qtyBeli: rawQtyBeli,
+    qty_beli: rawQtyBeli,
+    notaId: rawNotaId,
+    nota_id: rawNotaId,
     satuan: row.satuan || 'Kg',
     hargaBeli: Number(row.harga_beli !== undefined ? row.harga_beli : row.hargaBeli) || 0,
     hargaJual: Number(row.harga_jual !== undefined ? row.harga_jual : row.hargaJual) || 0,
@@ -70,13 +80,20 @@ export function mapRawOrder(row: any): OrderItem {
     pemasok: pemasokNama,
     pemasok_id: pemasokId,
     pemasokId: pemasokId,
-    status: orderStatus as 'pending' | 'selesai',
+    status: (row.status === 'CANCELLED' ? 'CANCELLED' : (orderStatus as 'pending' | 'selesai')),
+    statusPembatalan: row.status_pembatalan || row.statusPembatalan,
+    status_pembatalan: row.status_pembatalan || row.statusPembatalan,
+    cancelledAt: row.cancelled_at || row.cancelledAt,
+    cancelled_at: row.cancelled_at || row.cancelledAt,
+    cancelledReason: row.cancelled_reason || row.cancelledReason,
+    cancelled_reason: row.cancelled_reason || row.cancelledReason,
     paymentStatus: ['PAID', 'UNPAID'].includes(payStatus) ? (payStatus as 'PAID' | 'UNPAID') : 'UNPAID',
     deliveryStatus: ['DONE', 'PENDING'].includes(delStatus) ? (delStatus as 'DONE' | 'PENDING') : 'PENDING',
     tanggal: row.tanggal ? String(row.tanggal).split('T')[0] : new Date().toISOString().split('T')[0],
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
     catatan: row.catatan || '',
     cashback: row.cashback !== undefined && row.cashback !== null ? Number(row.cashback) : 0,
+    retur: row.retur !== undefined && row.retur !== null ? Math.max(0, Number(row.retur) || 0) : 0,
   };
 }
 
@@ -87,7 +104,20 @@ export function buildPesananPayload(item: Partial<OrderItem>) {
   const finalDapur = ((item.tujuanDapur || (item as any).dapur || (item as any).tujuan_dapur || '') as string).trim();
   const finalItem = ((item.namaBarang || (item as any).item || (item as any).nama_barang || '') as string).trim();
 
-  const payload = {
+  // VALIDASI KETAT: Tolak jika nama barang atau dapur kosong (jangan izinkan item kosong masuk)
+  if (!finalItem) {
+    throw new Error('Validasi gagal: Nama barang tidak boleh kosong.');
+  }
+  if (!finalDapur) {
+    throw new Error('Validasi gagal: Dapur tujuan tidak boleh kosong.');
+  }
+
+  const rawQty = Number(item.qty);
+  const validQty = !isNaN(rawQty) ? rawQty : 0;
+  const rawQtyBeli = item.qtyBeli !== undefined ? Number(item.qtyBeli) : (item.qty_beli !== undefined ? Number(item.qty_beli) : validQty);
+  const notaId = item.nota_id || item.notaId || null;
+
+  const payload: Record<string, any> = {
     ...(item.id ? { id: item.id } : {}),
     toko_id: item.toko_id || item.tokoId || null,
     pemasok_id: item.pemasok_id || item.pemasokId || null,
@@ -95,8 +125,8 @@ export function buildPesananPayload(item: Partial<OrderItem>) {
     dapur: finalDapur,
     item: finalItem,
     tanggal: item.tanggal || new Date().toISOString().split('T')[0],
-    qty: Number(item.qty) > 0 ? Number(item.qty) : 1,
-    satuan: (item.satuan || 'Kg').trim(),
+    qty: validQty,
+    satuan: (item.satuan || '').trim() || 'Kg',
     toko: (item.toko || '').trim(),
     pemasok: (item.pemasok || '').trim(),
     status_pembayaran: ['PAID', 'UNPAID'].includes(payStatus) ? payStatus : 'UNPAID',
@@ -105,8 +135,16 @@ export function buildPesananPayload(item: Partial<OrderItem>) {
     harga_jual: Number(item.hargaJual) || 0,
     harga_beli: Number(item.hargaBeli) || 0,
     cashback: Number(item.cashback) || 0,
+    retur: Math.max(0, Number(item.retur) || 0),
     catatan: (item.catatan || '').trim(),
   };
+
+  if (rawQtyBeli !== undefined && !isNaN(rawQtyBeli)) {
+    payload.qty_beli = rawQtyBeli;
+  }
+  if (notaId) {
+    payload.nota_id = notaId;
+  }
 
   console.log('SUBMIT ITEM', item);
   console.log('PESANAN PAYLOAD', payload);
@@ -180,15 +218,41 @@ export function mapRawNote(row: any): NoteItem {
     rawCatatan = rawCatatan.replace(metaMatch[0], '').trim();
   }
 
+  // Parse items JSONB as primary source of multi-item
+  let items: FollowUpItemRow[] = [];
+  if (Array.isArray(row.items) && row.items.length > 0) {
+    items = row.items.map((it: any, idx: number) => ({
+      id: String(it.id || `item-${idx + 1}`),
+      namaBarang: String(it.namaBarang || it.item || it.nama || '').trim(),
+      pemasok: (it.pemasok || pemasok || '').trim(),
+      qty: Number(it.qty) || 1,
+      satuan: String(it.satuan || 'Kg').trim(),
+      catatan: String(it.catatan || '').trim(),
+    }));
+  } else if (row.item || row.namaBarang) {
+    // Legacy single item fallback -> wrap as array
+    items = [{
+      id: 'item-1',
+      namaBarang: String(row.item || row.namaBarang || '').trim(),
+      pemasok: pemasok || '',
+      qty: row.qty !== undefined && row.qty !== null ? Number(row.qty) : 1,
+      satuan: String(row.satuan || 'Kg').trim(),
+      catatan: rawCatatan,
+    }];
+  }
+
+  const firstItem = items[0];
+
   return {
     id: String(row.id || `note-${Date.now()}`),
     tujuanDapur: row.dapur || row.tujuanDapur || '',
     toko: toko || undefined,
-    pemasok: pemasok || undefined,
-    namaBarang: row.item || row.namaBarang || '',
-    qty: row.qty !== undefined && row.qty !== null ? Number(row.qty) : undefined,
-    satuan: row.satuan || 'Kg',
+    pemasok: (firstItem?.pemasok || pemasok) || undefined,
+    namaBarang: (firstItem?.namaBarang || row.item || row.namaBarang) || '',
+    qty: firstItem ? firstItem.qty : (row.qty !== undefined && row.qty !== null ? Number(row.qty) : undefined),
+    satuan: (firstItem?.satuan || row.satuan) || 'Kg',
     catatan: rawCatatan,
+    items: items,
     status: row.status || (row.is_done ? 'DONE' : 'FOLLOW UP'),
     isDone: Boolean(row.is_done !== undefined ? row.is_done : row.isDone),
     orderId: row.order_id || row.orderId,
@@ -206,16 +270,31 @@ export function buildNotesPayload(note: Partial<NoteItem>) {
     finalCatatan = `[META:TOKO=${tokoVal}|PEMASOK=${pemasokVal}] ${finalCatatan}`.trim();
   }
 
+  let itemsArray: FollowUpItemRow[] = Array.isArray(note.items) ? note.items : [];
+  if (itemsArray.length === 0 && (note.namaBarang || finalCatatan)) {
+    itemsArray = [{
+      id: `item-${Date.now()}`,
+      namaBarang: note.namaBarang || '',
+      pemasok: pemasokVal,
+      qty: note.qty !== undefined && note.qty !== null ? Number(note.qty) : 1,
+      satuan: note.satuan || 'Kg',
+      catatan: finalCatatan,
+    }];
+  }
+
+  const firstItem = itemsArray[0];
+
   return {
     ...(note.id ? { id: note.id } : {}),
     dapur: note.tujuanDapur || '',
-    item: note.namaBarang || '',
-    qty: note.qty !== undefined && note.qty !== null ? Number(note.qty) : null,
-    satuan: note.satuan || 'Kg',
+    item: firstItem ? firstItem.namaBarang : (note.namaBarang || ''),
+    qty: firstItem ? firstItem.qty : (note.qty !== undefined && note.qty !== null ? Number(note.qty) : null),
+    satuan: firstItem ? firstItem.satuan : (note.satuan || 'Kg'),
     catatan: finalCatatan,
     status: note.status || (note.isDone ? 'DONE' : 'FOLLOW UP'),
     is_done: Boolean(note.isDone),
     order_id: note.orderId || null,
+    items: itemsArray,
   };
 }
 
@@ -419,7 +498,7 @@ export async function deleteOrdersFromDb(ids: string[]): Promise<{ success: bool
 // -----------------------------------------------------------------------------
 // Transactions (transaksi) CRUD via Supabase API
 // -----------------------------------------------------------------------------
-export async function fetchTransactionsFromDb(limit: number = 50, page: number = 1, forceRefresh = false): Promise<{ success: boolean; transactions: InvoiceRecord[]; error?: string }> {
+export async function fetchTransactionsFromDb(limit: number = 500, page: number = 1, forceRefresh = false): Promise<{ success: boolean; transactions: InvoiceRecord[]; error?: string }> {
   const cacheKey = `transaksi_${limit}_${page}`;
   if (!forceRefresh) {
     const cached = getFromCache<InvoiceRecord[]>(cacheKey);

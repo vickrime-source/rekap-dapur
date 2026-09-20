@@ -199,14 +199,16 @@ export function getDateRangeForPeriod(period: string, refDateStr?: string): { st
 // =============================================================================
 
 // DEFINISI KOLOM SPESIFIK: Menghemat Egress/Bandwidth (Jangan select *)
-export const ORDER_COLUMNS = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at,cashback';
+export const ORDER_COLUMNS = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at,cashback,retur,status_pembatalan,cancelled_at,cancelled_reason,qty_beli,nota_id';
+export const ORDER_COLUMNS_LEGACY = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at,cashback,retur';
 export const TRANSACTION_COLUMNS = 'id,invoice_number,tanggal,tanggal_print,pemasok,barang,toko,dapur,qty,harga_beli,total,total_profit,status_pembayaran,items,catatan,created_at';
 export const TRANSACTION_COLUMNS_LEGACY = 'id,invoice_number,tanggal,tanggal_print,pemasok,barang,toko,dapur,qty,harga_beli,total,total_profit,status_pembayaran,items,created_at';
-export const NOTE_COLUMNS = 'id,dapur,item,qty,satuan,catatan,status,is_done,order_id,created_at';
+export const NOTE_COLUMNS = 'id,dapur,item,qty,satuan,catatan,status,is_done,order_id,created_at,items';
+export const NOTE_COLUMNS_LEGACY = 'id,dapur,item,qty,satuan,catatan,status,is_done,order_id,created_at';
 export const TOKO_COLUMNS = 'id,nama,created_at';
 export const PEMASOK_COLUMNS = 'id,nama,created_at';
 export const DAPUR_COLUMNS = 'id,nama,alamat,created_at';
-export const SATUAN_COLUMNS = 'id,nama,created_at';
+export const SATUAN_COLUMNS = 'id,nama,created_at,updated_at';
 
 export interface OrderFilterOptions {
   period?: 'hari_ini' | 'mingguan' | 'bulan_ini' | 'all_time';
@@ -229,8 +231,9 @@ export async function getOrdersFromDb(filters: OrderFilterOptions = {}) {
   try {
     const supabase = getSupabase();
     
-    // Default limit 100 baris, max 200 baris per fetch untuk cegah over-egress
-    const limit = Math.min(filters.limit || 100, 200);
+    // FIX LIMIT PAGINASI: Jangan potong data periode dengan limit 100 hardcoded.
+    // Jika filters.limit diminta, hormati hingga 10.000. Jika tidak dispesifikasikan, ambil hingga 10.000 agar data periode lengkap.
+    const limit = filters.limit ? Math.min(filters.limit, 10000) : 10000;
     const offset = filters.offset !== undefined 
       ? filters.offset 
       : (filters.page ? (filters.page - 1) * limit : 0);
@@ -277,8 +280,46 @@ export async function getOrdersFromDb(filters: OrderFilterOptions = {}) {
     // Selalu sertakan pagination/range query di database
     query = query.range(offset, offset + limit - 1);
 
-    const { data, error } = await query;
+    let { data, error } = await query;
     if (error) {
+      // Fallback jika kolom baru belum ada di schema database Supabase pengguna
+      if (error.code === '42703' || (error.message && (error.message.includes('status_pembatalan') || error.message.includes('cancelled_at')))) {
+        let fallbackQuery = supabase
+          .from('pesanan')
+          .select(ORDER_COLUMNS_LEGACY)
+          .order('tanggal', { ascending: false })
+          .order('created_at', { ascending: false });
+
+        if (filters.startDate && filters.endDate) {
+          if (filters.startDate === filters.endDate) {
+            fallbackQuery = fallbackQuery.eq('tanggal', filters.startDate);
+          } else {
+            fallbackQuery = fallbackQuery.gte('tanggal', filters.startDate).lte('tanggal', filters.endDate);
+          }
+        } else if (filters.period && filters.period !== 'all_time') {
+          const { startDate, endDate } = getDateRangeForPeriod(filters.period, filters.date);
+          if (startDate && endDate) {
+            if (startDate === endDate) {
+              fallbackQuery = fallbackQuery.eq('tanggal', startDate);
+            } else {
+              fallbackQuery = fallbackQuery.gte('tanggal', startDate).lte('tanggal', endDate);
+            }
+          }
+        } else if (filters.date) {
+          fallbackQuery = fallbackQuery.eq('tanggal', filters.date);
+        }
+        if (filters.toko) fallbackQuery = fallbackQuery.eq('toko', filters.toko);
+        if (filters.dapur) fallbackQuery = fallbackQuery.eq('dapur', filters.dapur);
+        if (filters.pemasok) fallbackQuery = fallbackQuery.eq('pemasok', filters.pemasok);
+        if (filters.status) fallbackQuery = fallbackQuery.eq('status', filters.status);
+        fallbackQuery = fallbackQuery.range(offset, offset + limit - 1);
+
+        const fallbackRes = await fallbackQuery;
+        if (!fallbackRes.error) {
+          return fallbackRes.data || [];
+        }
+      }
+
       if (isTableMissingError(error)) {
         return getLocalOrders(filters);
       }
@@ -296,6 +337,28 @@ export async function getOrdersFromDb(filters: OrderFilterOptions = {}) {
 export async function createOrdersInDb(ordersData: any[] | any) {
   const list = Array.isArray(ordersData) ? ordersData : [ordersData];
 
+  if (list.length === 0) {
+    throw new Error('Validasi gagal: Daftar pesanan tidak boleh kosong.');
+  }
+
+  // 1. VALIDASI INSERT PESANAN: Tolak jika dapur kosong atau nama barang kosong.
+  for (const item of list) {
+    const d = (item.dapur || item.tujuanDapur || item.tujuan_dapur || '').toString().trim();
+    const it = (item.item || item.namaBarang || item.nama_barang || '').toString().trim();
+    if (!it) {
+      throw new Error('Validasi gagal: Nama barang tidak boleh kosong.');
+    }
+    if (!d) {
+      throw new Error('Validasi gagal: Dapur tujuan tidak boleh kosong.');
+    }
+  }
+
+  // 2. NOTA_ID: Pastikan semua item dalam 1 batch nota punya nota_id yang sama dan tidak NULL
+  const sharedNotaId =
+    list.find((i: any) => i.nota_id || i.notaId)?.nota_id ||
+    list.find((i: any) => i.nota_id || i.notaId)?.notaId ||
+    `nota-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
   const records = list
     .map((item) => {
       const payStatus = (item.status_pembayaran || item.paymentStatus || (item.status === 'selesai' ? 'PAID' : 'UNPAID')).toString().toUpperCase();
@@ -305,13 +368,18 @@ export async function createOrdersInDb(ordersData: any[] | any) {
       const dapur = (item.dapur || item.tujuanDapur || item.tujuan_dapur || '').toString().trim();
       const itemName = (item.item || item.namaBarang || item.nama_barang || '').toString().trim();
 
-      const record = {
+      const rawQty = Number(item.qty);
+      const validQty = !isNaN(rawQty) ? rawQty : 0;
+      const rawQtyBeli = item.qty_beli !== undefined ? Number(item.qty_beli) : (item.qtyBeli !== undefined ? Number(item.qtyBeli) : validQty);
+      const notaId = item.nota_id || item.notaId || sharedNotaId;
+
+      const record: Record<string, any> = {
         ...(item.id ? { id: String(item.id) } : {}),
         dapur,
         item: itemName,
         tanggal: item.tanggal || new Date().toISOString().split('T')[0],
-        qty: Number(item.qty) > 0 ? Number(item.qty) : 1,
-        satuan: (item.satuan || 'Kg').toString().trim(),
+        qty: validQty,
+        satuan: (item.satuan || '').toString().trim() || 'Kg',
         toko: (item.toko || '').toString().trim(),
         pemasok: (item.pemasok || '').toString().trim(),
         status_pembayaran: ['PAID', 'UNPAID'].includes(payStatus) ? payStatus : 'UNPAID',
@@ -320,25 +388,31 @@ export async function createOrdersInDb(ordersData: any[] | any) {
         harga_jual: Math.max(0, Number(item.harga_jual !== undefined ? item.harga_jual : item.hargaJual) || 0),
         harga_beli: Math.max(0, Number(item.harga_beli !== undefined ? item.harga_beli : item.hargaBeli) || 0),
         cashback: Math.max(0, Number(item.cashback) || 0),
+        retur: Math.max(0, Number(item.retur) || 0),
         catatan: (item.catatan || '').toString().trim(),
         created_at: item.created_at || item.createdAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
+
+      if (rawQtyBeli !== undefined && !isNaN(rawQtyBeli)) {
+        record.qty_beli = rawQtyBeli;
+      }
+      if (notaId) {
+        record.nota_id = notaId;
+      }
 
       console.log('SUBMIT ITEM', item);
       console.log('PESANAN PAYLOAD', record);
 
       return record;
     })
-    // FILTER WAJIB: Jangan pernah izinkan item kosong atau tanpa dapur disimpan ke database
     .filter((record) => record.item.length > 0 && record.dapur.length > 0);
 
   const validItems = records;
   console.log('FINAL ITEMS TO INSERT', validItems);
 
   if (records.length === 0) {
-    console.warn('[createOrdersInDb] Diabaikan: Tidak ada record pesanan valid (item & dapur wajib diisi).');
-    return [];
+    throw new Error('Validasi gagal: Tidak ada item pesanan valid untuk disimpan.');
   }
 
   if (!isSupabaseConfigured()) {
@@ -351,6 +425,14 @@ export async function createOrdersInDb(ordersData: any[] | any) {
     if (error) {
       if (isTableMissingError(error)) {
         return createLocalOrders(records);
+      }
+      // If error is because column 'nota_id' or 'qty_beli' does not exist in the database table yet, retry without them
+      if (error.message && (error.message.includes('nota_id') || error.message.includes('qty_beli') || error.code === 'PGRST204')) {
+        const cleanedRecords = records.map(({ nota_id, qty_beli, ...rest }) => rest);
+        const retryRes = await supabase.from('pesanan').insert(cleanedRecords).select(ORDER_COLUMNS);
+        if (!retryRes.error) {
+          return retryRes.data || [];
+        }
       }
       throw error;
     }
@@ -402,6 +484,15 @@ export async function updateOrderInDb(id: string, updates: any) {
   if (updates.cashback !== undefined) {
     payload.cashback = Math.max(0, Number(updates.cashback) || 0);
   }
+  if (updates.retur !== undefined) {
+    payload.retur = Math.max(0, Number(updates.retur) || 0);
+  }
+  if (updates.nota_id !== undefined || updates.notaId !== undefined) {
+    payload.nota_id = updates.nota_id || updates.notaId;
+  }
+  if (updates.qty_beli !== undefined || updates.qtyBeli !== undefined) {
+    payload.qty_beli = Number(updates.qty_beli !== undefined ? updates.qty_beli : updates.qtyBeli);
+  }
 
   if (!isSupabaseConfigured()) {
     return updateLocalOrder(id, payload);
@@ -409,11 +500,22 @@ export async function updateOrderInDb(id: string, updates: any) {
 
   try {
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('pesanan')
       .update(payload)
       .eq('id', id)
       .select(ORDER_COLUMNS);
+
+    if (error && error.message && (error.message.includes('nota_id') || error.message.includes('qty_beli') || error.code === 'PGRST204')) {
+      const { nota_id, qty_beli, ...cleaned } = payload;
+      const retryRes = await supabase
+        .from('pesanan')
+        .update(cleaned)
+        .eq('id', id)
+        .select(ORDER_COLUMNS);
+      data = retryRes.data;
+      error = retryRes.error;
+    }
 
     if (error) {
       if (isTableMissingError(error)) {
@@ -483,16 +585,29 @@ export async function deleteOrdersFromDb(idOrIds: string | string[]) {
 
   try {
     const supabase = getSupabase();
-    const { error, count } = await supabase
+    // SOFT DELETE: Ubah status menjadi CANCELLED dengan cancelled_at
+    const nowIso = new Date().toISOString();
+    let { error, count } = await supabase
       .from('pesanan')
-      .delete({ count: 'exact' })
+      .update({
+        status: 'CANCELLED',
+        cancelled_at: nowIso,
+        status_pembatalan: 'DIBATALKAN',
+        updated_at: nowIso,
+      }, { count: 'exact' })
       .in('id', ids);
 
-    // Sync delete from transaksi table as well
-    try {
-      await supabase.from('transaksi').delete().in('id', ids);
-    } catch {
-      // ignore
+    // Fallback jika kolom status_pembatalan/cancelled_at belum ada di DB
+    if (error && (error.code === '42703' || error.message?.includes('cancelled_at') || error.message?.includes('status_pembatalan'))) {
+      const fallbackRes = await supabase
+        .from('pesanan')
+        .update({
+          status: 'CANCELLED',
+          updated_at: nowIso,
+        }, { count: 'exact' })
+        .in('id', ids);
+      error = fallbackRes.error;
+      count = fallbackRes.count;
     }
 
     if (error) {
@@ -501,7 +616,7 @@ export async function deleteOrdersFromDb(idOrIds: string | string[]) {
       }
       throw error;
     }
-    return { deletedCount: count || ids.length };
+    return { deletedCount: count || ids.length, softDeleted: true, status: 'CANCELLED' };
   } catch (err: any) {
     if (isTableMissingError(err)) {
       return deleteLocalOrders(ids);
@@ -513,8 +628,9 @@ export async function deleteOrdersFromDb(idOrIds: string | string[]) {
 // =============================================================================
 // TRANSACTIONS (transaksi) CRUD
 // =============================================================================
-export async function getTransactionsFromDb(limit: number = 50, page: number = 1) {
-  const safeLimit = Math.min(limit || 50, 100);
+export async function getTransactionsFromDb(limit: number = 500, page: number = 1) {
+  // Menghapus limit 100 terpotong: izinkan hingga 5000 transaksi
+  const safeLimit = Math.min(limit || 500, 5000);
   const offset = (page - 1) * safeLimit;
 
   if (!isSupabaseConfigured()) {
@@ -650,19 +766,28 @@ export async function getNotesFromDb(limit: number = 100) {
   }
   try {
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    let result: any = await supabase
       .from('notes')
       .select(NOTE_COLUMNS)
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (error) {
-      if (isTableMissingError(error)) {
+    // Fallback if items column does not exist yet
+    if (result.error && (result.error.code === '42703' || result.error.message?.includes('items'))) {
+      result = await supabase
+        .from('notes')
+        .select(NOTE_COLUMNS_LEGACY)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+    }
+
+    if (result.error) {
+      if (isTableMissingError(result.error)) {
         return getLocalNotes();
       }
-      throw error;
+      throw result.error;
     }
-    return data || [];
+    return result.data || [];
   } catch (err: any) {
     if (isTableMissingError(err)) {
       return getLocalNotes();
@@ -672,18 +797,40 @@ export async function getNotesFromDb(limit: number = 100) {
 }
 
 export async function createNoteInDb(note: any) {
-  const record = {
+  // Extract items array if provided
+  let itemsArray = Array.isArray(note.items) ? note.items : [];
+  
+  // If itemsArray is empty but single item provided, wrap it
+  if (itemsArray.length === 0 && (note.item || note.namaBarang)) {
+    itemsArray = [{
+      id: `item-${Date.now()}`,
+      namaBarang: note.item || note.namaBarang,
+      qty: note.qty !== undefined && note.qty !== null ? Number(note.qty) : 1,
+      satuan: note.satuan || 'Kg',
+      pemasok: note.pemasok || '',
+      catatan: note.catatan || '',
+    }];
+  }
+
+  // Summary fields for backward compatibility
+  const firstItem = itemsArray[0];
+  const summaryItem = firstItem ? firstItem.namaBarang : (note.item || note.namaBarang || '');
+  const summaryQty = firstItem ? firstItem.qty : (note.qty !== undefined && note.qty !== null ? Number(note.qty) : null);
+  const summarySatuan = firstItem ? firstItem.satuan : (note.satuan || 'Kg');
+
+  const record: Record<string, any> = {
     ...(note.id ? { id: String(note.id) } : {}),
     dapur: note.dapur || note.tujuanDapur || '',
-    item: note.item || note.namaBarang || '',
-    qty: note.qty !== undefined && note.qty !== null ? Number(note.qty) : null,
-    satuan: note.satuan || 'Kg',
+    item: summaryItem,
+    qty: summaryQty,
+    satuan: summarySatuan,
     catatan: note.catatan || '',
     status: note.status || (note.isDone ? 'DONE' : 'FOLLOW UP'),
     is_done: Boolean(note.is_done !== undefined ? note.is_done : note.isDone),
     order_id: note.order_id || note.orderId || null,
     created_at: note.created_at || note.createdAt || new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    items: itemsArray,
   };
 
   if (!isSupabaseConfigured()) {
@@ -692,7 +839,19 @@ export async function createNoteInDb(note: any) {
 
   try {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('notes').insert(record).select(NOTE_COLUMNS);
+    let data: any = null;
+    let error: any = null;
+    const initialRes = await supabase.from('notes').insert(record).select(NOTE_COLUMNS);
+    data = initialRes.data;
+    error = initialRes.error;
+
+    if (error && (error.code === '42703' || error.message?.includes('items'))) {
+      const legacyRecord = { ...record };
+      delete legacyRecord.items;
+      const res = await supabase.from('notes').insert(legacyRecord).select(NOTE_COLUMNS_LEGACY);
+      data = res.data;
+      error = res.error;
+    }
     if (error) {
       if (isTableMissingError(error)) {
         return createLocalNote(record);
@@ -723,6 +882,16 @@ export async function updateNoteInDb(id: string, updates: any) {
   if (updates.qty !== undefined) payload.qty = Number(updates.qty);
   if (updates.satuan !== undefined) payload.satuan = updates.satuan;
   if (updates.dapur !== undefined || updates.tujuanDapur !== undefined) payload.dapur = updates.dapur || updates.tujuanDapur;
+  if (updates.order_id !== undefined || updates.orderId !== undefined) payload.order_id = updates.order_id || updates.orderId;
+
+  if (updates.items !== undefined) {
+    payload.items = Array.isArray(updates.items) ? updates.items : [];
+    if (payload.items.length > 0 && !payload.item) {
+      payload.item = payload.items[0].namaBarang;
+      if (payload.qty === undefined) payload.qty = payload.items[0].qty;
+      if (payload.satuan === undefined) payload.satuan = payload.items[0].satuan;
+    }
+  }
 
   if (!isSupabaseConfigured()) {
     return updateLocalNote(id, payload);
@@ -730,7 +899,19 @@ export async function updateNoteInDb(id: string, updates: any) {
 
   try {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('notes').update(payload).eq('id', id).select(NOTE_COLUMNS);
+    let data: any = null;
+    let error: any = null;
+    const initialRes = await supabase.from('notes').update(payload).eq('id', id).select(NOTE_COLUMNS);
+    data = initialRes.data;
+    error = initialRes.error;
+
+    if (error && (error.code === '42703' || error.message?.includes('items'))) {
+      const legacyPayload = { ...payload };
+      delete legacyPayload.items;
+      const res = await supabase.from('notes').update(legacyPayload).eq('id', id).select(NOTE_COLUMNS_LEGACY);
+      data = res.data;
+      error = res.error;
+    }
     if (error) {
       if (isTableMissingError(error)) {
         return updateLocalNote(id, payload);
@@ -803,7 +984,9 @@ export async function getPeriodSummaryFromDb(
       }
     }
 
-    // 2. Direct Supabase Query aggregation (Hanya tarik kolom kalkulasi, hemat egress!)
+    // 2. Direct Supabase Query aggregation
+    // REVENUE RECOGNITION (BASIS AKRUAL):
+    // Omzet diakui saat pesanan dibuat/dikirim ke dapur (seluruh pesanan non-CANCELLED, baik status PAID maupun UNPAID).
     let startDate = customStartDate;
     let endDate = customEndDate;
     if (!startDate || !endDate) {
@@ -812,7 +995,10 @@ export async function getPeriodSummaryFromDb(
       endDate = endDate || range.endDate;
     }
 
-    let query = supabase.from('pesanan').select('tanggal,dapur,toko,qty,harga_jual,harga_beli,pemasok');
+    let query = supabase
+      .from('pesanan')
+      .select('tanggal,dapur,toko,qty,qty_beli,retur,harga_jual,harga_beli,pemasok,cashback,status')
+      .neq('status', 'CANCELLED');
 
     if (startDate && endDate) {
       if (startDate === endDate) {
@@ -830,14 +1016,19 @@ export async function getPeriodSummaryFromDb(
       throw error;
     }
 
-    const orders = rawOrders || [];
+    const orders = (rawOrders as any[]) || [];
     let totalQty = 0;
     let totalPendapatan = 0;
     let totalPengeluaran = 0;
+    let totalLabaBersih = 0;
+    let totalKeKoperasi = 0;
+
     const storeMap: Record<string, {
       totalQty: number;
       totalBeli: number;
       totalJual: number;
+      totalLabaBersih: number;
+      totalKeKoperasi: number;
       count: number;
       pemasokSet: Set<string>;
       batchKeys: Set<string>;
@@ -845,13 +1036,40 @@ export async function getPeriodSummaryFromDb(
     const globalBatchKeys = new Set<string>();
 
     for (const item of orders) {
-      const qty = Number(item.qty) || 0;
-      const beli = Number(item.harga_beli) || 0;
-      const jual = Number(item.harga_jual) || 0;
+      if (item.status === 'CANCELLED') continue;
 
-      totalQty += qty;
-      totalPendapatan += (qty * jual);
-      totalPengeluaran += (qty * beli);
+      const rawQtyJual = Number(item.qty) || 0;
+      const rawQtyBeli = (item as any).qty_beli !== undefined && (item as any).qty_beli !== null
+        ? Number((item as any).qty_beli)
+        : ((item as any).qtyBeli !== undefined && (item as any).qtyBeli !== null
+          ? Number((item as any).qtyBeli)
+          : rawQtyJual);
+      const returQty = Math.max(0, Number(item.retur) || 0);
+      const qtyFinal = Math.max(0, rawQtyJual - returQty);
+      const qtyBeliEfektif = Math.max(0, rawQtyBeli - returQty);
+
+      const beli = Number(item.harga_beli || (item as any).hargaBeli) || 0;
+      const jual = Number(item.harga_jual || (item as any).hargaJual) || 0;
+      const cb = Number(item.cashback) || 0;
+
+      // FORMULA BISNIS FINAL:
+      // omzet = harga_jual * qty_final
+      // modal = harga_beli * qty_beli_efektif
+      // cashback <= 0: laba_bersih = omzet - modal, ke_koperasi = 0
+      // cashback > 0: laba_bersih = (cashback - harga_beli) * qty_final, ke_koperasi = (harga_jual - cashback) * qty_final
+      const omzetItem = jual * qtyFinal;
+      const modalItem = beli * qtyBeliEfektif;
+      const labaBersihItem = cb > 0 ? (cb - beli) * qtyFinal : (omzetItem - modalItem);
+      const keKoperasiItem = cb > 0 ? (jual - cb) * qtyFinal : 0;
+
+      // Retur ditanggung PENUH oleh PEMASOK, TIDAK membebani modal toko.
+      const modalTokoItem = rawQtyBeli * beli;
+
+      totalQty += qtyFinal;
+      totalPendapatan += omzetItem;
+      totalPengeluaran += modalItem;
+      totalLabaBersih += labaBersihItem;
+      totalKeKoperasi += keKoperasiItem;
 
       const tokoKey = (item.toko || 'Lainnya').trim() || 'Lainnya';
       if (!storeMap[tokoKey]) {
@@ -859,14 +1077,18 @@ export async function getPeriodSummaryFromDb(
           totalQty: 0,
           totalBeli: 0,
           totalJual: 0,
+          totalLabaBersih: 0,
+          totalKeKoperasi: 0,
           count: 0,
           pemasokSet: new Set<string>(),
           batchKeys: new Set<string>(),
         };
       }
-      storeMap[tokoKey].totalQty += qty;
-      storeMap[tokoKey].totalBeli += (qty * beli);
-      storeMap[tokoKey].totalJual += (qty * jual);
+      storeMap[tokoKey].totalQty += qtyFinal;
+      storeMap[tokoKey].totalBeli += modalTokoItem;
+      storeMap[tokoKey].totalJual += omzetItem;
+      storeMap[tokoKey].totalLabaBersih += labaBersihItem;
+      storeMap[tokoKey].totalKeKoperasi += keKoperasiItem;
       storeMap[tokoKey].count += 1;
       if (item.pemasok && item.pemasok.trim() && item.pemasok.trim() !== '-') {
         storeMap[tokoKey].pemasokSet.add(item.pemasok.trim());
@@ -879,7 +1101,7 @@ export async function getPeriodSummaryFromDb(
 
     const storeBreakdowns = Object.entries(storeMap)
       .map(([toko, val]) => {
-        const profit = val.totalJual - val.totalBeli;
+        const profit = val.totalLabaBersih;
         const marginPercent = val.totalJual > 0 ? Math.round((profit / val.totalJual) * 100) : 0;
         return {
           toko,
@@ -887,6 +1109,7 @@ export async function getPeriodSummaryFromDb(
           totalBeli: val.totalBeli,
           totalJual: val.totalJual,
           profit,
+          totalKeKoperasi: val.totalKeKoperasi,
           orderCount: val.count,
           transactionCount: val.batchKeys.size || val.count,
           pemasokList: Array.from(val.pemasokSet),
@@ -905,7 +1128,9 @@ export async function getPeriodSummaryFromDb(
       totalTransactions: globalBatchKeys.size || orders.length,
       totalPendapatan,
       totalPengeluaran,
-      profitBersih: totalPendapatan - totalPengeluaran,
+      profitBersih: totalLabaBersih,
+      totalLabaBersih,
+      totalKeKoperasi,
       storeBreakdowns,
     };
   } catch (err: any) {
@@ -1318,6 +1543,14 @@ export async function createMasterSatuanInDb(nama: string) {
       .single();
 
     if (error) {
+      if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique')) {
+        const { data: dup } = await supabase
+          .from('satuan')
+          .select(SATUAN_COLUMNS)
+          .ilike('nama', cleanName)
+          .maybeSingle();
+        if (dup) return dup;
+      }
       if (isTableMissingError(error)) return createLocalMasterSatuan(cleanName);
       throw error;
     }
