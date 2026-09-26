@@ -175,7 +175,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+          className="fixed inset-0 bg-black/60 transition-opacity"
         />
 
         {/* Main Modal Container */}
@@ -329,7 +329,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-60 bg-slate-900/90 backdrop-blur-sm flex flex-col p-2 sm:p-6 font-sans overflow-hidden"
+              className="fixed inset-0 z-60 bg-black/90 flex flex-col p-2 sm:p-6 font-sans overflow-hidden"
             >
               {/* Fullscreen Viewer Top Bar */}
               <div className="w-full max-w-5xl mx-auto flex items-center justify-between py-2.5 px-4 bg-slate-800/90 text-white rounded-2xl border border-slate-700/80 mb-3 shadow-lg shrink-0">

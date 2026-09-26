@@ -199,7 +199,7 @@ export function getDateRangeForPeriod(period: string, refDateStr?: string): { st
 // =============================================================================
 
 // DEFINISI KOLOM SPESIFIK: Menghemat Egress/Bandwidth (Jangan select *)
-export const ORDER_COLUMNS = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at,cashback,retur,status_pembatalan,cancelled_at,cancelled_reason,qty_beli,nota_id';
+export const ORDER_COLUMNS = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at,cashback,retur,qty_beli,nota_id,toko_id,pemasok_id,dapur_id';
 export const ORDER_COLUMNS_LEGACY = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at,cashback,retur';
 export const TRANSACTION_COLUMNS = 'id,invoice_number,tanggal,tanggal_print,pemasok,barang,toko,dapur,qty,harga_beli,total,total_profit,status_pembayaran,items,catatan,created_at';
 export const TRANSACTION_COLUMNS_LEGACY = 'id,invoice_number,tanggal,tanggal_print,pemasok,barang,toko,dapur,qty,harga_beli,total,total_profit,status_pembayaran,items,created_at';
@@ -373,14 +373,55 @@ export async function createOrdersInDb(ordersData: any[] | any) {
       const rawQtyBeli = item.qty_beli !== undefined ? Number(item.qty_beli) : (item.qtyBeli !== undefined ? Number(item.qtyBeli) : validQty);
       const notaId = item.nota_id || item.notaId || sharedNotaId;
 
+      const parseBigIntOrNull = (val: any) => {
+        if (val === undefined || val === null || val === '') return null;
+        const n = Number(val);
+        return !isNaN(n) && Number.isInteger(n) ? n : null;
+      };
+
+      const STORE_MAP: Record<string, string> = {
+        '1': 'LB / Luweng Boga',
+        '2': 'HTG',
+        '3': 'LA / Lumbung Adifruta',
+        '4': 'PW / Prohe',
+      };
+
+      const STORE_REVERSE_MAP: Record<string, number> = {
+        'lb / luweng boga': 1,
+        'luweng boga': 1,
+        'htg': 2,
+        'la / lumbung adifruta': 3,
+        'lumbung adifruta': 3,
+        'pw / prohe': 4,
+        'prohe': 4,
+      };
+
+      let rawToko = (item.toko || '').toString().trim();
+      let tokoId = parseBigIntOrNull(item.toko_id ?? item.tokoId);
+
+      if (STORE_MAP[rawToko]) {
+        if (!tokoId) tokoId = Number(rawToko);
+        rawToko = STORE_MAP[rawToko];
+      } else if (!tokoId && STORE_REVERSE_MAP[rawToko.toLowerCase()]) {
+        tokoId = STORE_REVERSE_MAP[rawToko.toLowerCase()];
+      } else if (!rawToko && tokoId && STORE_MAP[String(tokoId)]) {
+        rawToko = STORE_MAP[String(tokoId)];
+      }
+
+      const pemasokId = parseBigIntOrNull(item.pemasok_id ?? item.pemasokId);
+      const dapurId = parseBigIntOrNull(item.dapur_id ?? item.dapurId);
+
       const record: Record<string, any> = {
         ...(item.id ? { id: String(item.id) } : {}),
+        toko_id: tokoId,
+        pemasok_id: pemasokId,
+        dapur_id: dapurId,
         dapur,
         item: itemName,
         tanggal: item.tanggal || new Date().toISOString().split('T')[0],
         qty: validQty,
         satuan: (item.satuan || '').toString().trim() || 'Kg',
-        toko: (item.toko || '').toString().trim(),
+        toko: rawToko,
         pemasok: (item.pemasok || '').toString().trim(),
         status_pembayaran: ['PAID', 'UNPAID'].includes(payStatus) ? payStatus : 'UNPAID',
         status_pengiriman: ['DONE', 'PENDING', 'SHIPPED'].includes(delStatus) ? delStatus : 'PENDING',
@@ -421,17 +462,21 @@ export async function createOrdersInDb(ordersData: any[] | any) {
 
   try {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('pesanan').insert(records).select(ORDER_COLUMNS);
+    let { data, error } = await supabase.from('pesanan').insert(records).select(ORDER_COLUMNS);
     if (error) {
       if (isTableMissingError(error)) {
         return createLocalOrders(records);
       }
-      // If error is because column 'nota_id' or 'qty_beli' does not exist in the database table yet, retry without them
-      if (error.message && (error.message.includes('nota_id') || error.message.includes('qty_beli') || error.code === 'PGRST204')) {
-        const cleanedRecords = records.map(({ nota_id, qty_beli, ...rest }) => rest);
-        const retryRes = await supabase.from('pesanan').insert(cleanedRecords).select(ORDER_COLUMNS);
+      // If error is code 42703 (undefined column) or specific columns missing
+      if (error.code === '42703' || (error.message && (error.message.includes('column') || error.message.includes('does not exist') || error.message.includes('cancelled_at') || error.message.includes('nota_id') || error.message.includes('qty_beli') || error.message.includes('toko_id') || error.message.includes('pemasok_id') || error.message.includes('dapur_id') || error.message.includes('bigint') || error.code === 'PGRST204'))) {
+        const cleanedRecords = records.map(({ nota_id, qty_beli, toko_id, pemasok_id, dapur_id, ...rest }) => rest);
+        const retryRes = await supabase.from('pesanan').insert(cleanedRecords).select(ORDER_COLUMNS_LEGACY);
         if (!retryRes.error) {
           return retryRes.data || [];
+        }
+        const basicRes = await supabase.from('pesanan').insert(cleanedRecords).select();
+        if (!basicRes.error) {
+          return basicRes.data || [];
         }
       }
       throw error;
@@ -462,6 +507,21 @@ export async function updateOrderInDb(id: string, updates: any) {
   if (updates.toko !== undefined) payload.toko = updates.toko;
   if (updates.pemasok !== undefined) payload.pemasok = updates.pemasok;
   if (updates.catatan !== undefined) payload.catatan = updates.catatan;
+
+  const parseBigIntOrNull = (val: any) => {
+    if (val === undefined || val === null || val === '') return null;
+    const n = Number(val);
+    return !isNaN(n) && Number.isInteger(n) ? n : null;
+  };
+  if (updates.toko_id !== undefined || updates.tokoId !== undefined) {
+    payload.toko_id = parseBigIntOrNull(updates.toko_id ?? updates.tokoId);
+  }
+  if (updates.pemasok_id !== undefined || updates.pemasokId !== undefined) {
+    payload.pemasok_id = parseBigIntOrNull(updates.pemasok_id ?? updates.pemasokId);
+  }
+  if (updates.dapur_id !== undefined || updates.dapurId !== undefined) {
+    payload.dapur_id = parseBigIntOrNull(updates.dapur_id ?? updates.dapurId);
+  }
 
   if (updates.status_pembayaran !== undefined || updates.paymentStatus !== undefined) {
     payload.status_pembayaran = (updates.status_pembayaran || updates.paymentStatus).toString().toUpperCase();
@@ -506,14 +566,14 @@ export async function updateOrderInDb(id: string, updates: any) {
       .eq('id', id)
       .select(ORDER_COLUMNS);
 
-    if (error && error.message && (error.message.includes('nota_id') || error.message.includes('qty_beli') || error.code === 'PGRST204')) {
+    if (error && (error.code === '42703' || error.message?.includes('does not exist') || error.message?.includes('nota_id') || error.message?.includes('qty_beli') || error.code === 'PGRST204')) {
       const { nota_id, qty_beli, ...cleaned } = payload;
       const retryRes = await supabase
         .from('pesanan')
         .update(cleaned)
         .eq('id', id)
-        .select(ORDER_COLUMNS);
-      data = retryRes.data;
+        .select(ORDER_COLUMNS_LEGACY);
+      data = retryRes.data as any;
       error = retryRes.error;
     }
 
@@ -585,30 +645,10 @@ export async function deleteOrdersFromDb(idOrIds: string | string[]) {
 
   try {
     const supabase = getSupabase();
-    // SOFT DELETE: Ubah status menjadi CANCELLED dengan cancelled_at
-    const nowIso = new Date().toISOString();
-    let { error, count } = await supabase
+    const { error, count } = await supabase
       .from('pesanan')
-      .update({
-        status: 'CANCELLED',
-        cancelled_at: nowIso,
-        status_pembatalan: 'DIBATALKAN',
-        updated_at: nowIso,
-      }, { count: 'exact' })
+      .delete({ count: 'exact' })
       .in('id', ids);
-
-    // Fallback jika kolom status_pembatalan/cancelled_at belum ada di DB
-    if (error && (error.code === '42703' || error.message?.includes('cancelled_at') || error.message?.includes('status_pembatalan'))) {
-      const fallbackRes = await supabase
-        .from('pesanan')
-        .update({
-          status: 'CANCELLED',
-          updated_at: nowIso,
-        }, { count: 'exact' })
-        .in('id', ids);
-      error = fallbackRes.error;
-      count = fallbackRes.count;
-    }
 
     if (error) {
       if (isTableMissingError(error)) {
@@ -616,7 +656,7 @@ export async function deleteOrdersFromDb(idOrIds: string | string[]) {
       }
       throw error;
     }
-    return { deletedCount: count || ids.length, softDeleted: true, status: 'CANCELLED' };
+    return { deletedCount: count || ids.length, success: true };
   } catch (err: any) {
     if (isTableMissingError(err)) {
       return deleteLocalOrders(ids);

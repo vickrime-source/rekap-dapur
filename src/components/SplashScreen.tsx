@@ -64,7 +64,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
             initial={{ scale: 0.5, rotate: -15 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-            className="relative bg-white p-4 rounded-3xl border border-white/40 shadow-2xl backdrop-blur-xl flex items-center justify-center"
+            className="relative bg-white p-4 rounded-3xl border border-slate-200 shadow-2xl flex items-center justify-center"
           >
             <img src="/icons/htg-192.png" alt="HTG" className="w-16 h-16 object-contain" />
           </motion.div>

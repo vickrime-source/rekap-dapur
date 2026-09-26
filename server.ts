@@ -371,13 +371,15 @@ async function startServer() {
       res.json({
         success: true,
         ...result,
-        message: `${result.deletedCount} pesanan berhasil ${(result as any).softDeleted ? 'dibatalkan' : 'dihapus'}`,
+        message: `${result.deletedCount} pesanan berhasil dihapus`,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      const errMsg = error?.message || (typeof error === 'string' ? error : JSON.stringify(error));
       return res.status(500).json({
+        success: false,
         message: "Internal Server Error",
-        error: error instanceof Error ? error.message : error
+        error: errMsg
       });
     }
   };
@@ -1086,7 +1088,7 @@ async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: 'spa',
     });
     app.use(vite.middlewares);

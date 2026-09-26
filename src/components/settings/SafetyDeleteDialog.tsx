@@ -19,7 +19,7 @@ export const SafetyDeleteDialog: React.FC<SafetyDeleteDialogProps> = ({
   if (!dialog) return null;
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs font-sans">
+    <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 font-sans">
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}

@@ -8,7 +8,8 @@ import {
   Package,
   ChevronDown,
   ChevronUp,
-  Eye
+  Eye,
+  Truck
 } from 'lucide-react';
 import { OrderItem, PaymentStatus, DeliveryStatus, InvoicePriceVariant } from '../types';
 import { formatRupiah, formatTanggalDisatuin, getTokoBadgeStyle, parseIndonesianNumber, formatJam } from '../lib/formatters';
@@ -114,9 +115,14 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
         <div className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-[13px] leading-snug">
           {item.namaBarang}
         </div>
-        <div className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-mono font-medium mt-0.5">
-          {item.pemasok}
-        </div>
+      </td>
+
+      {/* 3.5. PEMASOK (PER ROW ITEM - Mengikuti masing-masing barang) */}
+      <td className="py-2.5 px-2.5 text-center whitespace-nowrap align-middle border-r border-slate-100 dark:border-slate-800">
+        <span className="inline-flex items-center gap-1 font-extrabold text-[10px] sm:text-[10.5px] px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shadow-2xs">
+          <Truck className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
+          <span>{item.pemasok || '-'}</span>
+        </span>
       </td>
 
       {/* 4. DATE (MERGED PER GROUP WITH DAY ON TOP) */}
@@ -166,9 +172,20 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
           rowSpan={rowSpan}
           className="py-2.5 px-2 text-center whitespace-nowrap align-middle border-r border-slate-100 dark:border-slate-800"
         >
-          <span className={`inline-block px-2 py-0.5 rounded text-[10.5px] font-bold border ${getTokoBadgeStyle(group.toko)}`}>
-            {group.toko}
-          </span>
+          {(() => {
+            const STORE_MAP: Record<string, string> = {
+              '1': 'LB / Luweng Boga',
+              '2': 'HTG',
+              '3': 'LA / Lumbung Adifruta',
+              '4': 'PW / Prohe',
+            };
+            const tokoName = STORE_MAP[group.toko] || group.toko;
+            return (
+              <span className={`inline-block px-2 py-0.5 rounded text-[10.5px] font-bold border ${getTokoBadgeStyle(tokoName)}`}>
+                {tokoName}
+              </span>
+            );
+          })()}
         </td>
       )}
 
@@ -604,6 +621,10 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
                 {/* 3. ITEM */}
                 <th className="py-3 px-3 bg-slate-100 dark:bg-slate-800 sticky top-0 min-w-[130px]">
                   ITEM
+                </th>
+                {/* 3.5. PEMASOK */}
+                <th className="py-3 px-2.5 text-center whitespace-nowrap bg-slate-100 dark:bg-slate-800 sticky top-0 min-w-[105px]">
+                  PEMASOK
                 </th>
                 {/* 4. DATE */}
                 <th className="py-3 px-2 text-center whitespace-nowrap bg-slate-100 dark:bg-slate-800 sticky top-0">

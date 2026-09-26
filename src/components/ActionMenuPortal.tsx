@@ -108,7 +108,7 @@ export const ActionMenuPortal: React.FC<ActionMenuPortalProps> = ({
             right: rightPos,
             width: `${menuWidth}px`,
           }}
-          className="pointer-events-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-xl shadow-slate-900/15 dark:shadow-black/50 border border-slate-200/90 dark:border-slate-800 p-1.5 select-none overflow-hidden max-w-[calc(100vw-24px)] text-slate-800 dark:text-slate-200"
+          className="pointer-events-auto bg-white dark:bg-slate-900 rounded-2xl shadow-xl shadow-slate-900/15 dark:shadow-black/50 border border-slate-200/90 dark:border-slate-800 p-1.5 select-none overflow-hidden max-w-[calc(100vw-24px)] text-slate-800 dark:text-slate-200"
         >
           {/* Header */}
           <div className="px-2.5 py-1.5 mb-1 rounded-xl bg-slate-50/90 dark:bg-slate-800/90 border border-slate-100 dark:border-slate-700 flex items-center justify-between">

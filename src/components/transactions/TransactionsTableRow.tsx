@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
-import { Truck, Eye, Printer, Trash2, MoreVertical } from 'lucide-react';
-import { OrderItem, InvoicePriceVariant } from '../../types';
+import React from 'react';
+import { Truck, Trash2, MoreVertical } from 'lucide-react';
+import { OrderItem } from '../../types';
 import { formatRupiah, formatTanggalDisatuin, getTokoBadgeStyle } from '../../lib/formatters';
 import { TransactionBatch } from './types';
-import { PrintVariantDropdownPortal } from '../PrintVariantDropdownPortal';
 
 interface TransactionsTableRowProps {
   batch: TransactionBatch;
@@ -11,7 +10,7 @@ interface TransactionsTableRowProps {
   onToggleBatchPayment: (batch: TransactionBatch) => void;
   onViewInvoice?: (items: OrderItem[], kitchenName?: string, storeName?: string, dateStr?: string) => void;
   onOpenInvoiceModal?: (items: OrderItem[], kitchenName?: string, storeName?: string) => void;
-  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string, variant?: InvoicePriceVariant) => void;
+  onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
   onDeleteTransaction?: (batch: TransactionBatch) => void;
   onDeleteInvoice?: (id: string) => void;
   onDeleteOrder: (id: string) => void;
@@ -22,47 +21,15 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
   batch,
   isMenuOpen,
   onToggleBatchPayment,
-  onViewInvoice,
-  onOpenInvoiceModal,
-  onExportInvoicePdf,
   onDeleteTransaction,
   onDeleteInvoice,
   onDeleteOrder,
   onOpenActionMenu,
 }) => {
-  const [printMenuRect, setPrintMenuRect] = useState<DOMRect | null>(null);
   const isPaid = batch.payStatus === 'PAID';
   const labaBersih =
     batch.totalLabaBersih !== undefined ? batch.totalLabaBersih : (batch.totalJual || 0) - batch.totalBeli;
   const keKoperasi = batch.totalKeKoperasi || 0;
-  const hasCashback = batch.items.some((it) => Number(it.cashback) > 0);
-
-  const handleView = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onViewInvoice) {
-      onViewInvoice(batch.items, batch.tujuanDapur, batch.toko, batch.tanggal);
-    } else if (onOpenInvoiceModal) {
-      onOpenInvoiceModal(batch.items, batch.tujuanDapur, batch.toko);
-    }
-  };
-
-  const handleExportVariant = (variant: InvoicePriceVariant) => {
-    if (onExportInvoicePdf) {
-      onExportInvoicePdf(batch.items, batch.tujuanDapur, batch.toko, batch.tanggal, variant);
-    } else if (onOpenInvoiceModal) {
-      onOpenInvoiceModal(batch.items, batch.tujuanDapur, batch.toko);
-    }
-  };
-
-  const handlePrintClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation();
-    if (hasCashback) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      setPrintMenuRect(rect);
-    } else {
-      handleExportVariant('ori');
-    }
-  };
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -76,35 +43,41 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
   };
 
   return (
-    <tr className={`transition-colors ${batch.isCancelled ? 'opacity-60 bg-slate-100/60 dark:bg-slate-900/60' : 'hover:bg-slate-50/90 dark:hover:bg-slate-800/60'}`}>
+    <tr
+      className={`border-b border-slate-100 dark:border-slate-800/80 transition-colors ${
+        batch.isCancelled
+          ? 'opacity-60 bg-slate-100/50 dark:bg-slate-900/50'
+          : 'hover:bg-indigo-50/30 dark:hover:bg-slate-800/40'
+      }`}
+    >
       {/* 1. NO */}
-      <td className="py-2.5 px-1.5 text-center font-mono text-[9px] font-bold text-slate-400 dark:text-slate-500 align-middle">
+      <td className="py-3 px-2 text-center font-mono text-xs font-semibold text-slate-400 dark:text-slate-500 align-middle">
         {batch.batchIndex}
       </td>
 
       {/* 2. TANGGAL */}
-      <td className="py-2.5 px-2 whitespace-nowrap align-middle">
-        <span className="font-bold text-slate-800 dark:text-slate-200 text-[9px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200/80 dark:border-slate-700">
+      <td className="py-3 px-2.5 whitespace-nowrap align-middle">
+        <span className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
           {formatTanggalDisatuin(batch.tanggal)}
         </span>
       </td>
 
       {/* 3. PEMASOK */}
-      <td className="py-2.5 px-2 align-middle">
-        <span className="inline-flex items-center gap-1 font-extrabold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[9px] border border-slate-200/80 dark:border-slate-700 truncate max-w-[120px]">
-          <Truck className="w-3 h-3 text-indigo-600 dark:text-indigo-400 shrink-0" />
+      <td className="py-3 px-2.5 align-middle">
+        <span className="inline-flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200 text-xs truncate max-w-[130px]">
+          <Truck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
           <span className="truncate">{batch.pemasok}</span>
         </span>
       </td>
 
-      {/* 4. BARANG (ITEM TRANSAKSI & DAPUR) */}
-      <td className="py-2.5 px-2.5 align-middle">
-        <div className="flex items-center gap-1.5 mb-1">
-          <span className="inline-block bg-indigo-50 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-300 font-black px-1.5 py-0.5 rounded text-[8.5px] border border-indigo-200 dark:border-indigo-800">
+      {/* 4. BARANG & TUJUAN */}
+      <td className="py-3 px-3 align-middle min-w-[200px]">
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <span className="inline-block bg-indigo-50 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-200 font-extrabold px-2 py-0.5 rounded-md text-[10px] border border-indigo-200 dark:border-indigo-800">
             Dapur {batch.tujuanDapur}
           </span>
           {batch.isCancelled && (
-            <span className="inline-block bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-black px-1.5 py-0.5 rounded text-[8px] border border-slate-300 dark:border-slate-600 uppercase">
+            <span className="inline-block bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-black px-1.5 py-0.5 rounded text-[9px] border border-slate-300 dark:border-slate-600 uppercase">
               Dibatalkan
             </span>
           )}
@@ -115,16 +88,22 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
             const retQ = Math.min(rawQ, Math.max(0, Number(it.retur) || 0));
             const finQ = Math.max(0, rawQ - retQ);
             return (
-              <div key={it.id || itIdx} className="flex items-center justify-between gap-2 text-[9.5px]">
-                <div className="font-bold text-slate-900 dark:text-slate-100 truncate flex items-center gap-1">
+              <div key={it.id || itIdx} className="flex items-center justify-between gap-2 text-xs">
+                <div className="font-semibold text-slate-900 dark:text-slate-100 truncate flex items-center gap-1.5 flex-wrap">
                   <span>• {it.namaBarang}</span>
+                  {it.pemasok && (
+                    <span className="text-[9px] font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.2 rounded border border-blue-200 dark:border-blue-800 flex items-center gap-0.5">
+                      <Truck className="w-2.5 h-2.5 text-blue-500" />
+                      {it.pemasok}
+                    </span>
+                  )}
                   {retQ > 0 && (
-                    <span className="text-[8px] font-black uppercase text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 px-1 py-0.2 rounded border border-rose-200 dark:border-rose-800">
+                    <span className="text-[9px] font-black uppercase text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 px-1 py-0.2 rounded border border-rose-200 dark:border-rose-800">
                       RETUR {retQ}
                     </span>
                   )}
                 </div>
-                <div className="text-[8.5px] font-nominal font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap flex items-center gap-1">
+                <div className="text-[11px] font-nominal font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap flex items-center gap-1.5">
                   {retQ > 0 ? (
                     <span title={`Qty Awal: ${rawQ}, Retur: ${retQ}, Ditagihkan: ${finQ}`}>
                       <span className="line-through text-slate-400">{rawQ}</span> → <strong className="font-bold text-slate-800 dark:text-slate-200">Ditagihkan {finQ}</strong> × {formatRupiah(it.hargaBeli)}
@@ -136,7 +115,7 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
                   )}
                   {it.cashback && Number(it.cashback) > 0 ? (
                     <span
-                      className="text-[8px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-1 py-0.5 rounded border border-amber-200 dark:border-amber-800"
+                      className="text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800"
                       title={`Cashback: ${formatRupiah(it.cashback)}`}
                     >
                       CB: {formatRupiah(it.cashback)}
@@ -150,31 +129,31 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
       </td>
 
       {/* 5. TOKO */}
-      <td className="py-2.5 px-2 text-center whitespace-nowrap align-middle">
-        <span className={`inline-block px-2 py-0.5 rounded text-[9px] border ${getTokoBadgeStyle(batch.toko)}`}>
+      <td className="py-3 px-2 text-center whitespace-nowrap align-middle">
+        <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-bold border ${getTokoBadgeStyle(batch.toko)}`}>
           {batch.toko}
         </span>
       </td>
 
       {/* 6. QTY */}
-      <td className="py-2.5 px-1.5 text-center font-black font-nominal text-[10px] text-slate-900 dark:text-slate-100 align-middle">
+      <td className="py-3 px-2 text-center font-bold font-nominal text-xs text-slate-900 dark:text-slate-100 align-middle">
         {batch.totalQty}
       </td>
 
       {/* 7. H. BELI */}
-      <td className="py-2.5 px-2.5 text-right font-black font-nominal text-[10px] text-rose-700 dark:text-rose-400 align-middle whitespace-nowrap">
+      <td className="py-3 px-2.5 text-right font-bold font-nominal text-xs text-rose-600 dark:text-rose-400 align-middle whitespace-nowrap">
         {formatRupiah(batch.totalBeli)}
       </td>
 
       {/* 8. TOTAL */}
-      <td className="py-2.5 px-2.5 text-right font-black font-nominal text-[10px] text-emerald-800 dark:text-emerald-400 align-middle whitespace-nowrap">
+      <td className="py-3 px-2.5 text-right font-bold font-nominal text-xs text-emerald-700 dark:text-emerald-400 align-middle whitespace-nowrap">
         {formatRupiah(batch.totalJual || batch.totalBeli)}
       </td>
 
       {/* 9. CASHBACK / KE KOPERASI */}
-      <td className="py-2.5 px-2 text-right font-black font-nominal text-[10px] align-middle whitespace-nowrap">
+      <td className="py-3 px-2 text-right font-semibold font-nominal text-xs align-middle whitespace-nowrap">
         {keKoperasi > 0 ? (
-          <span className="text-amber-800 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200/90 dark:border-amber-800 font-bold">
+          <span className="text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200/90 dark:border-amber-800 font-bold">
             +{formatRupiah(keKoperasi)}
           </span>
         ) : (
@@ -182,11 +161,11 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
         )}
       </td>
 
-      {/* 9b. CATATAN */}
-      <td className="py-2.5 px-2 text-left align-middle max-w-[140px]">
+      {/* 10. CATATAN */}
+      <td className="py-3 px-2 text-left align-middle max-w-[130px]">
         {batch.catatan ? (
           <span
-            className="inline-block text-[9px] text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200/90 dark:border-slate-700 font-medium truncate max-w-[130px] align-middle"
+            className="inline-block text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 font-medium truncate max-w-[120px] align-middle"
             title={batch.catatan}
           >
             {batch.catatan}
@@ -196,24 +175,24 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
         )}
       </td>
 
-      {/* 10. LABA BERSIH */}
-      <td className="py-2.5 px-2 text-right font-black font-nominal text-[10px] align-middle whitespace-nowrap">
+      {/* 11. LABA BERSIH */}
+      <td className="py-3 px-2.5 text-right font-bold font-nominal text-xs align-middle whitespace-nowrap">
         <span className={labaBersih >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
           {labaBersih >= 0 ? `+${formatRupiah(labaBersih)}` : `-${formatRupiah(Math.abs(labaBersih))}`}
         </span>
       </td>
 
-      {/* 11. STATUS PAYMENT 1-CLICK TOGGLE */}
-      <td className="py-2.5 px-2 text-center whitespace-nowrap align-middle">
+      {/* 12. STATUS PAYMENT 1-CLICK TOGGLE */}
+      <td className="py-3 px-2 text-center whitespace-nowrap align-middle">
         {batch.isCancelled ? (
-          <span className="px-2.5 py-1 rounded-md text-[8.5px] font-black bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 inline-block">
+          <span className="px-2.5 py-1 rounded-md text-[10px] font-black bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-600 inline-block">
             CANCELLED
           </span>
         ) : (
           <button
             type="button"
             onClick={() => onToggleBatchPayment(batch)}
-            className={`px-2.5 py-1 rounded-md text-[8.5px] font-black cursor-pointer transition-all active:scale-95 border ${
+            className={`px-2.5 py-1 rounded-md text-[10px] font-extrabold cursor-pointer transition-all active:scale-95 border ${
               isPaid
                 ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
                 : 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-700 hover:bg-rose-100 dark:hover:bg-rose-900/60'
@@ -225,31 +204,13 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
         )}
       </td>
 
-      {/* 12. AKSI */}
-      <td className="py-2.5 px-1.5 text-center align-middle">
+      {/* 13. AKSI: Bersih & Ringkas (Hapus & Menu Lainnya) */}
+      <td className="py-3 px-2 text-center align-middle">
         <div className="flex items-center justify-center gap-1">
           <button
             type="button"
-            onClick={handleView}
-            className="w-7 h-7 flex items-center justify-center rounded-lg bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 font-extrabold shadow-2xs transition-all active:scale-95 border border-sky-200 dark:border-sky-800 cursor-pointer"
-            title={`Lihat Bukti Invoice Dapur ${batch.tujuanDapur}`}
-          >
-            <Eye className="w-3.5 h-3.5 stroke-[2.5]" />
-          </button>
-          {/* Tombol Cetak: Ada cashback -> popup varian, tidak ada -> langsung cetak Ori */}
-          <button
-            type="button"
-            onClick={handlePrintClick}
-            className="w-7 h-7 flex items-center justify-center rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold shadow-2xs transition-all active:scale-95 border border-amber-500/80 cursor-pointer"
-            title={hasCashback ? `Pilih Varian Invoice Dapur ${batch.tujuanDapur} (Ada Cashback)` : `Cetak Invoice PDF Dapur ${batch.tujuanDapur}`}
-          >
-            <Printer className="w-3.5 h-3.5 stroke-[2.5]" />
-          </button>
-
-          <button
-            type="button"
             onClick={handleDelete}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent transition-all cursor-pointer active:scale-95"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-slate-200 dark:border-slate-700/80 transition-all cursor-pointer active:scale-95"
             title="Hapus Transaksi"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -264,22 +225,13 @@ export const TransactionsTableRow: React.FC<TransactionsTableRowProps> = ({
             className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all cursor-pointer ${
               isMenuOpen
                 ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 ring-2 ring-indigo-500/20 shadow-2xs'
-                : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent active:scale-95'
+                : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 active:scale-95'
             }`}
             title="Menu Aksi"
           >
             <MoreVertical className="w-3.5 h-3.5" />
           </button>
         </div>
-
-        {/* Portal Popup Pilihan Varian */}
-        <PrintVariantDropdownPortal
-          isOpen={!!printMenuRect}
-          targetRect={printMenuRect}
-          onClose={() => setPrintMenuRect(null)}
-          onSelectVariant={handleExportVariant}
-          hasCashbackItem={hasCashback}
-        />
       </td>
     </tr>
   );

@@ -119,7 +119,6 @@ export const SatuanAutocomplete: React.FC<SatuanAutocompleteProps> = ({
           type="text"
           autoComplete="off"
           value={displayValue}
-          placeholder="Cari satuan (Kg, Krat...)"
           onFocus={() => setIsOpen(true)}
           onChange={(e) => {
             onChange(e.target.value);

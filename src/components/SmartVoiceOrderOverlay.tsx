@@ -361,7 +361,7 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 40, scale: 0.96 }}
           transition={{ type: 'spring', damping: 26, stiffness: 380 }}
-          className="bg-slate-950/95 backdrop-blur-2xl text-white rounded-3xl h-[76px] sm:h-[80px] border border-indigo-500/30 shadow-[0_12px_36px_rgba(15,23,42,0.65)] px-4 sm:px-5 flex items-center justify-between relative overflow-hidden ring-1 ring-white/10"
+          className="bg-slate-950 text-white rounded-3xl h-[76px] sm:h-[80px] border border-indigo-500/30 shadow-[0_12px_36px_rgba(15,23,42,0.65)] px-4 sm:px-5 flex items-center justify-between relative overflow-hidden ring-1 ring-white/10"
         >
           {/* Ambient Glow Aura */}
           <div

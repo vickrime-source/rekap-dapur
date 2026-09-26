@@ -16,7 +16,7 @@ import { NoteItem, Kitchen, Store as StoreType, MasterToko, MasterPemasok, Maste
 import { getTodayWIB, formatTanggalWeb } from '../lib/formatters';
 import { guessStoreForItem } from '../lib/storeMatcher';
 import { getItemSuggestions } from '../lib/suggestions';
-import { saveMasterDapurToDb, saveMasterPemasokToDb, saveMasterSatuanToDb } from '../lib/supabaseDb';
+import { saveMasterTokoToDb, saveMasterDapurToDb, saveMasterPemasokToDb, saveMasterSatuanToDb } from '../lib/supabaseDb';
 import { MoneyInput, formatIDR } from './MoneyInput';
 import { ProfitSummary } from './ProfitSummary';
 import { FormSection } from './FormSection';
@@ -104,8 +104,10 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
     };
   }, []);
   const [selectedSugIdx, setSelectedSugIdx] = useState(0);
+  const [isTokoOpen, setIsTokoOpen] = useState(false);
   const [isDapurOpen, setIsDapurOpen] = useState(false);
   const [isPemasokOpen, setIsPemasokOpen] = useState(false);
+  const tokoInputRef = useRef<HTMLInputElement>(null);
   const dapurInputRef = useRef<HTMLInputElement>(null);
   const pemasokInputRef = useRef<HTMLInputElement>(null);
 
@@ -124,6 +126,13 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
   const availablePemasok = masterPemasok.length > 0 ? masterPemasok.map((p) => p.nama) : pemasokList;
 
   // Filtered lists for Autocomplete
+  const filteredTokoSuggestions = useMemo(() => {
+    const q = toko.trim().toLowerCase();
+    const pool = masterToko.length > 0 ? masterToko : stores.map((s, idx) => ({ id: s.id || `t-${idx}`, nama: s.nama }));
+    if (!q) return pool;
+    return pool.filter((t) => t.nama.toLowerCase().includes(q));
+  }, [toko, masterToko, stores]);
+
   const filteredKitchenSuggestions = useMemo(() => {
     const q = tujuanDapur.trim().toLowerCase().replace(/^dapur\s+/i, '');
     const pool = masterDapur.length > 0 ? masterDapur : kitchens.map((k) => ({ id: k.id, nama: k.nama, alamat: k.lokasi || '' }));
@@ -176,6 +185,9 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
       setHargaBeli(0);
       setHargaJual(0);
     }
+    setIsTokoOpen(false);
+    setIsDapurOpen(false);
+    setIsPemasokOpen(false);
   };
 
   const selectItemIndex = (idx: number) => {
@@ -285,6 +297,18 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
           await saveMasterPemasokToDb(cleanPemasok);
         } catch (e) {
           console.warn('Auto-save master pemasok note error:', e);
+        }
+      }
+
+      const cleanToko = toko.trim();
+      const matchedToko = (masterToko || []).find(
+        (t) => t.nama.trim().toLowerCase() === cleanToko.toLowerCase() || String(t.id) === String(cleanToko)
+      );
+      if (!matchedToko && cleanToko) {
+        try {
+          await saveMasterTokoToDb(cleanToko);
+        } catch (e) {
+          console.warn('Auto-save master toko note error:', e);
         }
       }
 
@@ -501,8 +525,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                     setTouched((prev) => ({ ...prev, namaBarang: true }));
                   }, 200);
                 }}
-                placeholder="Nama barang..."
-                className={`w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all ${
+                className={`w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all ${
                   touched.namaBarang && !isItemValid ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300 dark:border-slate-700'
                 }`}
               />
@@ -511,7 +534,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
               {showSuggestions && suggestions.length > 0 && (
                 <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-30 overflow-hidden py-1 divide-y divide-slate-100 dark:divide-slate-700 max-h-60 overflow-y-auto">
                   <div className="sticky top-0 px-2.5 py-1 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-slate-900 flex items-center justify-between z-10">
-                    <span>Saran Otomatis (Enter / Klik)</span>
+                    <span>Saran Barang</span>
                     <span className="font-mono text-[8px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-1 rounded">↵ Enter</span>
                   </div>
                   {suggestions.map((sug, idx) => (
@@ -533,7 +556,6 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                       }`}
                     >
                       <span>{sug}</span>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">Pilih</span>
                     </button>
                   ))}
                 </div>
@@ -560,7 +582,6 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                   className={`w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all text-center ${
                     touched.qty && !isQtyValid ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300 dark:border-slate-700'
                   }`}
-                  placeholder="1"
                 />
                 {touched.qty && !isQtyValid && (
                   <p className="text-[10px] font-semibold text-rose-600 mt-1">Qty harus lebih dari 0</p>
@@ -595,30 +616,87 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
           icon={<Store className="w-3.5 h-3.5" />}
         >
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
+            {/* Toko Autocomplete / Free Text */}
+            <div className="relative">
               <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                 Toko <span className="text-rose-500">*</span>
               </label>
-              <select
-                id="select-followup-toko"
-                value={toko}
-                onChange={(e) => {
-                  setToko(e.target.value);
-                  setTouched((prev) => ({ ...prev, toko: true }));
-                }}
-                className={`w-full px-3 py-2 bg-white dark:bg-slate-800 border rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer ${
-                  touched.toko && !isStoreValid ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300 dark:border-slate-700'
-                }`}
-              >
-                <option value="" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">-- Pilih Toko --</option>
-                {availableStores.map((s) => (
-                  <option key={s} value={s} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                    {s}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  id="input-followup-toko"
+                  ref={tokoInputRef}
+                  value={toko}
+                  autoComplete="off"
+                  onFocus={() => {
+                    setIsTokoOpen(true);
+                    setTouched((prev) => ({ ...prev, toko: true }));
+                  }}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setToko(val);
+                    setIsTokoOpen(true);
+                    setTouched((prev) => ({ ...prev, toko: true }));
+                  }}
+                  className={`w-full pl-8 pr-7 py-2 bg-white dark:bg-slate-800 border rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all ${
+                    touched.toko && !isStoreValid ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300 dark:border-slate-700'
+                  }`}
+                />
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <button
+                  type="button"
+                  onClick={() => setIsTokoOpen(!isTokoOpen)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  title="Buka daftar toko"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
               {touched.toko && !isStoreValid && (
-                <p className="text-[10px] font-semibold text-rose-600 mt-1">Pilih toko asal</p>
+                <p className="text-[10px] font-semibold text-rose-600 mt-1">Isi toko asal</p>
+              )}
+
+              {isTokoOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-30" 
+                    onClick={() => setIsTokoOpen(false)} 
+                  />
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-40 max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
+                    {filteredTokoSuggestions.length > 0 ? (
+                      filteredTokoSuggestions.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            setToko(t.nama);
+                            setIsTokoOpen(false);
+                            setTouched((prev) => ({ ...prev, toko: true }));
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors flex items-center justify-between group cursor-pointer"
+                        >
+                          <span className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 group-hover:text-indigo-900 dark:group-hover:text-indigo-300">
+                            {t.nama}
+                          </span>
+                          {toko.trim().toLowerCase() === t.nama.trim().toLowerCase() && (
+                            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full">Terpilih</span>
+                          )}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-2.5 text-center">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
+                          Toko "<span className="font-semibold text-slate-700 dark:text-slate-200">{toko}</span>"
+                        </p>
+                        <span className="inline-block text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg">
+                          + Otomatis disimpan ke Master saat disimpan
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
 
@@ -634,7 +712,6 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                   id="input-followup-pemasok"
                   ref={pemasokInputRef}
                   value={pemasok}
-                  placeholder="Cari / ketik pemasok..."
                   autoComplete="off"
                   onFocus={() => {
                     setIsPemasokOpen(true);
@@ -646,7 +723,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                     setIsPemasokOpen(true);
                     setTouched((prev) => ({ ...prev, pemasok: true }));
                   }}
-                  className={`w-full pl-8 pr-7 py-2 bg-white dark:bg-slate-800 border rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal ${
+                  className={`w-full pl-8 pr-7 py-2 bg-white dark:bg-slate-800 border rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all ${
                     touched.pemasok && !isSupplierValid ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300 dark:border-slate-700'
                   }`}
                 />
@@ -662,7 +739,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
               </div>
 
               {touched.pemasok && !isSupplierValid && (
-                <p className="text-[10px] font-semibold text-rose-600 mt-1">Pilih / isi pemasok</p>
+                <p className="text-[10px] font-semibold text-rose-600 mt-1">Isi nama pemasok</p>
               )}
 
               {isPemasokOpen && (
@@ -719,7 +796,6 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                   id="input-followup-dapur"
                   ref={dapurInputRef}
                   value={tujuanDapur}
-                  placeholder="Cari / ketik nama dapur..."
                   autoComplete="off"
                   onFocus={() => {
                     setIsDapurOpen(true);
@@ -731,7 +807,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                     setIsDapurOpen(true);
                     setTouched((prev) => ({ ...prev, tujuanDapur: true }));
                   }}
-                  className={`w-full pl-8 pr-7 py-2 bg-white dark:bg-slate-800 border rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal ${
+                  className={`w-full pl-8 pr-7 py-2 bg-white dark:bg-slate-800 border rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all ${
                     touched.tujuanDapur && !isKitchenValid ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300 dark:border-slate-700'
                   }`}
                 />
@@ -747,7 +823,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
               </div>
 
               {touched.tujuanDapur && !isKitchenValid && (
-                <p className="text-[10px] font-semibold text-rose-600 mt-1">Pilih / isi dapur tujuan</p>
+                <p className="text-[10px] font-semibold text-rose-600 mt-1">Isi dapur tujuan</p>
               )}
 
               {isDapurOpen && (

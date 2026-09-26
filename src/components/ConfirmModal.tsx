@@ -27,12 +27,13 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm no-print">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 no-print">
         <motion.div
-          initial={{ opacity: 0, scale: 0.9, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          className="clay-card bg-white dark:bg-slate-900 w-full max-w-sm p-5 space-y-4 border border-rose-100 dark:border-rose-950/80 shadow-2xl relative"
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.15 }}
+          className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm p-5 space-y-4 border border-slate-200 dark:border-slate-800 shadow-xl relative"
         >
           <button
             type="button"
@@ -68,7 +69,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               type="button"
               onClick={onConfirm}
               disabled={isLoading}
-              className="clay-btn-danger px-4 py-2 text-xs font-extrabold text-white rounded-xl transition-all cursor-pointer active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+              className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-xl transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
             >
               {isLoading && (
                 <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />

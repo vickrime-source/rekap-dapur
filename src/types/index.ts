@@ -41,14 +41,11 @@ export interface OrderItem {
   hargaBeli: number;
   hargaJual: number;
   toko: string;         // Toko Kita (e.g. HTG, PROHE, LUWENG BOGA, ADIFRUITA)
-  toko_id?: string;     // Foreign Key to master toko
-  tokoId?: string;
+  toko_id?: number | string | null;     // Foreign Key to master toko (bigint / int)
   tujuanDapur: string;  // Dinamis dari daftar dapur
-  dapur_id?: string;    // Foreign Key to master dapur
-  dapurId?: string;
+  dapur_id?: number | string | null;    // Foreign Key to master dapur (bigint / int)
   pemasok: string;      // Supplier/Pemasok
-  pemasok_id?: string;  // Foreign Key to master pemasok
-  pemasokId?: string;
+  pemasok_id?: number | string | null;  // Foreign Key to master pemasok (bigint / int)
   status: OrderStatus;
   statusPembatalan?: string;
   status_pembatalan?: string;
@@ -68,21 +65,21 @@ export interface OrderItem {
 }
 
 export interface MasterToko {
-  id: string;
+  id: number | string;
   nama: string;
   created_at?: string;
   createdAt?: string;
 }
 
 export interface MasterPemasok {
-  id: string;
+  id: number | string;
   nama: string;
   created_at?: string;
   createdAt?: string;
 }
 
 export interface MasterDapur {
-  id: string;
+  id: number | string;
   nama: string;
   alamat: string;
   created_at?: string;
@@ -90,14 +87,14 @@ export interface MasterDapur {
 }
 
 export interface MasterSatuan {
-  id: string;
+  id: number | string;
   nama: string;
   created_at?: string;
   createdAt?: string;
 }
 
 export interface Kitchen {
-  id: string;
+  id: string | number;
   nama: string;
   alamat?: string;
   penanggungJawab?: string;
@@ -107,7 +104,7 @@ export interface Kitchen {
 }
 
 export interface Store {
-  id: string;
+  id: string | number;
   nama: string;
   lokasi?: string;
   created_at?: string;
@@ -122,14 +119,11 @@ export interface InvoiceRecord {
   createdAt: string;
   created_at?: string;
   tujuanDapur: string;
-  dapur_id?: string;     // Foreign Key to master dapur
-  dapurId?: string;
+  dapur_id?: number | string | null;     // Foreign Key to master dapur
   toko: string;
-  toko_id?: string;      // Foreign Key to master toko
-  tokoId?: string;
+  toko_id?: number | string | null;      // Foreign Key to master toko
   pemasok?: string;
-  pemasok_id?: string;   // Foreign Key to master pemasok
-  pemasokId?: string;
+  pemasok_id?: number | string | null;   // Foreign Key to master pemasok
   items: OrderItem[];
   totalBeli: number;
   totalJual: number;

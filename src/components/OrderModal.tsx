@@ -41,6 +41,7 @@ import { ProfitPreview } from './ProfitPreview';
 import { OrderSummary } from './OrderSummary';
 import { StatusSegment } from './StatusSegment';
 import { SatuanAutocomplete } from './SatuanAutocomplete';
+import { PemasokAutocomplete } from './PemasokAutocomplete';
 
 interface OrderModalProps {
   isOpen: boolean;
@@ -115,10 +116,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const prevIsOpenRef = useRef(false);
   const prevInitialDataIdRef = useRef<string | null | undefined>(undefined);
 
-  // Autocomplete UI states for Dapur and Pemasok
+  // Autocomplete UI states for Toko, Dapur, and Pemasok
+  const [isTokoOpen, setIsTokoOpen] = useState(false);
   const [isDapurOpen, setIsDapurOpen] = useState(false);
   const [isPemasokOpen, setIsPemasokOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const tokoInputRef = useRef<HTMLInputElement>(null);
   const dapurInputRef = useRef<HTMLInputElement>(null);
   const pemasokInputRef = useRef<HTMLInputElement>(null);
 
@@ -157,6 +160,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const availablePemasok = masterPemasok.length > 0 ? masterPemasok.map((p) => p.nama) : pemasokList;
 
   // Filtered lists for Autocomplete
+  const filteredTokoSuggestions = useMemo(() => {
+    const q = toko.trim().toLowerCase();
+    const pool = masterToko.length > 0 ? masterToko : stores.map((s, idx) => ({ id: s.id || `t-${idx}`, nama: s.nama }));
+    if (!q) return pool;
+    return pool.filter((t) => t.nama.toLowerCase().includes(q));
+  }, [toko, masterToko, stores]);
+
   const filteredKitchenSuggestions = useMemo(() => {
     const q = tujuanDapur.trim().toLowerCase().replace(/^dapur\s+/i, '');
     const pool = masterDapur.length > 0 ? masterDapur : kitchens.map((k) => ({ id: k.id, nama: k.nama, alamat: k.lokasi || '' }));
@@ -219,6 +229,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           hargaJual: Math.round(initialData.hargaJual || 0),
           cashback: initialData.cashback !== undefined ? Math.round(initialData.cashback) : 0,
           retur: initialData.retur !== undefined ? Math.round(initialData.retur) : 0,
+          pemasok: initialData.pemasok || '',
+          pemasok_id: initialData.pemasok_id || (initialData as any).pemasokId || '',
         },
       ]);
       setActiveItemIndex(0);
@@ -256,6 +268,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         {
           id: `item-${Date.now()}`,
           namaBarang: '',
+          pemasok: '',
+          pemasok_id: '',
           qty: 1,
           satuan: 'Kg',
           hargaBeli: 0,
@@ -291,6 +305,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     setVoiceNotice(null);
     setVoiceError(null);
     setIsListening(false);
+    setIsTokoOpen(false);
     setIsDapurOpen(false);
     setIsPemasokOpen(false);
 
@@ -485,6 +500,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     const newItem: ItemRow = {
       id: `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       namaBarang: '',
+      pemasok: '',
+      pemasok_id: '',
       qty: 1,
       satuan: 'Kg',
       hargaBeli: 0,
@@ -745,10 +762,25 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       if (onRefreshMaster) await onRefreshMaster();
     }
 
-    const finalTokoId =
-      tokoId ||
-      masterToko.find((t) => t.nama.trim().toLowerCase() === cleanToko.toLowerCase())?.id ||
-      '';
+    // Auto-create Master Toko if not found in database (case-insensitive & trimmed)
+    let finalTokoId = tokoId;
+    let finalTokoName = cleanToko;
+    const matchedToko = masterToko.find(
+      (t) => String(t.id) === String(cleanToko) || 
+             String(t.id) === String(tokoId) || 
+             t.nama.trim().toLowerCase() === cleanToko.toLowerCase()
+    );
+    if (matchedToko) {
+      finalTokoId = matchedToko.id;
+      finalTokoName = matchedToko.nama;
+    } else {
+      const saveRes = await saveMasterTokoToDb(cleanToko);
+      if (saveRes.success && saveRes.data?.id) {
+        finalTokoId = saveRes.data.id;
+        finalTokoName = saveRes.data.nama || cleanToko;
+      }
+      if (onRefreshMaster) await onRefreshMaster();
+    }
 
     const calculatedStatus =
       deliveryStatus === 'DONE' && paymentStatus === 'PAID' ? 'selesai' : 'pending';
@@ -764,6 +796,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       const singleNotaId = initialData.notaId || initialData.nota_id || `nota-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       const singleQty = Number(firstRow.qty) || 0;
 
+      const singleRowPemasok = (firstRow.pemasok || '').trim();
+      const singleEffectivePemasok = singleRowPemasok || finalPemasokName;
+      const matchedSinglePemasok = masterPemasok.find(
+        (p) => p.nama.trim().toLowerCase() === singleEffectivePemasok.toLowerCase()
+      );
+      const singlePemasokId = matchedSinglePemasok?.id || (singleRowPemasok ? '' : finalPemasokId);
+
       const singleItemPayload = {
         namaBarang: firstRow.namaBarang.trim(),
         item: firstRow.namaBarang.trim(),
@@ -777,16 +816,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         hargaJual: Math.max(0, Number(firstRow.hargaJual) || 0),
         cashback: Number(firstRow.cashback) > 0 ? Number(firstRow.cashback) : 0,
         retur: Math.max(0, Number(firstRow.retur) || 0),
-        toko: cleanToko,
+        toko: finalTokoName,
         toko_id: finalTokoId,
-        tokoId: finalTokoId,
         tujuanDapur: finalDapurName,
         dapur: finalDapurName,
         dapur_id: finalDapurId,
-        dapurId: finalDapurId,
-        pemasok: finalPemasokName,
-        pemasok_id: finalPemasokId,
-        pemasokId: finalPemasokId,
+        pemasok: singleEffectivePemasok,
+        pemasok_id: singlePemasokId,
         status: calculatedStatus,
         paymentStatus,
         deliveryStatus,
@@ -824,6 +860,14 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         .filter((row) => (row.namaBarang || '').trim() !== '' && finalDapurName.trim() !== '')
         .map((row) => {
           const rowQty = Number(row.qty) || 0;
+          const rowPemasok = (row.pemasok || '').trim();
+          // Fallback logic: if row.pemasok is empty, inherit the top form's pemasok (finalPemasokName):
+          const effectivePemasokName = rowPemasok || finalPemasokName;
+          const matchedRowPemasok = masterPemasok.find(
+            (p) => p.nama.trim().toLowerCase() === effectivePemasokName.toLowerCase()
+          );
+          const effectivePemasokId = matchedRowPemasok?.id || (rowPemasok ? '' : finalPemasokId);
+
           const itemObj = {
             namaBarang: row.namaBarang.trim(),
             item: row.namaBarang.trim(),
@@ -837,16 +881,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             hargaJual: Math.max(0, Number(row.hargaJual) || 0),
             cashback: Number(row.cashback) > 0 ? Number(row.cashback) : 0,
             retur: Math.max(0, Number(row.retur) || 0),
-            toko: cleanToko,
+            toko: finalTokoName,
             toko_id: finalTokoId,
-            tokoId: finalTokoId,
             tujuanDapur: finalDapurName,
             dapur: finalDapurName,
             dapur_id: finalDapurId,
-            dapurId: finalDapurId,
-            pemasok: finalPemasokName,
-            pemasok_id: finalPemasokId,
-            pemasokId: finalPemasokId,
+            pemasok: effectivePemasokName,
+            pemasok_id: effectivePemasokId,
             status: calculatedStatus,
             paymentStatus,
             deliveryStatus,
@@ -882,7 +923,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   return (
     <>
       <AnimatePresence>
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-xs no-print font-sans">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 no-print font-sans">
           {/* Backdrop click to dismiss */}
           <div className="absolute inset-0" onClick={onClose} />
 
@@ -1041,7 +1082,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     type="text"
                     required
                     id="input-nama-barang"
-                    placeholder="Nama barang..."
                     value={currentItem.namaBarang}
                     onChange={(e) => handleItemNameChange(e.target.value)}
                     onKeyDown={handleItemKeyDown}
@@ -1052,14 +1092,14 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                         setActiveSuggestionRowId(currentItem.id);
                       }
                     }}
-                    className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
+                    className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
                   />
 
                   {/* Autocomplete Popup */}
                   {isSuggestionOpen && (
                     <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-30 overflow-hidden py-1 divide-y divide-slate-100 dark:divide-slate-800 max-h-60 overflow-y-auto">
                       <div className="sticky top-0 px-3 py-1 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-slate-800 flex items-center justify-between z-10">
-                        <span>Saran Otomatis (Enter / Klik)</span>
+                        <span>Saran Barang</span>
                         <span className="font-mono text-[8px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-1 rounded">↵ Enter</span>
                       </div>
                       {suggestions.map((sug, idx) => (
@@ -1075,7 +1115,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           }`}
                         >
                           <span>{sug}</span>
-                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">Pilih</span>
                         </button>
                       ))}
                     </div>
@@ -1094,7 +1133,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                       min="0.01"
                       required
                       id="input-qty-barang"
-                      placeholder="1"
                       value={currentItem.qty === 0 ? '' : currentItem.qty}
                       onChange={(e) =>
                         updateCurrentItem(
@@ -1122,7 +1160,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                       step="any"
                       min="0"
                       id="input-retur-barang"
-                      placeholder="0"
                       value={currentItem.retur === undefined || currentItem.retur === 0 ? '' : currentItem.retur}
                       onChange={(e) => {
                         const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
@@ -1150,6 +1187,29 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                       onAddMasterSatuan={handleAddMasterSatuanInternal}
                     />
                   </div>
+                </div>
+
+                {/* Field 2.5: PEMASOK ITEM (Opsional per item) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
+                      <Truck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>PEMASOK ITEM (OPSIONAL)</span>
+                    </label>
+                    {!currentItem.pemasok && pemasok && (
+                      <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                        Ikut pemasok form atas ({pemasok})
+                      </span>
+                    )}
+                  </div>
+                  <PemasokAutocomplete
+                    id={`input-order-row-pemasok-${currentItem.id}`}
+                    value={currentItem.pemasok || ''}
+                    fallbackPemasok={pemasok}
+                    onChange={(val) => updateCurrentItem('pemasok', val)}
+                    masterPemasok={masterPemasok}
+                    pemasokList={availablePemasok}
+                  />
                 </div>
 
                 {/* Indikator Real-time Retur: jika retur > 0 */}
@@ -1198,7 +1258,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   <MoneyInput
                     label="Cashback (Opsional)"
                     id={`input-cashback-${currentItem.id}`}
-                    placeholder="Rp 0"
                     value={currentItem.cashback || 0}
                     onChange={(val) => updateCurrentItem('cashback', val)}
                   />
@@ -1255,7 +1314,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     className="w-full py-2.5 px-4 bg-white dark:bg-slate-800 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/40 hover:border-indigo-400 text-slate-700 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-400 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>＋ Tambah Item Barang</span>
+                    <span>Tambah Item Barang</span>
                   </button>
 
                   {/* Multi item list preview when > 1 */}
@@ -1329,53 +1388,104 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Toko */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                      Toko
-                    </label>
-                    <select
-                      required
-                      id="select-order-toko"
-                      value={tokoId || masterToko.find((t) => t.nama.toLowerCase() === toko.toLowerCase())?.id || toko}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '__ADD_NEW__') {
+                  {/* Toko Autocomplete / Text Input */}
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Toko <span className="text-rose-500">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
                           setQuickAddType('toko');
-                          setQuickAddNama('');
-                          setQuickAddAlamat('');
-                          setQuickAddError(null);
-                        } else {
-                          const matched = masterToko.find((t) => t.id === val);
+                          setQuickAddNama(toko.trim());
+                        }}
+                        className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                      >
+                        + Tambah Baru
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        id="input-order-toko"
+                        ref={tokoInputRef}
+                        value={toko}
+                        autoComplete="off"
+                        onFocus={() => setIsTokoOpen(true)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setToko(val);
+                          setIsTokoOpen(true);
+                          const matched = masterToko.find((t) => t.nama.trim().toLowerCase() === val.trim().toLowerCase() || String(t.id) === String(val));
                           if (matched) {
-                            setToko(matched.nama);
-                            setTokoId(matched.id);
+                            setTokoId(String(matched.id));
                           } else {
-                            setToko(val);
                             setTokoId('');
                           }
-                        }
-                      }}
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all cursor-pointer"
-                    >
-                      <option value="" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">-- Pilih Toko --</option>
-                      <option value="__ADD_NEW__" className="text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-950">
-                        + Tambah Toko Baru...
-                      </option>
-                      {masterToko.length > 0 ? (
-                        masterToko.map((t) => (
-                          <option key={t.id} value={t.id} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                            {t.nama}
-                          </option>
-                        ))
-                      ) : (
-                        availableStores.map((s) => (
-                          <option key={s} value={s} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                            {s}
-                          </option>
-                        ))
-                      )}
-                    </select>
+                        }}
+                        className="w-full pl-9 pr-8 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
+                      />
+                      <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <button
+                        type="button"
+                        onClick={() => setIsTokoOpen(!isTokoOpen)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
+                        title="Buka daftar toko"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {isTokoOpen && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-30" 
+                          onClick={() => setIsTokoOpen(false)} 
+                        />
+                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-40 max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                          {filteredTokoSuggestions.length > 0 ? (
+                            filteredTokoSuggestions.map((t) => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => {
+                                  setToko(t.nama);
+                                  setTokoId(String(t.id));
+                                  setIsTokoOpen(false);
+                                }}
+                                className="w-full text-left px-3.5 py-2.5 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between group cursor-pointer"
+                              >
+                                <span className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 group-hover:text-indigo-900 dark:group-hover:text-indigo-300">
+                                  {t.nama}
+                                </span>
+                                {toko.trim().toLowerCase() === t.nama.trim().toLowerCase() && (
+                                  <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full">Terpilih</span>
+                                )}
+                              </button>
+                            ))
+                          ) : (
+                            <div className="p-3 text-center space-y-2">
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Belum ada toko "<span className="font-semibold text-slate-700 dark:text-slate-300">{toko}</span>"
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsTokoOpen(false);
+                                  setQuickAddType('toko');
+                                  setQuickAddNama(toko.trim());
+                                }}
+                                className="inline-block text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 cursor-pointer"
+                              >
+                                + Tambah "{toko}" ke Master
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Pemasok Autocomplete */}
@@ -1402,7 +1512,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                         id="input-order-pemasok"
                         ref={pemasokInputRef}
                         value={pemasok}
-                        placeholder="Cari / ketik nama pemasok..."
                         autoComplete="off"
                         onFocus={() => setIsPemasokOpen(true)}
                         onChange={(e) => {
@@ -1416,7 +1525,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                             setPemasokId('');
                           }
                         }}
-                        className="w-full pl-9 pr-8 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                        className="w-full pl-9 pr-8 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
                       />
                       <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <button
@@ -1503,7 +1612,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                         id="input-order-dapur"
                         ref={dapurInputRef}
                         value={tujuanDapur}
-                        placeholder="Cari / ketik nama dapur..."
                         autoComplete="off"
                         onFocus={() => setIsDapurOpen(true)}
                         onChange={(e) => {
@@ -1521,7 +1629,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                             setTujuanDapurId('');
                           }
                         }}
-                        className="w-full pl-9 pr-8 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                        className="w-full pl-9 pr-8 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
                       />
                       <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <button
@@ -1635,10 +1743,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 <input
                   type="text"
                   id="input-catatan-order"
-                  placeholder="Catatan tambahan..."
                   value={catatan}
                   onChange={(e) => setCatatan(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-medium text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
                 />
               </div>
             </form>
@@ -1698,7 +1805,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
       {/* Quick Add Master Modal */}
       {quickAddType && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60">
           <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-slate-800 dark:text-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
@@ -1732,7 +1839,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   type="text"
                   required
                   autoFocus
-                  placeholder={`Contoh: ${quickAddType === 'toko' ? 'HTG / Luweng Boga' : quickAddType === 'pemasok' ? 'UD Barokah' : 'Siliragung'}`}
                   value={quickAddNama}
                   onChange={(e) => setQuickAddNama(e.target.value)}
                   className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-600"
@@ -1746,7 +1852,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   </label>
                   <input
                     type="text"
-                    placeholder="Contoh: Jl. Raya Rogojampi No. 12"
                     value={quickAddAlamat}
                     onChange={(e) => setQuickAddAlamat(e.target.value)}
                     className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-600"
@@ -1774,7 +1879,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   disabled={quickAddLoading || !quickAddNama.trim()}
                   className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer"
                 >
-                  <span>{quickAddLoading ? 'Menyimpan...' : 'Simpan & Pilih'}</span>
+                  <span>{quickAddLoading ? 'Menyimpan...' : 'Simpan & Terapkan'}</span>
                 </button>
               </div>
             </form>

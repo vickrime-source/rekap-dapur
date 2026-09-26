@@ -105,7 +105,7 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+          className="fixed inset-0 bg-black/60 transition-opacity"
         />
 
         {/* Bottom Sheet Modal */}
@@ -165,7 +165,6 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({
                 required
                 value={recipientName}
                 onChange={(e) => setRecipientName(e.target.value)}
-                placeholder="-"
                 className="w-full text-xs font-semibold px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
               />
             </div>
@@ -180,7 +179,6 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder="-"
                 className="w-full text-xs font-semibold px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
               />
             </div>
@@ -195,7 +193,6 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({
                 type="text"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="-"
                 className="w-full text-xs font-semibold px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
               />
             </div>
@@ -210,7 +207,6 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({
                 type="text"
                 value={bayarInput}
                 onChange={handleBayarChange}
-                placeholder="Rp0"
                 className="w-full text-sm font-black px-3 py-2 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-800 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:outline-none text-slate-900 dark:text-slate-100"
               />
               <div className="flex items-center justify-between text-[11px] font-bold pt-1 text-slate-600 dark:text-slate-400">

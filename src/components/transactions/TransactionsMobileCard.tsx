@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
-import { Eye, Printer, Trash2, MoreVertical } from 'lucide-react';
+import React from 'react';
+import { Trash2, MoreVertical } from 'lucide-react';
 import { OrderItem, InvoicePriceVariant } from '../../types';
 import { formatRupiah, formatTanggalDisatuin, getTokoBadgeStyle } from '../../lib/formatters';
 import { TransactionBatch } from './types';
-import { PrintVariantDropdownPortal } from '../PrintVariantDropdownPortal';
 
 interface TransactionsMobileCardProps {
   batch: TransactionBatch;
@@ -36,39 +35,11 @@ export const TransactionsMobileCard: React.FC<TransactionsMobileCardProps> = ({
   onDeleteOrder,
   onOpenActionMenu,
 }) => {
-  const [printMenuRect, setPrintMenuRect] = useState<DOMRect | null>(null);
   const isPaid = batch.payStatus === 'PAID';
   const isDelivered = batch.delStatus === 'DONE';
   const visibleItems = isExpanded ? batch.items : batch.items.slice(0, 2);
   const hiddenCount = batch.items.length - 2;
   const hasCashback = batch.items.some((it) => Number(it.cashback) > 0);
-
-  const handleView = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onViewInvoice) {
-      onViewInvoice(batch.items, batch.tujuanDapur, batch.toko, batch.tanggal);
-    } else if (onOpenInvoiceModal) {
-      onOpenInvoiceModal(batch.items, batch.tujuanDapur, batch.toko);
-    }
-  };
-
-  const handleExportVariant = (variant: InvoicePriceVariant) => {
-    if (onExportInvoicePdf) {
-      onExportInvoicePdf(batch.items, batch.tujuanDapur, batch.toko, batch.tanggal, variant);
-    } else if (onOpenInvoiceModal) {
-      onOpenInvoiceModal(batch.items, batch.tujuanDapur, batch.toko);
-    }
-  };
-
-  const handlePrintClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation();
-    if (hasCashback) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      setPrintMenuRect(rect);
-    } else {
-      handleExportVariant('ori');
-    }
-  };
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -111,26 +82,8 @@ export const TransactionsMobileCard: React.FC<TransactionsMobileCardProps> = ({
           </span>
         </div>
 
-        {/* Quick Action Buttons: Eye View, Print, Delete & 3-Dots */}
+        {/* Quick Action Buttons: Hapus & 3-Dots */}
         <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={handleView}
-            className="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 active:scale-95 transition-all cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
-            title={`Lihat Bukti Invoice Dapur ${batch.tujuanDapur}`}
-          >
-            <Eye className="w-3.5 h-3.5 stroke-[2.5]" />
-          </button>
-          {/* Tombol Cetak / Export PDF: Ada cashback -> popup varian, tidak ada -> langsung cetak Ori */}
-          <button
-            type="button"
-            onClick={handlePrintClick}
-            className="p-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-900 border border-amber-500/80 active:scale-95 transition-all cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center font-extrabold shadow-2xs"
-            title={hasCashback ? `Pilih Varian Invoice Dapur ${batch.tujuanDapur} (Ada Cashback)` : `Cetak Invoice PDF Dapur ${batch.tujuanDapur}`}
-          >
-            <Printer className="w-3.5 h-3.5 stroke-[2.5]" />
-          </button>
-
           <button
             type="button"
             onClick={handleDelete}
@@ -156,15 +109,6 @@ export const TransactionsMobileCard: React.FC<TransactionsMobileCardProps> = ({
             <MoreVertical className="w-3.5 h-3.5" />
           </button>
         </div>
-
-        {/* Portal Popup Pilihan Varian */}
-        <PrintVariantDropdownPortal
-          isOpen={!!printMenuRect}
-          targetRect={printMenuRect}
-          onClose={() => setPrintMenuRect(null)}
-          onSelectVariant={handleExportVariant}
-          hasCashbackItem={hasCashback}
-        />
       </div>
 
       {/* Status Badges & Total */}

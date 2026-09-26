@@ -239,19 +239,16 @@ export function useOrderOperations({
       const curDapur = (orderData as any).tujuanDapur || oldOrder?.tujuanDapur || '';
       const cleanD = curDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
 
-      const fTokoId = (orderData as any).toko_id || (orderData as any).tokoId || masterToko.find((t) => t.nama.toLowerCase() === curToko.trim().toLowerCase())?.id || oldOrder?.toko_id || '';
-      const fPemasokId = (orderData as any).pemasok_id || (orderData as any).pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === curPemasok.trim().toLowerCase())?.id || oldOrder?.pemasok_id || '';
-      const fDapurId = (orderData as any).dapur_id || (orderData as any).dapurId || masterDapur.find((d) => d.nama.toLowerCase() === curDapur.trim().toLowerCase() || d.nama.toLowerCase() === cleanD)?.id || oldOrder?.dapur_id || '';
+      const fTokoId = (orderData as any).toko_id || (orderData as any).tokoId || masterToko.find((t) => t.nama.toLowerCase() === curToko.trim().toLowerCase())?.id || oldOrder?.toko_id || null;
+      const fPemasokId = (orderData as any).pemasok_id || (orderData as any).pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === curPemasok.trim().toLowerCase())?.id || oldOrder?.pemasok_id || null;
+      const fDapurId = (orderData as any).dapur_id || (orderData as any).dapurId || masterDapur.find((d) => d.nama.toLowerCase() === curDapur.trim().toLowerCase() || d.nama.toLowerCase() === cleanD)?.id || oldOrder?.dapur_id || null;
 
       const updatedOrder: OrderItem = {
         ...(oldOrder || {}),
         ...orderData,
         toko_id: fTokoId,
-        tokoId: fTokoId,
         pemasok_id: fPemasokId,
-        pemasokId: fPemasokId,
         dapur_id: fDapurId,
-        dapurId: fDapurId,
         id: editId,
         createdAt: oldOrder?.createdAt || getNowWIBISOString(),
       } as OrderItem;
@@ -317,11 +314,8 @@ export function useOrderOperations({
         toko: curToko,
         pemasok: curPemasok,
         toko_id: fTokoId,
-        tokoId: fTokoId,
         pemasok_id: fPemasokId,
-        pemasokId: fPemasokId,
         dapur_id: fDapurId,
-        dapurId: fDapurId,
         qty: rawQ,
         qtyBeli: rawQBeli,
         qty_beli: rawQBeli,
@@ -374,15 +368,15 @@ export function useOrderOperations({
         tanggalPrint: firstItem.tanggal,
         createdAt: createdDate,
         tujuanDapur: firstItem.tujuanDapur,
-        dapur_id: firstItem.dapur_id || (firstItem as any).dapurId,
+        dapur_id: firstItem.dapur_id || null,
         toko: firstItem.toko,
-        toko_id: firstItem.toko_id || (firstItem as any).tokoId,
+        toko_id: firstItem.toko_id || null,
         items: newOrdersAdded,
         totalBeli,
         totalJual,
         totalProfit: totalJual - totalBeli,
         pemasok: firstItem.pemasok,
-        pemasok_id: firstItem.pemasok_id || (firstItem as any).pemasokId,
+        pemasok_id: firstItem.pemasok_id || null,
         status: firstItem.paymentStatus || 'UNPAID',
       };
       setInvoices((prev) => [newInvoiceRec, ...prev]);
@@ -421,24 +415,12 @@ export function useOrderOperations({
           if (targetOrder) {
             const res = await deleteOrderFromDb(targetOrder.id);
             if (!res.success) {
-              showToast(`Gagal membatalkan di database: ${res.error || 'Terjadi kesalahan'}`, 'error');
-              setDbError(res.error || 'Gagal membatalkan data');
+              const errMsg = typeof res.error === 'string' ? res.error : ((res.error as any)?.message || 'Terjadi kesalahan');
+              showToast(`Gagal menghapus di database: ${errMsg}`, 'error');
+              setDbError(errMsg);
               return;
             }
-            setOrders((prev) =>
-              prev.map((o) =>
-                o.id === id
-                  ? {
-                      ...o,
-                      status: 'CANCELLED',
-                      statusPembatalan: 'DIBATALKAN',
-                      status_pembatalan: 'DIBATALKAN',
-                      cancelledAt: new Date().toISOString(),
-                      cancelled_at: new Date().toISOString(),
-                    }
-                  : o
-              )
-            );
+            setOrders((prev) => prev.filter((o) => o.id !== id));
 
             const remainingOrdersInBatch = orders.filter(
               (o) =>
@@ -551,25 +533,13 @@ export function useOrderOperations({
           const ids = items.map((it) => it.id);
           const res = await deleteOrdersFromDb(ids);
           if (!res.success) {
-            showToast(`Gagal menghapus dari database: ${res.error || 'Terjadi kesalahan'}`, 'error');
+            const errMsg = typeof res.error === 'string' ? res.error : ((res.error as any)?.message || 'Terjadi kesalahan');
+            showToast(`Gagal menghapus dari database: ${errMsg}`, 'error');
             return;
           }
 
           const itemIds = new Set(ids);
-          setOrders((prev) =>
-            prev.map((o) =>
-              itemIds.has(o.id)
-                ? {
-                    ...o,
-                    status: 'CANCELLED',
-                    statusPembatalan: 'DIBATALKAN',
-                    status_pembatalan: 'DIBATALKAN',
-                    cancelledAt: new Date().toISOString(),
-                    cancelled_at: new Date().toISOString(),
-                  }
-                : o
-            )
-          );
+          setOrders((prev) => prev.filter((o) => !itemIds.has(o.id)));
 
           const batchTanggal = first.tanggal;
           const batchToko = first.toko || '';

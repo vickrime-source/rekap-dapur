@@ -1,25 +1,34 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Database, Copy, CheckCircle2, X } from 'lucide-react';
 import { motion } from 'motion/react';
-import { MASTER_TABLES_SQL } from '../../lib/masterSqlScript';
+import { MASTER_TABLES_SQL, MIGRATION_UUID_TO_BIGINT_SQL } from '../../lib/masterSqlScript';
 
 interface SqlViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  copiedSql: boolean;
-  onCopySql: () => void;
+  copiedSql?: boolean;
+  onCopySql?: () => void;
 }
 
 export const SqlViewerModal: React.FC<SqlViewerModalProps> = ({
   isOpen,
   onClose,
-  copiedSql,
-  onCopySql,
 }) => {
+  const [activeTab, setActiveTab] = useState<'migration' | 'schema'>('migration');
+  const [copied, setCopied] = useState(false);
+
   if (!isOpen) return null;
 
+  const currentSql = activeTab === 'migration' ? MIGRATION_UUID_TO_BIGINT_SQL : MASTER_TABLES_SQL;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(currentSql);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-xs font-sans">
+    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/70 font-sans">
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -36,17 +45,17 @@ export const SqlViewerModal: React.FC<SqlViewerModalProps> = ({
                 Skrip SQL Master: Dapur, Toko &amp; Pemasok
               </h3>
               <p className="text-[10px] text-slate-400 font-medium">
-                Supabase PostgreSQL DDL, Indexing, Seed Data &amp; RLS
+                Format BigInt Identity (Efisien, Ringan, 100% Relasi Terjaga)
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onCopySql}
+              onClick={handleCopy}
               className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
-              {copiedSql ? (
+              {copied ? (
                 <>
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
                   <span>Tersalin!</span>
@@ -68,13 +77,39 @@ export const SqlViewerModal: React.FC<SqlViewerModalProps> = ({
           </div>
         </div>
 
-        <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 overflow-y-auto font-mono text-[11px] leading-relaxed text-emerald-400 select-all flex-1 max-h-[60vh]">
-          <pre className="whitespace-pre-wrap">{MASTER_TABLES_SQL}</pre>
+        {/* Tab Selector */}
+        <div className="flex items-center gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800">
+          <button
+            type="button"
+            onClick={() => setActiveTab('migration')}
+            className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'migration'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Migrasi UUID ke BigInt (Existing Data)
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('schema')}
+            className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'schema'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Skema Tabel Baru (DDL Master)
+          </button>
+        </div>
+
+        <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 overflow-y-auto font-mono text-[11px] leading-relaxed text-emerald-400 select-all flex-1 max-h-[55vh]">
+          <pre className="whitespace-pre-wrap">{currentSql}</pre>
         </div>
 
         <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400">
           <span>
-            File tersimpan juga di <code className="text-indigo-300 font-mono">/master_tables_schema.sql</code>
+            Jalankan skrip ini di <strong className="text-white">Supabase Dashboard &rarr; SQL Editor</strong>
           </span>
           <button
             type="button"

@@ -64,7 +64,7 @@ export const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
         initial={{ opacity: 0, y: 30, scale: 0.9 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.9 }}
-        className={`fixed bottom-20 left-4 sm:bottom-5 sm:left-5 z-50 px-3.5 py-2.5 rounded-2xl shadow-2xl border flex items-center gap-2.5 max-w-xs text-xs font-extrabold font-sans backdrop-blur-md no-print ${getBgClass()}`}
+        className={`fixed bottom-20 left-4 sm:bottom-5 sm:left-5 z-50 px-3.5 py-2.5 rounded-2xl shadow-2xl border flex items-center gap-2.5 max-w-xs text-xs font-extrabold font-sans no-print ${getBgClass()}`}
       >
         <div className="flex-shrink-0">{getIcon()}</div>
         <span className="flex-1 font-bold text-slate-100">{toast.message}</span>

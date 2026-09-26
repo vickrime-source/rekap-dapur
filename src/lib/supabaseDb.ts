@@ -46,13 +46,30 @@ export function mapRawOrder(row: any): OrderItem {
   const delStatus = (row.status_pengiriman || row.deliveryStatus || 'PENDING').toString().toUpperCase();
   const orderStatus = (payStatus === 'PAID' && delStatus === 'DONE') ? 'selesai' : (row.status || 'pending');
 
-  const tokoNama = (typeof row.toko === 'object' && row.toko !== null) ? (row.toko.nama || '') : (row.toko || '');
+  const STORE_MAP: Record<string, string> = {
+    '1': 'LB / Luweng Boga',
+    '2': 'HTG',
+    '3': 'LA / Lumbung Adifruta',
+    '4': 'PW / Prohe',
+  };
+
+  let rawToko = (typeof row.toko === 'object' && row.toko !== null) ? (row.toko.nama || '') : (row.toko || '');
+  if (STORE_MAP[String(rawToko).trim()]) {
+    rawToko = STORE_MAP[String(rawToko).trim()];
+  }
+  const tokoNama = rawToko;
   const pemasokNama = (typeof row.pemasok === 'object' && row.pemasok !== null) ? (row.pemasok.nama || '') : (row.pemasok || '');
   const dapurNama = (typeof row.dapur === 'object' && row.dapur !== null) ? (row.dapur.nama || '') : (row.dapur || row.tujuanDapur || row.tujuan_dapur || '');
 
-  const tokoId = row.toko_id || row.tokoId || (typeof row.toko === 'object' && row.toko !== null ? row.toko.id : undefined);
-  const pemasokId = row.pemasok_id || row.pemasokId || (typeof row.pemasok === 'object' && row.pemasok !== null ? row.pemasok.id : undefined);
-  const dapurId = row.dapur_id || row.dapurId || (typeof row.dapur === 'object' && row.dapur !== null ? row.dapur.id : undefined);
+  const cleanId = (val: any) => {
+    if (val === undefined || val === null || val === '') return null;
+    const n = Number(val);
+    return !isNaN(n) && Number.isInteger(n) ? n : val;
+  };
+
+  const tokoId = cleanId(row.toko_id || (typeof row.toko === 'object' && row.toko !== null ? row.toko.id : undefined));
+  const pemasokId = cleanId(row.pemasok_id || (typeof row.pemasok === 'object' && row.pemasok !== null ? row.pemasok.id : undefined));
+  const dapurId = cleanId(row.dapur_id || (typeof row.dapur === 'object' && row.dapur !== null ? row.dapur.id : undefined));
 
   const rawQty = Number(row.qty) || 0;
   const rawQtyBeli = row.qty_beli !== undefined && row.qty_beli !== null
@@ -73,13 +90,10 @@ export function mapRawOrder(row: any): OrderItem {
     hargaJual: Number(row.harga_jual !== undefined ? row.harga_jual : row.hargaJual) || 0,
     toko: tokoNama,
     toko_id: tokoId,
-    tokoId: tokoId,
     tujuanDapur: dapurNama,
     dapur_id: dapurId,
-    dapurId: dapurId,
     pemasok: pemasokNama,
     pemasok_id: pemasokId,
-    pemasokId: pemasokId,
     status: (row.status === 'CANCELLED' ? 'CANCELLED' : (orderStatus as 'pending' | 'selesai')),
     statusPembatalan: row.status_pembatalan || row.statusPembatalan,
     status_pembatalan: row.status_pembatalan || row.statusPembatalan,
@@ -117,11 +131,17 @@ export function buildPesananPayload(item: Partial<OrderItem>) {
   const rawQtyBeli = item.qtyBeli !== undefined ? Number(item.qtyBeli) : (item.qty_beli !== undefined ? Number(item.qty_beli) : validQty);
   const notaId = item.nota_id || item.notaId || null;
 
+  const cleanId = (val: any) => {
+    if (val === undefined || val === null || val === '') return null;
+    const n = Number(val);
+    return !isNaN(n) && Number.isInteger(n) ? n : val;
+  };
+
   const payload: Record<string, any> = {
     ...(item.id ? { id: item.id } : {}),
-    toko_id: item.toko_id || item.tokoId || null,
-    pemasok_id: item.pemasok_id || item.pemasokId || null,
-    dapur_id: item.dapur_id || item.dapurId || null,
+    toko_id: cleanId(item.toko_id || (item as any).tokoId),
+    pemasok_id: cleanId(item.pemasok_id || (item as any).pemasokId),
+    dapur_id: cleanId(item.dapur_id || (item as any).dapurId),
     dapur: finalDapur,
     item: finalItem,
     tanggal: item.tanggal || new Date().toISOString().split('T')[0],
@@ -153,6 +173,12 @@ export function buildPesananPayload(item: Partial<OrderItem>) {
 }
 
 export function mapRawInvoice(row: any): InvoiceRecord {
+  const cleanId = (val: any) => {
+    if (val === undefined || val === null || val === '') return null;
+    const n = Number(val);
+    return !isNaN(n) && Number.isInteger(n) ? n : val;
+  };
+
   const items = Array.isArray(row.items) ? row.items.map(mapRawOrder) : [];
   const tokoNama = (typeof row.toko === 'object' && row.toko !== null) ? (row.toko.nama || '') : (row.toko || '');
   const pemasokNama = (typeof row.pemasok === 'object' && row.pemasok !== null) ? (row.pemasok.nama || '') : (row.pemasok || '');
@@ -164,14 +190,11 @@ export function mapRawInvoice(row: any): InvoiceRecord {
     tanggalPrint: row.tanggal_print || row.tanggalPrint || new Date().toLocaleDateString('id-ID'),
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
     tujuanDapur: dapurNama,
-    dapur_id: row.dapur_id || row.dapurId || (typeof row.dapur === 'object' ? row.dapur?.id : undefined),
-    dapurId: row.dapur_id || row.dapurId || (typeof row.dapur === 'object' ? row.dapur?.id : undefined),
+    dapur_id: cleanId(row.dapur_id || (typeof row.dapur === 'object' ? row.dapur?.id : undefined)),
     toko: tokoNama,
-    toko_id: row.toko_id || row.tokoId || (typeof row.toko === 'object' ? row.toko?.id : undefined),
-    tokoId: row.toko_id || row.tokoId || (typeof row.toko === 'object' ? row.toko?.id : undefined),
+    toko_id: cleanId(row.toko_id || (typeof row.toko === 'object' ? row.toko?.id : undefined)),
     pemasok: pemasokNama,
-    pemasok_id: row.pemasok_id || row.pemasokId || (typeof row.pemasok === 'object' ? row.pemasok?.id : undefined),
-    pemasokId: row.pemasok_id || row.pemasokId || (typeof row.pemasok === 'object' ? row.pemasok?.id : undefined),
+    pemasok_id: cleanId(row.pemasok_id || (typeof row.pemasok === 'object' ? row.pemasok?.id : undefined)),
     items: items,
     totalBeli: Number(row.harga_beli !== undefined ? row.harga_beli : row.totalBeli) || 0,
     totalJual: Number(row.total !== undefined ? row.total : row.totalJual) || 0,
@@ -182,17 +205,23 @@ export function mapRawInvoice(row: any): InvoiceRecord {
 }
 
 export function buildTransaksiPayload(record: Partial<InvoiceRecord>) {
+  const cleanId = (val: any) => {
+    if (val === undefined || val === null || val === '') return null;
+    const n = Number(val);
+    return !isNaN(n) && Number.isInteger(n) ? n : val;
+  };
+
   const itemsCatatan = (record.items || []).map((i) => i.catatan).filter(Boolean).join('; ');
   return {
     ...(record.id ? { id: record.id } : {}),
     invoice_number: record.invoiceNumber || `INV-${Date.now()}`,
     tanggal: record.createdAt ? record.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
     tanggal_print: record.tanggalPrint || new Date().toLocaleDateString('id-ID'),
-    pemasok_id: record.pemasok_id || record.pemasokId || null,
+    pemasok_id: cleanId(record.pemasok_id || (record as any).pemasokId),
     pemasok: record.pemasok || '',
-    toko_id: record.toko_id || record.tokoId || null,
+    toko_id: cleanId(record.toko_id || (record as any).tokoId),
     toko: record.toko || '',
-    dapur_id: record.dapur_id || record.dapurId || null,
+    dapur_id: cleanId(record.dapur_id || (record as any).dapurId),
     dapur: record.tujuanDapur || '',
     barang: (record.items || []).map((i) => `${i.namaBarang} (${i.qty})`).join(', '),
     qty: (record.items || []).reduce((s, i) => s + (Number(i.qty) || 0), 0),
@@ -366,9 +395,11 @@ export async function saveOrderToDb(order: OrderItem): Promise<{ success: boolea
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    const json = await res.json();
-    if (!res.ok || !json.success) {
-      return { success: false, error: json.error || 'Gagal menyimpan pesanan ke Supabase' };
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json.success === false) {
+      const errDetail = json.error || json.message || `HTTP ${res.status}: Gagal menyimpan pesanan ke Supabase`;
+      console.error('[saveOrderToDb Error Detail]:', errDetail, json);
+      return { success: false, error: errDetail };
     }
     // Invalidate pesanan and summary cache
     invalidateCache('pesanan');
@@ -376,6 +407,7 @@ export async function saveOrderToDb(order: OrderItem): Promise<{ success: boolea
     const createdItem = json.data?.[0] ? mapRawOrder(json.data[0]) : order;
     return { success: true, data: createdItem };
   } catch (err: any) {
+    console.error('[saveOrderToDb Exception]:', err);
     return { success: false, error: err?.message || 'Error saat menyimpan pesanan' };
   }
 }
@@ -404,14 +436,17 @@ export async function saveOrdersBatchToDb(orders: OrderItem[]): Promise<{ succes
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: payloads }),
     });
-    const json = await res.json();
-    if (!res.ok || !json.success) {
-      return { success: false, error: json.error || 'Gagal menyimpan batch pesanan ke Supabase' };
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json.success === false) {
+      const errDetail = json.error || json.message || `HTTP ${res.status}: Gagal menyimpan batch pesanan ke Supabase`;
+      console.error('[saveOrdersBatchToDb Error Detail]:', errDetail, json);
+      return { success: false, error: errDetail };
     }
     invalidateCache('pesanan');
     invalidateCache('summary');
     return { success: true, count: json.count || validItems.length };
   } catch (err: any) {
+    console.error('[saveOrdersBatchToDb Exception]:', err);
     return { success: false, error: err?.message || 'Error saat menyimpan batch pesanan' };
   }
 }
@@ -466,7 +501,8 @@ export async function deleteOrderFromDb(id: string): Promise<{ success: boolean;
     });
     const json = await res.json();
     if (!res.ok || !json.success) {
-      return { success: false, error: json.error || 'Gagal menghapus pesanan dari Supabase' };
+      const errStr = typeof json.error === 'string' ? json.error : (json.error?.message || json.message || 'Gagal menghapus pesanan dari Supabase');
+      return { success: false, error: errStr };
     }
     invalidateCache('pesanan');
     invalidateCache('summary');
@@ -485,7 +521,8 @@ export async function deleteOrdersFromDb(ids: string[]): Promise<{ success: bool
     });
     const json = await res.json();
     if (!res.ok || !json.success) {
-      return { success: false, error: json.error || 'Gagal menghapus pesanan dari Supabase' };
+      const errStr = typeof json.error === 'string' ? json.error : (json.error?.message || json.message || 'Gagal menghapus pesanan dari Supabase');
+      return { success: false, error: errStr };
     }
     invalidateCache('pesanan');
     invalidateCache('summary');

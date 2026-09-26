@@ -1,0 +1,624 @@
+{
+  "pesanan": [
+    {
+      "id": "ord-1790381522642-0-751",
+      "dapur": "Bangorejo",
+      "item": "Ayam Dada",
+      "tanggal": "2026-09-26",
+      "qty": 1,
+      "qty_beli": 1,
+      "nota_id": "nota-1790381522640-f4fta",
+      "satuan": "Kg",
+      "toko": "HTG",
+      "pemasok": "Arnis buah",
+      "status_pembayaran": "UNPAID",
+      "status_pengiriman": "PENDING",
+      "status": "pending",
+      "harga_jual": 9000,
+      "harga_beli": 5000,
+      "cashback": 0,
+      "retur": 0,
+      "catatan": "",
+      "created_at": "2026-09-26T00:12:01.989Z",
+      "updated_at": "2026-09-26T00:12:02.691Z"
+    }
+  ],
+  "transaksi": [
+    {
+      "id": "tx-1790379817692",
+      "invoice_number": "TRX-817692",
+      "tanggal": "2026-09-26",
+      "tanggal_print": "2026-09-26",
+      "pemasok": "Crystal fruits",
+      "barang": "Ayam Sayap (1)",
+      "toko": "LA / Lumbung Adifruta",
+      "dapur": "Ajeng",
+      "qty": 1,
+      "harga_beli": 4000,
+      "total": 7000,
+      "total_profit": 3000,
+      "status_pembayaran": "UNPAID",
+      "items": [
+        {
+          "namaBarang": "Ayam Sayap",
+          "item": "Ayam Sayap",
+          "qty": 1,
+          "qtyBeli": 1,
+          "qty_beli": 1,
+          "notaId": "nota-1790379817008-ame29",
+          "nota_id": "nota-1790379817008-ame29",
+          "satuan": "Kg",
+          "hargaBeli": 4000,
+          "hargaJual": 7000,
+          "cashback": 0,
+          "retur": 0,
+          "toko": "LA / Lumbung Adifruta",
+          "toko_id": "50d769c6-6869-4adb-be4e-36cce7cbb6f2",
+          "tujuanDapur": "Ajeng",
+          "dapur": "Ajeng",
+          "dapur_id": "fe0aea44-cb8d-4986-9135-138ea6793049",
+          "pemasok": "Crystal fruits",
+          "pemasok_id": "29b95b3d-4ca7-48ae-b8cf-67a97a73f394",
+          "status": "pending",
+          "paymentStatus": "UNPAID",
+          "deliveryStatus": "PENDING",
+          "tanggal": "2026-09-26",
+          "catatan": "",
+          "id": "ord-1790379817010-0-40",
+          "createdAt": "2026-09-26T06:43:37+07:00"
+        }
+      ],
+      "created_at": "2026-09-25T23:43:36.911Z",
+      "updated_at": "2026-09-25T23:43:37.011Z"
+    },
+    {
+      "id": "tx-1790381523560",
+      "invoice_number": "TRX-523560",
+      "tanggal": "2026-09-26",
+      "tanggal_print": "2026-09-26",
+      "pemasok": "Arnis buah",
+      "barang": "Ayam Dada (1)",
+      "toko": "HTG",
+      "dapur": "Bangorejo",
+      "qty": 1,
+      "harga_beli": 5000,
+      "total": 9000,
+      "total_profit": 4000,
+      "status_pembayaran": "UNPAID",
+      "items": [
+        {
+          "namaBarang": "Ayam Dada",
+          "item": "Ayam Dada",
+          "qty": 1,
+          "qtyBeli": 1,
+          "qty_beli": 1,
+          "notaId": "nota-1790381522640-f4fta",
+          "nota_id": "nota-1790381522640-f4fta",
+          "satuan": "Kg",
+          "hargaBeli": 5000,
+          "hargaJual": 9000,
+          "cashback": 0,
+          "retur": 0,
+          "toko": "HTG",
+          "toko_id": "28e3dc1d-c996-4e10-becb-24ca8b8a5dac",
+          "tujuanDapur": "Bangorejo",
+          "dapur": "Bangorejo",
+          "dapur_id": "d0ad778b-ec3a-4a5e-9b72-c533d1a7c1a1",
+          "pemasok": "Arnis buah",
+          "pemasok_id": "ac18aebe-8ee8-40a2-af67-70f7219789d2",
+          "status": "pending",
+          "paymentStatus": "UNPAID",
+          "deliveryStatus": "PENDING",
+          "tanggal": "2026-09-26",
+          "catatan": "",
+          "id": "ord-1790381522642-0-751",
+          "createdAt": "2026-09-26T07:12:02+07:00"
+        }
+      ],
+      "created_at": "2026-09-26T00:12:02.780Z",
+      "updated_at": "2026-09-26T00:12:02.933Z"
+    },
+    {
+      "id": "tx-1790382506252",
+      "invoice_number": "TRX-506252",
+      "tanggal": "2026-09-26",
+      "tanggal_print": "2026-09-26",
+      "pemasok": "Buah mulyo",
+      "barang": "Tempe (1)",
+      "toko": "HTG",
+      "dapur": "Ajeng",
+      "qty": 1,
+      "harga_beli": 15000,
+      "total": 30500,
+      "total_profit": 15500,
+      "status_pembayaran": "UNPAID",
+      "items": [
+        {
+          "namaBarang": "Tempe",
+          "item": "Tempe",
+          "qty": 1,
+          "qtyBeli": 1,
+          "qty_beli": 1,
+          "notaId": "nota-1790382505904-i134g",
+          "nota_id": "nota-1790382505904-i134g",
+          "satuan": "Kg",
+          "hargaBeli": 15000,
+          "hargaJual": 30500,
+          "cashback": 0,
+          "retur": 0,
+          "toko": "HTG",
+          "toko_id": "28e3dc1d-c996-4e10-becb-24ca8b8a5dac",
+          "tujuanDapur": "Ajeng",
+          "dapur": "Ajeng",
+          "dapur_id": "fe0aea44-cb8d-4986-9135-138ea6793049",
+          "pemasok": "Buah mulyo",
+          "pemasok_id": "73a722ba-f4be-4096-87c4-e95b808b53bd",
+          "status": "pending",
+          "paymentStatus": "UNPAID",
+          "deliveryStatus": "PENDING",
+          "tanggal": "2026-09-26",
+          "catatan": "",
+          "id": "ord-1790382505906-0-988",
+          "createdAt": "2026-09-26T07:28:25+07:00"
+        }
+      ],
+      "created_at": "2026-09-26T00:28:25.474Z",
+      "updated_at": "2026-09-26T00:28:25.637Z"
+    },
+    {
+      "id": "tx-1790383293169",
+      "invoice_number": "TRX-293169",
+      "tanggal": "2026-09-26",
+      "tanggal_print": "2026-09-26",
+      "pemasok": "Diah Buah",
+      "barang": "Tempe (1)",
+      "toko": "4",
+      "dapur": "Ajeng",
+      "qty": 1,
+      "harga_beli": 29000,
+      "total": 76000,
+      "total_profit": 47000,
+      "status_pembayaran": "UNPAID",
+      "items": [
+        {
+          "namaBarang": "Tempe",
+          "item": "Tempe",
+          "qty": 1,
+          "qtyBeli": 1,
+          "qty_beli": 1,
+          "notaId": "nota-1790383292411-617hb",
+          "nota_id": "nota-1790383292411-617hb",
+          "satuan": "Kg",
+          "hargaBeli": 29000,
+          "hargaJual": 76000,
+          "cashback": 0,
+          "retur": 0,
+          "toko": "4",
+          "toko_id": "",
+          "tujuanDapur": "Ajeng",
+          "dapur": "Ajeng",
+          "dapur_id": 19,
+          "pemasok": "Diah Buah",
+          "pemasok_id": 6,
+          "status": "pending",
+          "paymentStatus": "UNPAID",
+          "deliveryStatus": "PENDING",
+          "tanggal": "2026-09-26",
+          "catatan": "",
+          "id": "ord-1790383292413-0-532",
+          "createdAt": "2026-09-26T07:41:32+07:00"
+        }
+      ],
+      "created_at": "2026-09-26T00:41:32.391Z",
+      "updated_at": "2026-09-26T00:41:32.554Z"
+    },
+    {
+      "id": "trx_1790383416834_cv0s4",
+      "invoice_number": "INV-TEST-001",
+      "tanggal": "2026-09-25",
+      "tanggal_print": "25 September 2026",
+      "pemasok": "Ajeng fruits",
+      "barang": "Beras (10)",
+      "toko": "HTG",
+      "dapur": "Kedayunan",
+      "qty": 10,
+      "harga_beli": 100000,
+      "total": 120000,
+      "total_profit": 20000,
+      "status_pembayaran": "PAID",
+      "items": [],
+      "created_at": "2026-09-26T00:43:36.634Z",
+      "updated_at": "2026-09-26T00:43:36.834Z"
+    }
+  ],
+  "notes": [],
+  "toko": [
+    {
+      "id": "toko-lb",
+      "nama": "LB / Luweng Boga",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "toko-htg",
+      "nama": "HTG",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "toko-la",
+      "nama": "LA / Lumbung Adifruta",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "toko-pw",
+      "nama": "PW / Prohe",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    }
+  ],
+  "pemasok": [
+    {
+      "id": "pemasok-ajeng-fruits",
+      "nama": "Ajeng fruits",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-sari-buah",
+      "nama": "Sari buah",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-buah-mulyo",
+      "nama": "Buah mulyo",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-arnis-buah",
+      "nama": "Arnis buah",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-pmb",
+      "nama": "PMB",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-diah-buah",
+      "nama": "Diah Buah",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-pak-jarwo",
+      "nama": "Pak Jarwo",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-handoyo",
+      "nama": "Handoyo",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-pak-nyoto",
+      "nama": "Pak nyoto",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-pak-bahtiar",
+      "nama": "Pak bahtiar",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-salak-senepo",
+      "nama": "Salak senepo",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-crystal-fruits",
+      "nama": "Crystal fruits",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-indo-sayur",
+      "nama": "indo sayur",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-toko-daging-sapi-bwi",
+      "nama": "Toko daging sapi banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-raja-ayam",
+      "nama": "Raja ayam",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-bu-tiah",
+      "nama": "Bu Tiah",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-vazio",
+      "nama": "Vazio",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-pak-hadi",
+      "nama": "Pak Hadi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-yogo",
+      "nama": "Yogo",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-roti-pradana",
+      "nama": "Roti Pradana",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-pak-toha",
+      "nama": "Pak Toha",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-nur-cavendish",
+      "nama": "Nur Cavendish",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-juhari-cavendish",
+      "nama": "Juhari Cavendish",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-mecca",
+      "nama": "Mecca",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-lontong-sempu",
+      "nama": "Lontong sempu",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-ladju-snack",
+      "nama": "Ladju snack",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-pak-adi-edamame",
+      "nama": "Pak adi edamame",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-pak-wargito-ndok-asin",
+      "nama": "Pak wargito Ndok Asin",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-suparti",
+      "nama": "Suparti",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-eko-lele",
+      "nama": "Eko lele",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-king",
+      "nama": "King",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-nur-patin",
+      "nama": "Nur patin",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-nanik-tuna",
+      "nama": "Nanik tuna",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "pemasok-rambo-jambu-citra",
+      "nama": "Rambo Jambu citra",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    }
+  ],
+  "dapur": [
+    {
+      "id": "dapur-kedayunan",
+      "nama": "Kedayunan",
+      "alamat": "Kec. Kabat, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-siliragung",
+      "nama": "Siliragung",
+      "alamat": "Kec. Siliragung, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-banjarsari",
+      "nama": "Banjarsari 2",
+      "alamat": "Kec. Glagah, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-wringinputih-2",
+      "nama": "Wringinputih 2",
+      "alamat": "Kec. Muncar, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-wringinputih-4",
+      "nama": "Wringinputih 4",
+      "alamat": "Kec. Muncar, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-singojuruh",
+      "nama": "Singojuruh",
+      "alamat": "Kec. Singojuruh, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-cluring",
+      "nama": "Cluring",
+      "alamat": "Kec. Cluring, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-tamansari",
+      "nama": "Tamansari",
+      "alamat": "Kec. Licin, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-wongsorejo",
+      "nama": "Wongsorejo",
+      "alamat": "Kec. Wongsorejo, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-sumberagung",
+      "nama": "Sumberagung",
+      "alamat": "Kec. Pesanggaran, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-mojoroto",
+      "nama": "Mojoroto",
+      "alamat": "Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-tapanrejo",
+      "nama": "Tapanrejo",
+      "alamat": "Kec. Muncar, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-kendalrejo",
+      "nama": "Kendalrejo",
+      "alamat": "Kec. Tegaldlimo, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-gambiran",
+      "nama": "Gambiran",
+      "alamat": "Kec. Gambiran, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-pidis",
+      "nama": "Pidis",
+      "alamat": "Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-kesilir-2",
+      "nama": "Kesilir 2",
+      "alamat": "Kec. Siliragung, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-mufid",
+      "nama": "Mufid",
+      "alamat": "Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-rejoagung",
+      "nama": "Rejoagung",
+      "alamat": "Kec. Srono, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-ajeng",
+      "nama": "Ajeng",
+      "alamat": "Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-pesanggaran",
+      "nama": "Pesanggaran",
+      "alamat": "Kec. Pesanggaran, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "dapur-bangorejo",
+      "nama": "Bangorejo",
+      "alamat": "Kec. Bangorejo, Banyuwangi",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    }
+  ],
+  "satuan": [
+    {
+      "id": "satuan-kg",
+      "nama": "Kg",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "satuan-gram",
+      "nama": "Gram",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "satuan-pcs",
+      "nama": "Pcs",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "satuan-ikat",
+      "nama": "Ikat",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "satuan-tray",
+      "nama": "Tray",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "satuan-pack",
+      "nama": "Pack",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "satuan-liter",
+      "nama": "Liter",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "satuan-box",
+      "nama": "Box",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "satuan-karung",
+      "nama": "Karung",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "satuan-ekor",
+      "nama": "Ekor",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "satuan-krat",
+      "nama": "Krat",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "satuan-dus",
+      "nama": "Dus",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    },
+    {
+      "id": "satuan-bungkus",
+      "nama": "Bungkus",
+      "created_at": "2026-09-25T23:30:25.604Z"
+    }
+  ]
+}

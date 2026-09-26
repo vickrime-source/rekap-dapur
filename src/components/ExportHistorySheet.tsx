@@ -46,7 +46,7 @@ export const ExportHistorySheet: React.FC<ExportHistorySheetProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+          className="fixed inset-0 bg-black/60 transition-opacity"
         />
 
         {/* Bottom Sheet Container */}

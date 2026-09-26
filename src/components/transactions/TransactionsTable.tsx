@@ -80,21 +80,21 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
         <>
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs relative">
-              <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-2xs">
-                <tr className="text-[10px] sm:text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              <thead className="sticky top-0 z-20 bg-slate-100/90 dark:bg-slate-800/90 backdrop-blur-xs border-b border-slate-200 dark:border-slate-700 shadow-2xs">
+                <tr className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   <th className="py-3 px-2 text-center w-10 sticky top-0">NO</th>
                   <th className="py-3 px-2.5 whitespace-nowrap sticky top-0">TANGGAL</th>
                   <th className="py-3 px-2.5 whitespace-nowrap sticky top-0">PEMASOK</th>
-                  <th className="py-3 px-3 sticky top-0 min-w-[140px]">BARANG &amp; TUJUAN</th>
+                  <th className="py-3 px-3 sticky top-0 min-w-[200px]">BARANG &amp; TUJUAN</th>
                   <th className="py-3 px-2.5 text-center whitespace-nowrap sticky top-0">TOKO</th>
                   <th className="py-3 px-2 text-center w-12 sticky top-0">QTY</th>
                   <th className="py-3 px-2.5 text-right whitespace-nowrap sticky top-0">H. BELI</th>
                   <th className="py-3 px-2.5 text-right whitespace-nowrap sticky top-0">TOTAL (JUAL)</th>
-                  <th className="py-3 px-2.5 text-right whitespace-nowrap sticky top-0 text-amber-800 dark:text-amber-400">CASHBACK</th>
-                  <th className="py-3 px-2.5 text-left whitespace-nowrap sticky top-0 text-slate-700 dark:text-slate-300">CATATAN</th>
-                  <th className="py-3 px-2.5 text-right whitespace-nowrap sticky top-0 text-emerald-800 dark:text-emerald-400">LABA BERSIH</th>
-                  <th className="py-3 px-2.5 text-center whitespace-nowrap sticky top-0">STATUS</th>
-                  <th className="py-3 px-2.5 text-center whitespace-nowrap min-w-[95px] sticky top-0">AKSI</th>
+                  <th className="py-3 px-2 text-right whitespace-nowrap sticky top-0 text-amber-700 dark:text-amber-400">CASHBACK</th>
+                  <th className="py-3 px-2 text-left whitespace-nowrap sticky top-0 text-slate-700 dark:text-slate-300">CATATAN</th>
+                  <th className="py-3 px-2.5 text-right whitespace-nowrap sticky top-0 text-emerald-700 dark:text-emerald-400">LABA BERSIH</th>
+                  <th className="py-3 px-2 text-center whitespace-nowrap sticky top-0">STATUS</th>
+                  <th className="py-3 px-2 text-center whitespace-nowrap w-16 sticky top-0">AKSI</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900">
@@ -104,9 +104,6 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                     batch={batch}
                     isMenuOpen={activeMenuId === batch.id}
                     onToggleBatchPayment={onToggleBatchPayment}
-                    onViewInvoice={onViewInvoice}
-                    onOpenInvoiceModal={onOpenInvoiceModal}
-                    onExportInvoicePdf={onExportInvoicePdf}
                     onDeleteTransaction={onDeleteTransaction}
                     onDeleteInvoice={onDeleteInvoice}
                     onDeleteOrder={onDeleteOrder}
@@ -115,33 +112,33 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = ({
                 ))}
               </tbody>
               <tfoot className="sticky bottom-0 z-10 bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-700 shadow-2xs">
-                <tr className="text-slate-900 dark:text-slate-100 text-[9px] font-black">
-                  <td colSpan={5} className="py-2.5 px-3 text-right uppercase tracking-wider text-slate-700 dark:text-slate-300 font-extrabold">
+                <tr className="text-slate-900 dark:text-slate-100 text-xs font-bold">
+                  <td colSpan={5} className="py-3 px-3 text-right uppercase tracking-wider text-slate-700 dark:text-slate-300 font-extrabold text-[11px]">
                     TOTAL REKAP ({filteredBatches.length} Transaksi) :
                   </td>
-                  <td className="py-2.5 px-1.5 text-center font-black font-nominal text-[10px] text-slate-900 dark:text-slate-100">
+                  <td className="py-3 px-2 text-center font-bold font-nominal text-xs text-slate-900 dark:text-slate-100">
                     {summaryTotals.totalQty}
                   </td>
-                  <td className="py-2.5 px-2.5 text-right font-black font-nominal text-[10px] text-rose-700 dark:text-rose-400 whitespace-nowrap">
+                  <td className="py-3 px-2.5 text-right font-bold font-nominal text-xs text-rose-600 dark:text-rose-400 whitespace-nowrap">
                     {formatRupiah(summaryTotals.totalBeli)}
                   </td>
-                  <td className="py-2.5 px-2.5 text-right font-black font-nominal text-[10px] text-emerald-800 dark:text-emerald-400 whitespace-nowrap">
+                  <td className="py-3 px-2.5 text-right font-bold font-nominal text-xs text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
                     {formatRupiah(summaryTotals.totalJual)}
                   </td>
-                  <td className="py-2.5 px-2.5 text-right font-black font-nominal text-[10px] text-amber-800 dark:text-amber-400 whitespace-nowrap">
+                  <td className="py-3 px-2 text-right font-semibold font-nominal text-xs text-amber-700 dark:text-amber-400 whitespace-nowrap">
                     {summaryTotals.totalKeKoperasi > 0 ? `+${formatRupiah(summaryTotals.totalKeKoperasi)}` : 'Rp 0'}
                   </td>
-                  <td className="py-2.5 px-2 text-center text-slate-400 dark:text-slate-500 font-medium text-[9px]">
+                  <td className="py-3 px-2 text-center text-slate-400 dark:text-slate-500 font-medium text-xs">
                     -
                   </td>
-                  <td className="py-2.5 px-2 text-right font-black font-nominal text-[10px] whitespace-nowrap">
+                  <td className="py-3 px-2.5 text-right font-bold font-nominal text-xs whitespace-nowrap">
                     <span className={summaryTotals.totalLabaBersih >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
                       {summaryTotals.totalLabaBersih >= 0
                         ? `+${formatRupiah(summaryTotals.totalLabaBersih)}`
                         : `-${formatRupiah(Math.abs(summaryTotals.totalLabaBersih))}`}
                     </span>
                   </td>
-                  <td colSpan={2} className="py-2.5 px-2 text-center text-slate-400 dark:text-slate-500 font-medium">
+                  <td colSpan={2} className="py-3 px-2 text-center text-slate-400 dark:text-slate-500 font-medium">
                     -
                   </td>
                 </tr>

@@ -34,7 +34,7 @@ export const MoneyInput: React.FC<MoneyInputProps> = ({
   label,
   value,
   onChange,
-  placeholder = 'Rp 0',
+  placeholder = '',
   required = false,
   error,
   id,
