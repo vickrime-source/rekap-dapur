@@ -639,12 +639,19 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     return { totalLabaBersihSemua: laba, totalKeKoperasiSemua: kop };
   }, [itemRows]);
 
+  // Cek apakah semua item valid sudah memiliki pemasok masing-masing
+  const allItemsHavePemasok = useMemo(() => {
+    const validRows = itemRows.filter((r) => r.namaBarang && r.namaBarang.trim() !== '');
+    if (validRows.length === 0) return false;
+    return validRows.every((r) => r.pemasok && r.pemasok.trim() !== '');
+  }, [itemRows]);
+
   // Form validity check
   const isFormValid =
     tanggal.trim() !== '' &&
     toko.trim() !== '' &&
     tujuanDapur.trim() !== '' &&
-    pemasok.trim() !== '' &&
+    (allItemsHavePemasok || pemasok.trim() !== '') &&
     itemRows.some((r) => r.namaBarang && r.namaBarang.trim() !== '') &&
     itemRows
       .filter((r) => r.namaBarang && r.namaBarang.trim() !== '')
@@ -654,7 +661,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           Number(r.hargaBeli) >= 0 &&
           Number(r.hargaJual) >= 0 &&
           (Number(r.retur) || 0) >= 0 &&
-          (Number(r.retur) || 0) <= Number(r.qty)
+          (Number(r.retur) || 0) <= Number(r.qty) &&
+          (allItemsHavePemasok || (r.pemasok && r.pemasok.trim() !== '') || pemasok.trim() !== '')
       );
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -672,7 +680,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       alert('Mohon isi atau pilih Dapur terlebih dahulu.');
       return;
     }
-    if (!cleanPemasok) {
+    if (!cleanPemasok && !allItemsHavePemasok) {
       alert('Mohon isi atau pilih Pemasok terlebih dahulu.');
       return;
     }
@@ -745,21 +753,24 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     // Auto-create Master Pemasok if not found in database (case-insensitive & trimmed)
     let finalPemasokId = pemasokId;
     let finalPemasokName = cleanPemasok;
-    const matchedPemasok = masterPemasok.find(
-      (p) => p.nama.trim().toLowerCase() === cleanPemasok.toLowerCase()
-    );
 
-    if (matchedPemasok) {
-      finalPemasokId = matchedPemasok.id;
-      finalPemasokName = matchedPemasok.nama;
-    } else {
-      // Pemasok baru: otomatis simpan ke Master Supabase
-      const saveRes = await saveMasterPemasokToDb(cleanPemasok);
-      if (saveRes.success && saveRes.data?.id) {
-        finalPemasokId = saveRes.data.id;
-        finalPemasokName = saveRes.data.nama || cleanPemasok;
+    if (cleanPemasok) {
+      const matchedPemasok = masterPemasok.find(
+        (p) => p.nama.trim().toLowerCase() === cleanPemasok.toLowerCase()
+      );
+
+      if (matchedPemasok) {
+        finalPemasokId = matchedPemasok.id;
+        finalPemasokName = matchedPemasok.nama;
+      } else {
+        // Pemasok baru: otomatis simpan ke Master Supabase
+        const saveRes = await saveMasterPemasokToDb(cleanPemasok);
+        if (saveRes.success && saveRes.data?.id) {
+          finalPemasokId = saveRes.data.id;
+          finalPemasokName = saveRes.data.nama || cleanPemasok;
+        }
+        if (onRefreshMaster) await onRefreshMaster();
       }
-      if (onRefreshMaster) await onRefreshMaster();
     }
 
     // Auto-create Master Toko if not found in database (case-insensitive & trimmed)
@@ -1491,30 +1502,53 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   {/* Pemasok Autocomplete */}
                   <div className="relative">
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                        Pemasok
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setQuickAddType('pemasok');
-                          setQuickAddNama(pemasok.trim());
-                        }}
-                        className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                      <label 
+                        htmlFor="input-order-pemasok"
+                        className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5"
                       >
-                        + Tambah Baru
-                      </button>
+                        <span>Pemasok</span>
+                        {allItemsHavePemasok ? (
+                          <span className="text-[9.5px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 lowercase">
+                            (diatur per item)
+                          </span>
+                        ) : (
+                          <span className="text-[9.5px] font-normal text-slate-400 dark:text-slate-500 lowercase">
+                            (utama / default)
+                          </span>
+                        )}
+                      </label>
+                      {!allItemsHavePemasok && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuickAddType('pemasok');
+                            setQuickAddNama(pemasok.trim());
+                          }}
+                          className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                        >
+                          + Tambah Baru
+                        </button>
+                      )}
                     </div>
                     <div className="relative">
                       <input
                         type="text"
-                        required
+                        required={!allItemsHavePemasok}
+                        disabled={allItemsHavePemasok}
                         id="input-order-pemasok"
                         ref={pemasokInputRef}
-                        value={pemasok}
+                        value={allItemsHavePemasok ? '' : pemasok}
+                        placeholder={
+                          allItemsHavePemasok
+                            ? 'Setiap item sudah memiliki pemasok masing-masing'
+                            : 'Pilih atau ketik nama pemasok...'
+                        }
                         autoComplete="off"
-                        onFocus={() => setIsPemasokOpen(true)}
+                        onFocus={() => {
+                          if (!allItemsHavePemasok) setIsPemasokOpen(true);
+                        }}
                         onChange={(e) => {
+                          if (allItemsHavePemasok) return;
                           const val = e.target.value;
                           setPemasok(val);
                           setIsPemasokOpen(true);
@@ -1525,20 +1559,26 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                             setPemasokId('');
                           }
                         }}
-                        className="w-full pl-9 pr-8 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all"
+                        className={`w-full pl-9 pr-8 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+                          allItemsHavePemasok
+                            ? 'bg-slate-100/90 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed select-none placeholder:text-slate-400 dark:placeholder:text-slate-500'
+                            : 'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600'
+                        }`}
                       />
                       <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <button
-                        type="button"
-                        onClick={() => setIsPemasokOpen(!isPemasokOpen)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
-                        title="Buka daftar pemasok"
-                      >
-                        <ChevronDown className="w-4 h-4" />
-                      </button>
+                      {!allItemsHavePemasok && (
+                        <button
+                          type="button"
+                          onClick={() => setIsPemasokOpen(!isPemasokOpen)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
+                          title="Buka daftar pemasok"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
 
-                    {isPemasokOpen && (
+                    {!allItemsHavePemasok && isPemasokOpen && (
                       <>
                         <div 
                           className="fixed inset-0 z-30" 

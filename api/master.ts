@@ -8,6 +8,9 @@ import {
   getMasterDapurFromDb,
   createMasterDapurInDb,
   deleteMasterDapurInDb,
+  getMasterSatuanFromDb,
+  createMasterSatuanInDb,
+  deleteMasterSatuanInDb,
   checkMasterUsageInDb,
 } from '../server/supabaseService.js';
 
@@ -125,9 +128,33 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    // 5. SATUAN CRUD
+    if (type === 'satuan') {
+      if (req.method === 'GET') {
+        const data = await getMasterSatuanFromDb();
+        return res.status(200).json({ success: true, data, count: data.length });
+      }
+      if (req.method === 'POST') {
+        const nama = (body.nama || body.name || '').trim();
+        if (!nama) {
+          return res.status(400).json({ success: false, error: 'Nama satuan wajib diisi.' });
+        }
+        const item = await createMasterSatuanInDb(nama);
+        return res.status(200).json({ success: true, data: item, message: 'Satuan berhasil ditambahkan' });
+      }
+      if (req.method === 'DELETE') {
+        const id = (query.id || body.id) as string;
+        if (!id) {
+          return res.status(400).json({ success: false, error: 'ID satuan wajib disertakan.' });
+        }
+        await deleteMasterSatuanInDb(id);
+        return res.status(200).json({ success: true, message: 'Satuan berhasil dihapus' });
+      }
+    }
+
     return res.status(400).json({
       success: false,
-      error: 'Tipe master data tidak valid. Gunakan ?type=toko, ?type=pemasok, atau ?type=dapur',
+      error: 'Tipe master data tidak valid. Gunakan ?type=toko, ?type=pemasok, ?type=dapur, atau ?type=satuan',
     });
   } catch (err: any) {
     console.error('[API /api/master Error]:', err);

@@ -90,7 +90,7 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      const orderData = body.data || body;
+      const orderData = body.items || body.data || body;
       const created = await createOrdersInDb(orderData);
       return res.status(200).json({
         success: true,

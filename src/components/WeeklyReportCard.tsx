@@ -17,7 +17,7 @@ import { BreakdownDapur, DapurBreakdownItem } from './BreakdownDapur';
 import { 
   Wallet, 
   TrendingUp, 
-  Building2, 
+  Tag, 
   CheckCircle2 
 } from 'lucide-react';
 import { AnimatedCounter } from './AnimatedCounter';
@@ -466,12 +466,12 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
           </div>
         </div>
 
-        {/* 3. KOPERASI */}
+        {/* 3. CASHBACK */}
         <div className="bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-800/60 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-2xs hover:border-amber-300 dark:hover:border-amber-700 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-              Koperasi
+              <Tag className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              Cashback
             </span>
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
           </div>

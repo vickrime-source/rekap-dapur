@@ -117,17 +117,27 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
     return nonCancelled;
   }, [orders, activePeriod, selectedDate, weekRange]);
 
-  // Dynamic memoized calculations for operational metrics: Pesanan, Laba Bersih & Pending
-  const { totalOrders, totalPending, totalLabaBersih } = useMemo(() => {
-    let pendingCount = 0;
+  // Dynamic memoized calculations for operational metrics: Estimasi Laba, Pesanan (Trx), & Pending (Trx)
+  const { totalBatches, pendingBatches, totalLabaBersih } = useMemo(() => {
     let labaBersih = 0;
+    const batchMap = new Map<string, { allPaid: boolean; allDone: boolean }>();
 
     for (let i = 0; i < filteredOrders.length; i++) {
       const item = filteredOrders[i];
+
+      // Acuan status pembayaran dan pengiriman
       const isPaid = item.paymentStatus === 'PAID' || (item.status === 'selesai' && !item.paymentStatus);
       const isDone = item.deliveryStatus === 'DONE' || (item.status === 'selesai' && !item.deliveryStatus);
-      if (!isPaid || !isDone || item.status === 'pending') {
-        pendingCount++;
+
+      // Group per keberangkatan (trx) sesuai acuan tabel pesanan (tanggal + tujuan dapur + toko)
+      const batchKey = `${item.tanggal}||${item.tujuanDapur}||${item.toko}`;
+
+      if (!batchMap.has(batchKey)) {
+        batchMap.set(batchKey, { allPaid: isPaid, allDone: isDone });
+      } else {
+        const batch = batchMap.get(batchKey)!;
+        if (!isPaid) batch.allPaid = false;
+        if (!isDone) batch.allDone = false;
       }
 
       const rawQtyJual = parseIndonesianNumber(item.qty);
@@ -148,9 +158,17 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
       labaBersih += labaItem;
     }
 
+    let pendingCount = 0;
+    batchMap.forEach((batch) => {
+      // Acuan keberangkatan pending: delivery belum DONE atau payment belum PAID (unpaid)
+      if (!batch.allPaid || !batch.allDone) {
+        pendingCount++;
+      }
+    });
+
     return {
-      totalOrders: filteredOrders.length,
-      totalPending: pendingCount,
+      totalBatches: batchMap.size,
+      pendingBatches: pendingCount,
       totalLabaBersih: labaBersih,
     };
   }, [filteredOrders]);
@@ -285,9 +303,26 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
 
         {/* SUB-ROW: Status Operasional & Follow Up Notes */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5">
-          {/* Left: Status Operasional (Pesanan, Laba Bersih & Pending) */}
+          {/* Left: Status Operasional (Estimasi Laba, Pesanan & Pending) */}
           <div className="md:col-span-4 tablet-landscape-full-col grid grid-cols-1 sm:grid-cols-3 md:flex md:flex-col tablet-landscape-grid-3 gap-2">
-            {/* Box Pesanan */}
+            {/* 1. Box Estimasi Laba (Teratas) */}
+            <div className="flex-1 bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/90 dark:border-emerald-800/60 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between shadow-2xs transition-colors duration-200">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center border border-emerald-600 shadow-xs flex-shrink-0">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block">
+                    Estimasi Laba
+                  </span>
+                  <span className="text-xs sm:text-sm font-black font-nominal text-emerald-950 dark:text-emerald-100 leading-none truncate block">
+                    <AnimatedCounter value={totalLabaBersih} format="rupiah" />
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Box Pesanan (Tengah - Per Keberangkatan) */}
             <div className="flex-1 bg-white dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between shadow-2xs transition-colors duration-200">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 flex items-center justify-center border border-indigo-100 dark:border-indigo-800/80 flex-shrink-0">
@@ -298,38 +333,21 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                     Pesanan
                   </span>
                   <span className="text-xs sm:text-sm font-black font-nominal text-slate-800 dark:text-slate-100 leading-none">
-                    <AnimatedCounter value={totalOrders} format="number" /> <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">item</span>
+                    <AnimatedCounter value={totalBatches} format="number" /> <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">trx</span>
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Box Laba Bersih */}
-            <div className="flex-1 bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/90 dark:border-emerald-800/60 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between shadow-2xs transition-colors duration-200">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center border border-emerald-600 shadow-xs flex-shrink-0">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block">
-                    Laba Bersih
-                  </span>
-                  <span className="text-xs sm:text-sm font-black font-nominal text-emerald-950 dark:text-emerald-100 leading-none truncate block">
-                    <AnimatedCounter value={totalLabaBersih} format="rupiah" />
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Box Pending */}
+            {/* 3. Box Pending (Bawah - Per Keberangkatan) */}
             <div className={`flex-1 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between border shadow-2xs transition-colors duration-200 ${
-              totalPending > 0
+              pendingBatches > 0
                 ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-200/90 dark:border-rose-800/60'
                 : 'bg-white dark:bg-slate-800/90 border-slate-200/90 dark:border-slate-700/80'
             }`}>
               <div className="flex items-center gap-2">
                 <div className={`w-7 h-7 rounded-xl flex items-center justify-center border flex-shrink-0 ${
-                  totalPending > 0
+                  pendingBatches > 0
                     ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
                     : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-600'
                 }`}>
@@ -337,20 +355,20 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                 </div>
                 <div>
                   <span className={`text-[9px] font-bold uppercase tracking-wider block ${
-                    totalPending > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'
+                    pendingBatches > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'
                   }`}>
                     Pending
                   </span>
                   <span className={`text-xs sm:text-sm font-black font-nominal leading-none ${
-                    totalPending > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-700 dark:text-slate-200'
+                    pendingBatches > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-700 dark:text-slate-200'
                   }`}>
-                    <AnimatedCounter value={totalPending} format="number" /> <span className="text-[10px] font-medium opacity-80">item</span>
+                    <AnimatedCounter value={pendingBatches} format="number" /> <span className="text-[10px] font-medium opacity-80">trx</span>
                   </span>
                 </div>
               </div>
             </div>
 
-            {totalOrders === 0 && orders.length > 0 && activePeriod !== 'all_time' && (
+            {totalBatches === 0 && orders.length > 0 && activePeriod !== 'all_time' && (
               <button
                 type="button"
                 onClick={() => handleSetPeriod('all_time')}

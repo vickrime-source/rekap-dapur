@@ -83,10 +83,10 @@ export const ProfitPreview: React.FC<ProfitPreviewProps> = ({
             </div>
           </div>
 
-          {/* Ke Koperasi */}
+          {/* Cashback */}
           <div>
             <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-              Ke Koperasi
+              Cashback
             </span>
             <div
               className={`text-sm sm:text-base font-bold font-mono tracking-tight mt-0.5 ${

@@ -69,7 +69,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
 
         <div>
           <span className="text-[10.5px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-            Ke Koperasi
+            Cashback
           </span>
           <span className="text-xs sm:text-sm font-bold text-amber-800 dark:text-amber-400 font-mono">
             {formatIDR(safeKoperasi)}

@@ -299,14 +299,46 @@ export function createLocalOrders(records: any[]): FallbackOrder[] {
   const db = loadDb();
   const created: FallbackOrder[] = [];
 
-  for (const item of records) {
+  let rawList: any[];
+  if (Array.isArray(records)) {
+    rawList = records;
+  } else if (records && typeof records === 'object') {
+    if (Array.isArray((records as any).items)) {
+      rawList = (records as any).items;
+    } else if (Array.isArray((records as any).data)) {
+      rawList = (records as any).data;
+    } else {
+      rawList = [records];
+    }
+  } else {
+    rawList = [];
+  }
+
+  const list: any[] = [];
+  for (const entry of rawList) {
+    if (Array.isArray(entry)) {
+      list.push(...entry);
+    } else if (entry && typeof entry === 'object' && Array.isArray(entry.items)) {
+      list.push(...entry.items);
+    } else if (entry && typeof entry === 'object' && Array.isArray(entry.data)) {
+      list.push(...entry.data);
+    } else if (entry && typeof entry === 'object') {
+      list.push(entry);
+    }
+  }
+
+  for (const item of list) {
+    const rawDapur = (item.dapur || item.tujuanDapur || item.tujuan_dapur || '').toString().trim();
+    const rawItem = (item.item || item.namaBarang || item.nama_barang || '').toString().trim();
+    if (!rawItem || !rawDapur) continue;
+
     const id = item.id ? String(item.id) : `ord_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const rawQty = Number(item.qty) || 0;
     const rawQtyBeli = item.qty_beli !== undefined ? Number(item.qty_beli) : (item.qtyBeli !== undefined ? Number(item.qtyBeli) : rawQty);
     const newOrd: FallbackOrder = {
       id,
-      dapur: item.dapur || item.tujuanDapur || '',
-      item: item.item || item.namaBarang || '',
+      dapur: rawDapur,
+      item: rawItem,
       tanggal: item.tanggal || new Date().toISOString().split('T')[0],
       qty: rawQty,
       qty_beli: rawQtyBeli,

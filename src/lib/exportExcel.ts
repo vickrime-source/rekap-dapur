@@ -40,7 +40,7 @@ export async function exportToExcel(orders: OrderItem[], filenamePrefix = 'Rekap
       'Total Pembelian': totalBeli,
       'Total Penjualan': totalJual,
       'Keuntungan (Profit)': profit,
-      'Ke Koperasi': keKoperasi,
+      'Total Cashback': keKoperasi,
       'Toko': item.toko,
       'Tujuan Dapur': item.tujuanDapur,
       'Pemasok / Supplier': item.pemasok,
@@ -103,7 +103,7 @@ export async function exportToExcel(orders: OrderItem[], filenamePrefix = 'Rekap
     'Total Pembelian': totalBeliAll,
     'Total Penjualan': totalJualAll,
     'Keuntungan (Profit)': totalProfitAll,
-    'Ke Koperasi': totalKeKoperasiAll,
+    'Total Cashback': totalKeKoperasiAll,
     'Toko': '',
     'Tujuan Dapur': '',
     'Pemasok / Supplier': '',
@@ -128,7 +128,7 @@ export async function exportToExcel(orders: OrderItem[], filenamePrefix = 'Rekap
     { wch: 18 }, // Total Pembelian
     { wch: 18 }, // Total Penjualan
     { wch: 18 }, // Keuntungan
-    { wch: 14 }, // Ke Koperasi
+    { wch: 14 }, // Cashback
     { wch: 12 }, // Toko
     { wch: 22 }, // Tujuan Dapur
     { wch: 20 }, // Pemasok
@@ -184,7 +184,7 @@ export async function exportToCSV(orders: OrderItem[], filenamePrefix = 'Rekap_D
       'Total Beli': totalBeli,
       'Total Jual': totalJual,
       'Profit': profit,
-      'Ke Koperasi': keKoperasi,
+      'Total Cashback': keKoperasi,
       'Toko': item.toko,
       'Tujuan Dapur': item.tujuanDapur,
       'Pemasok': item.pemasok,

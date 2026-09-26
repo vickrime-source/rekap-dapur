@@ -335,31 +335,55 @@ export async function getOrdersFromDb(filters: OrderFilterOptions = {}) {
 }
 
 export async function createOrdersInDb(ordersData: any[] | any) {
-  const list = Array.isArray(ordersData) ? ordersData : [ordersData];
-
-  if (list.length === 0) {
-    throw new Error('Validasi gagal: Daftar pesanan tidak boleh kosong.');
+  // 1. Normalize and unwrap items if payload is wrapped in { items: [...] } or { data: [...] }
+  let rawList: any[];
+  if (Array.isArray(ordersData)) {
+    rawList = ordersData;
+  } else if (ordersData && typeof ordersData === 'object') {
+    if (Array.isArray(ordersData.items)) {
+      rawList = ordersData.items;
+    } else if (Array.isArray(ordersData.data)) {
+      rawList = ordersData.data;
+    } else {
+      rawList = [ordersData];
+    }
+  } else {
+    rawList = [];
   }
 
-  // 1. VALIDASI INSERT PESANAN: Tolak jika dapur kosong atau nama barang kosong.
-  for (const item of list) {
+  // 2. Flatten in case of nested arrays or wrapper objects
+  const list: any[] = [];
+  for (const entry of rawList) {
+    if (Array.isArray(entry)) {
+      list.push(...entry);
+    } else if (entry && typeof entry === 'object' && Array.isArray(entry.items)) {
+      list.push(...entry.items);
+    } else if (entry && typeof entry === 'object' && Array.isArray(entry.data)) {
+      list.push(...entry.data);
+    } else if (entry && typeof entry === 'object') {
+      list.push(entry);
+    }
+  }
+
+  // 3. Filter out placeholder/empty rows and validate
+  const validItems = list.filter((item) => {
+    if (!item || typeof item !== 'object') return false;
     const d = (item.dapur || item.tujuanDapur || item.tujuan_dapur || '').toString().trim();
     const it = (item.item || item.namaBarang || item.nama_barang || '').toString().trim();
-    if (!it) {
-      throw new Error('Validasi gagal: Nama barang tidak boleh kosong.');
-    }
-    if (!d) {
-      throw new Error('Validasi gagal: Dapur tujuan tidak boleh kosong.');
-    }
+    return it.length > 0 && d.length > 0;
+  });
+
+  if (validItems.length === 0) {
+    throw new Error('Validasi gagal: Nama barang dan Dapur tujuan tidak boleh kosong.');
   }
 
   // 2. NOTA_ID: Pastikan semua item dalam 1 batch nota punya nota_id yang sama dan tidak NULL
   const sharedNotaId =
-    list.find((i: any) => i.nota_id || i.notaId)?.nota_id ||
-    list.find((i: any) => i.nota_id || i.notaId)?.notaId ||
+    validItems.find((i: any) => i.nota_id || i.notaId)?.nota_id ||
+    validItems.find((i: any) => i.nota_id || i.notaId)?.notaId ||
     `nota-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
-  const records = list
+  const records = validItems
     .map((item) => {
       const payStatus = (item.status_pembayaran || item.paymentStatus || (item.status === 'selesai' ? 'PAID' : 'UNPAID')).toString().toUpperCase();
       const delStatus = (item.status_pengiriman || item.deliveryStatus || (item.status === 'selesai' ? 'DONE' : 'PENDING')).toString().toUpperCase();
@@ -449,8 +473,7 @@ export async function createOrdersInDb(ordersData: any[] | any) {
     })
     .filter((record) => record.item.length > 0 && record.dapur.length > 0);
 
-  const validItems = records;
-  console.log('FINAL ITEMS TO INSERT', validItems);
+  console.log('FINAL ITEMS TO INSERT', records);
 
   if (records.length === 0) {
     throw new Error('Validasi gagal: Tidak ada item pesanan valid untuk disimpan.');
