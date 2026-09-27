@@ -8,7 +8,8 @@ import {
   MasterPemasok, 
   MasterDapur, 
   Store as StoreType, 
-  Kitchen, 
+  Kitchen,
+  NoteItem,
   TextParseResult 
 } from '../types';
 import { getTodayWIB, getNowWIBISOString } from '../lib/formatters';
@@ -41,6 +42,7 @@ interface UseOrderOperationsProps {
   setDbError: (error: string | null) => void;
   setConfirmState: Dispatch<SetStateAction<ConfirmDialogState | null>>;
   showToast: (message: string, type?: 'success' | 'delete' | 'edit' | 'info' | 'error') => void;
+  onSaveNote: (note: Omit<NoteItem, 'id' | 'createdAt'>) => void | Promise<void>;
 }
 
 export function useOrderOperations({
@@ -60,6 +62,7 @@ export function useOrderOperations({
   setDbError,
   setConfirmState,
   showToast,
+  onSaveNote,
 }: UseOrderOperationsProps) {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<OrderItem | null>(null);
@@ -697,7 +700,34 @@ export function useOrderOperations({
       return;
     }
 
-    const newOrdersAdded: OrderItem[] = validParsed.map((res, index) => ({
+    const incompleteParsed = validParsed.filter((res) =>
+      !(Number(res.qty) > 0)
+      || !(Number(res.hargaBeli) > 0)
+      || !(Number(res.hargaJual) > 0)
+      || !String(res.pemasok || '').trim()
+      || !String(res.tujuanDapur || '').trim()
+    );
+    const completeParsed = validParsed.filter((res) => !incompleteParsed.includes(res));
+
+    for (const res of incompleteParsed) {
+      await onSaveNote({
+        catatan: `Draft bulk: ${res.namaBarang.trim()} • Belum lengkap: ${[
+          !(Number(res.hargaBeli) > 0) ? 'harga beli' : '',
+          !(Number(res.hargaJual) > 0) ? 'harga jual' : '',
+          !String(res.pemasok || '').trim() ? 'pemasok' : '',
+          !String(res.tujuanDapur || '').trim() ? 'dapur tujuan' : '',
+        ].filter(Boolean).join(', ')}`,
+        tujuanDapur: res.tujuanDapur || 'Semua Dapur',
+        namaBarang: res.namaBarang.trim(),
+        qty: Number(res.qty) > 0 ? Number(res.qty) : undefined,
+        satuan: res.satuan || 'Kg',
+        pemasok: res.pemasok || undefined,
+        tanggal: targetDate || selectedDate,
+        isDone: false,
+      });
+    }
+
+    const newOrdersAdded: OrderItem[] = completeParsed.map((res, index) => ({
       id: `ord-imp-${Date.now()}-${index}`,
       namaBarang: res.namaBarang.trim(),
       item: res.namaBarang.trim(),
@@ -713,6 +743,11 @@ export function useOrderOperations({
       tanggal: targetDate || selectedDate,
       createdAt: new Date().toISOString(),
     }));
+
+    if (newOrdersAdded.length === 0) {
+      showToast(`${incompleteParsed.length} item bulk masuk Follow Up karena belum lengkap`, 'info');
+      return;
+    }
 
     setOrders((prev) => [...newOrdersAdded, ...prev]);
 
@@ -734,12 +769,12 @@ export function useOrderOperations({
     setIsLoadingDb(false);
 
     if (successCount === newOrdersAdded.length) {
-      showToast(`${successCount} item import berhasil tersimpan`, 'success');
+      showToast(`${successCount} item tersimpan${incompleteParsed.length ? `, ${incompleteParsed.length} item masuk Follow Up` : ''}`, 'success');
     } else {
       setDbError(lastError);
       showToast(`${newOrdersAdded.length} item import tersimpan di HP. Error sync: ${lastError}`, 'info');
     }
-  }, [stores, kitchens, pemasokList, selectedDate, setOrders, setIsLoadingDb, showToast, setDbError]);
+  }, [stores, kitchens, pemasokList, selectedDate, setOrders, setIsLoadingDb, showToast, setDbError, onSaveNote]);
 
   return {
     isOrderModalOpen,

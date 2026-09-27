@@ -17,6 +17,9 @@ import {
   createNoteInDb,
   updateNoteInDb,
   deleteNoteFromDb,
+  getAssistantChatMessages,
+  createAssistantChatMessage,
+  clearAssistantChatMessages,
   getPeriodSummaryFromDb,
   getMasterTokoFromDb,
   createMasterTokoInDb,
@@ -547,6 +550,42 @@ async function startServer() {
 
   app.delete('/api/notes', handleDeleteNote);
   app.delete('/api/supabase/notes', handleDeleteNote);
+
+  // 4.1 Smart Assistant chat history
+  app.get('/api/assistant-chat', async (req, res) => {
+    try {
+      const sessionId = String(req.query.sessionId || '').trim();
+      if (!sessionId) return res.status(400).json({ success: false, error: 'sessionId wajib diisi.' });
+      const data = await getAssistantChatMessages(sessionId);
+      return res.json({ success: true, data });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error?.message || 'Gagal memuat riwayat assistant.' });
+    }
+  });
+
+  app.post('/api/assistant-chat', async (req, res) => {
+    try {
+      const sessionId = String(req.body?.sessionId || '').trim();
+      const role = req.body?.role === 'user' ? 'user' : 'assistant';
+      const content = String(req.body?.content || '').trim();
+      if (!sessionId || !content) return res.status(400).json({ success: false, error: 'sessionId dan content wajib diisi.' });
+      const data = await createAssistantChatMessage({ sessionId, role, content, metadata: req.body?.metadata });
+      return res.json({ success: true, data });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error?.message || 'Gagal menyimpan riwayat assistant.' });
+    }
+  });
+
+  app.delete('/api/assistant-chat', async (req, res) => {
+    try {
+      const sessionId = String(req.query.sessionId || req.body?.sessionId || '').trim();
+      if (!sessionId) return res.status(400).json({ success: false, error: 'sessionId wajib diisi.' });
+      await clearAssistantChatMessages(sessionId);
+      return res.json({ success: true });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error?.message || 'Gagal menghapus riwayat assistant.' });
+    }
+  });
 
   // ---------------------------------------------------------------------------
   // 5. MASTER DATA (toko, pemasok, dapur) Endpoints

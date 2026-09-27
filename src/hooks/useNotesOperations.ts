@@ -171,6 +171,7 @@ export function useNotesOperations({
   const handleSaveNote = useCallback(async (noteData: Omit<NoteItem, 'id' | 'createdAt'>) => {
     const newNote: NoteItem = {
       ...noteData,
+      tanggal: noteData.tanggal || selectedDate || getTodayWIB(),
       id: `note-${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
@@ -179,7 +180,7 @@ export function useNotesOperations({
     showToast('Item follow up berhasil disimpan', 'success');
 
     await saveNoteToDb(newNote);
-  }, [setNotes, showToast]);
+  }, [selectedDate, setNotes, showToast]);
 
   return {
     followUpNoteTarget,

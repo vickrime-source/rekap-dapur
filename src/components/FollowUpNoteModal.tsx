@@ -168,10 +168,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
     setToko(initialToko);
 
     // Tentukan Pemasok
-    let initialPemasok = itemPemasok || note?.pemasok || '';
-    if (!initialPemasok && availablePemasok.length > 0) {
-      initialPemasok = availablePemasok[0];
-    }
+    const initialPemasok = itemPemasok || note?.pemasok || '';
     setPemasok(initialPemasok);
 
     // Cek riwayat harga
@@ -207,7 +204,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
       const initialPemasok = firstItem?.pemasok || note.pemasok || '';
 
       setTujuanDapur(note.tujuanDapur || kitchens[0]?.nama || '');
-      setTanggal(selectedDate || getTodayWIB());
+      setTanggal(note.tanggal || note.createdAt?.slice(0, 10) || selectedDate || getTodayWIB());
       setCatatanAwal(note.catatan || '');
       setIsSubmitting(false);
       setTouched({
@@ -253,6 +250,16 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
     isKitchenValid &&
     isBeliValid &&
     isJualValid;
+
+  const missingFields = [
+    !isItemValid ? 'nama barang' : '',
+    !isQtyValid ? 'qty' : '',
+    !isStoreValid ? 'toko' : '',
+    !isKitchenValid ? 'dapur tujuan' : '',
+    !isBeliValid ? 'harga beli' : '',
+    !isJualValid ? 'harga jual' : '',
+    !isSupplierValid ? 'pemasok' : '',
+  ].filter(Boolean);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -344,7 +351,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title="FOLLOW UP PESANAN"
-      subtitle="Lengkapi harga beli & jual untuk menghitung estimasi margin"
+      subtitle="Lengkapi field yang masih kosong sebelum dipindahkan ke pesanan"
       icon={<CircleCheck className="w-5 h-5 text-emerald-400" />}
       headerRight={
         <div className="relative flex items-center bg-slate-800 border border-slate-700 hover:border-indigo-400 rounded-xl px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold text-white shadow-2xs transition-all cursor-pointer group flex-1 sm:flex-none">
@@ -409,6 +416,19 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+        {missingFields.length > 0 && (
+          <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3.5 dark:border-amber-800 dark:bg-amber-950/30">
+            <div className="flex items-start gap-2">
+              <FileText className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
+              <div>
+                <p className="text-xs font-black text-amber-900 dark:text-amber-200">Follow Up belum lengkap</p>
+                <p className="mt-1 text-[11px] font-semibold leading-relaxed text-amber-800 dark:text-amber-300">
+                  Isi field berikut sebelum konfirmasi masuk ke pesanan: {missingFields.join(', ')}.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Catatan Awal Card */}
         <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-3 sm:p-3.5 space-y-1">
           <div className="flex items-center justify-between">

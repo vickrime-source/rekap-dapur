@@ -20,7 +20,8 @@ import {
   Database,
   ArrowRightCircle,
   Store,
-  Truck
+  Truck,
+  Calendar
 } from 'lucide-react';
 import { OrderItem, NoteItem, Kitchen, DashboardPeriod } from '../types';
 import { 
@@ -30,7 +31,8 @@ import {
   isOrderToday, 
   isOrderThisMonth,
   isOrderThisWeek,
-  getWeekRange
+  getWeekRange,
+  formatTanggalWeb
 } from '../lib/formatters';
 import { AnimatedCounter } from './AnimatedCounter';
 import { ThemeToggle } from './ThemeToggle';
@@ -92,6 +94,24 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
       setInternalPeriod(newP);
     }
   };
+
+  const sortedNotes = useMemo(() => {
+    const today = new Date(`${selectedDate || new Date().toISOString().slice(0, 10)}T00:00:00`).getTime();
+    const getNoteDate = (note: NoteItem) => note.tanggal || note.createdAt?.slice(0, 10) || selectedDate;
+    const getDistance = (note: NoteItem) => {
+      const time = new Date(`${getNoteDate(note)}T00:00:00`).getTime();
+      return Number.isFinite(time) ? Math.abs(time - today) : Number.MAX_SAFE_INTEGER;
+    };
+
+    return [...notes].sort((a, b) => {
+      if (a.isDone !== b.isDone) return a.isDone ? 1 : -1;
+      const distanceDiff = getDistance(a) - getDistance(b);
+      if (distanceDiff !== 0) return distanceDiff;
+      return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+    });
+  }, [notes, selectedDate]);
+
+  const activeNotesCount = notes.filter((note) => !note.isDone).length;
 
   const weekRange = useMemo(() => getWeekRange(selectedDate), [selectedDate]);
 
@@ -393,7 +413,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                 </span>
                 {notes.length > 0 && (
                   <span className="text-[9.5px] font-black px-1.5 py-0.2 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300">
-                    {notes.length}
+                    {activeNotesCount}
                   </span>
                 )}
               </div>
@@ -413,12 +433,13 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
 
             {/* List of Follow Up Items with Checklist Icon & Trash */}
             <div className="mt-2 space-y-1.5 max-h-[125px] overflow-y-auto pr-1">
-              {notes.length === 0 ? (
+              {sortedNotes.length === 0 ? (
                 <div className="text-center py-2 text-slate-400 dark:text-slate-500 text-[11px] font-medium italic">
                   Belum ada catatan follow up.
                 </div>
               ) : (
-                notes.map((note) => {
+                sortedNotes.map((note) => {
+                  const noteDate = note.tanggal || note.createdAt?.slice(0, 10) || selectedDate;
                   return (
                     <div
                       key={note.id}
@@ -436,6 +457,12 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                             {note.tujuanDapur}
                           </span>
                         ) : null}
+
+                        {/* Tanggal Follow Up */}
+                        <span className="flex flex-shrink-0 items-center gap-0.5 rounded bg-slate-100 px-1.5 py-0.5 text-[8.5px] font-black text-slate-600 dark:bg-slate-700 dark:text-slate-300" title="Tanggal Follow Up">
+                          <Calendar className="h-2.5 w-2.5" />
+                          {formatTanggalWeb(noteDate, false)}
+                        </span>
 
                         {/* Toko Badge */}
                         {note.toko ? (

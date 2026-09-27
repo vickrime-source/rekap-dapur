@@ -1,5 +1,5 @@
-import React, { FormEvent, useMemo, useState } from 'react';
-import { Bot, FileText, Send, Sparkles, Upload, User, X } from 'lucide-react';
+import React, { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Bot, FileText, Send, Sparkles, Trash2, Upload, User, X } from 'lucide-react';
 import { OrderItem, Kitchen, NoteItem, Store as StoreType } from '../types';
 import { parseVoiceAssistantSmart } from '../lib/voiceParser';
 import { formatRupiah, getTodayWIB } from '../lib/formatters';
@@ -52,6 +52,12 @@ const fieldLabels: Record<string, string> = {
   pemasok: 'pemasok',
 };
 
+const CHAT_STORAGE_KEY = 'dapur_smart_assistant_chat_v1';
+const welcomeMessage: ChatMessage = {
+  role: 'assistant',
+  text: 'Siap membantu input pesanan. Tulis bebas, misalnya: “tambahkan pesanan dapur Bu Zahrul daging beli 50 ribu jual 60 ribu”. Jika belum lengkap, saya simpan sebagai Follow Up.',
+};
+
 export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = ({
   isOpen,
   onClose,
@@ -67,19 +73,98 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
   const [text, setText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [draftOrder, setDraftOrder] = useState<DraftOrderFields | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: 'assistant',
-      text: 'Siap membantu input pesanan. Tulis bebas, misalnya: “tambahkan pesanan dapur Bu Zahrul daging beli 50 ribu jual 60 ribu”. Jika belum lengkap, saya simpan sebagai Follow Up.',
-    },
-  ]);
+  const [sessionId] = useState(() => {
+    try {
+      const saved = window.localStorage.getItem('dapur_smart_assistant_session_v1');
+      if (saved) return saved;
+      const next = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      window.localStorage.setItem('dapur_smart_assistant_session_v1', next);
+      return next;
+    } catch {
+      return `session-${Date.now()}`;
+    }
+  });
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const saved = window.localStorage.getItem(CHAT_STORAGE_KEY);
+      const parsed = saved ? JSON.parse(saved) : null;
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : [welcomeMessage];
+    } catch {
+      return [welcomeMessage];
+    }
+  });
 
   const kitchenNames = useMemo(() => kitchens.map((item) => item.nama), [kitchens]);
   const storeNames = useMemo(() => stores.map((item) => item.nama), [stores]);
 
+  const suggestions = useMemo(() => {
+    const lower = text.toLowerCase();
+    const match = lower.match(/(?:dapur|pemasok|supplier|toko)\s*([^\s]*)$/i);
+    if (!match) return [];
+    const query = match[1] || '';
+    const keyword = match[0].match(/^(dapur|pemasok|supplier|toko)/i)?.[1]?.toLowerCase() || '';
+    const pool = keyword === 'dapur'
+      ? kitchenNames
+      : keyword === 'toko'
+        ? storeNames
+        : pemasokList;
+    return pool.filter((value) => value.toLowerCase().includes(query)).slice(0, 6);
+  }, [text, kitchenNames, storeNames, pemasokList]);
+
   if (!isOpen) return null;
 
-  const appendMessage = (message: ChatMessage) => setMessages((previous) => [...previous, message]);
+  const appendMessage = (message: ChatMessage) => {
+    setMessages((previous) => [...previous, message]);
+    void fetch('/api/assistant-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, role: message.role, content: message.text }),
+    }).catch(() => {
+      // Local history remains available when the SQL table/API is not configured.
+    });
+  };
+
+  useEffect(() => {
+    void fetch(`/api/assistant-chat?sessionId=${encodeURIComponent(sessionId)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((json) => {
+        if (Array.isArray(json?.data) && json.data.length > 0) {
+          setMessages(json.data.map((item: any) => ({ role: item.role, text: item.content })));
+        }
+      })
+      .catch(() => {
+        // Local storage is the offline fallback.
+      });
+  }, [sessionId]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages.slice(-100)));
+    } catch {
+      // Riwayat lokal tidak boleh mengganggu input pesanan.
+    }
+  }, [messages]);
+
+  const clearChat = () => {
+    setMessages([welcomeMessage]);
+    setDraftOrder(null);
+    try {
+      window.localStorage.removeItem(CHAT_STORAGE_KEY);
+      void fetch(`/api/assistant-chat?sessionId=${encodeURIComponent(sessionId)}`, { method: 'DELETE' }).catch(() => undefined);
+    } catch {
+      // ignore storage errors
+    }
+  };
+
+  const applySuggestion = (value: string) => {
+    const nextText = text.replace(/(dapur|pemasok|supplier|toko)\s*[^\s]*$/i, (match) => {
+      const keyword = match.match(/^(dapur|pemasok|supplier|toko)/i)?.[1] || '';
+      return `${keyword} ${value}`;
+    });
+    setText(nextText.trim());
+  };
 
   const answerFollowUpQuestion = (input: string) => {
     const lower = normalize(input);
@@ -109,7 +194,7 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
   };
 
   const rejectUnclearQuestion = (input: string) => {
-    const isQuestion = /\?|^(apa|apakah|bagaimana|kenapa|mengapa|berapa|siapa|mana|kapan|cek|lihat|tampilkan|status)\b/i.test(input.trim());
+    const isQuestion = /\?|\b(apa|apakah|bagaimana|kenapa|mengapa|berapa|siapa|mana|kapan|tanya|jelaskan|status|cek|lihat|tampilkan)\b/i.test(input.trim());
     const isWriteCommand = /\b(tambah|tambahkan|pesan|beli|catat|buat|input|simpan)\b/i.test(input);
     if (!isQuestion || isWriteCommand) return false;
 
@@ -315,9 +400,14 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
               <p className="text-xs text-indigo-100">Input bebas atau siapkan draft Follow Up</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-xl p-2 hover:bg-white/15" aria-label="Tutup Smart Assistant">
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={clearChat} className="rounded-xl p-2 text-indigo-100 hover:bg-white/15 hover:text-white" aria-label="Bersihkan riwayat chat" title="Bersihkan riwayat chat">
+              <Trash2 className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={onClose} className="rounded-xl p-2 hover:bg-white/15" aria-label="Tutup Smart Assistant">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </header>
 
         <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-4 dark:bg-slate-950/50">
@@ -343,6 +433,15 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
               <Send className="h-4 w-4" />
             </button>
           </form>
+          {suggestions.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {suggestions.map((suggestion) => (
+                <button key={suggestion} type="button" onClick={() => applySuggestion(suggestion)} className="rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-[10px] font-black text-indigo-700 hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-300">
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          )}
           <p className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-slate-400"><FileText className="h-3 w-3" /> Data belum lengkap akan masuk Follow Up, bukan dipaksakan menjadi transaksi.</p>
         </div>
       </div>

@@ -85,9 +85,8 @@ export function parseWhatsAppText(
       namaBarang = `Barang Pesanan (${rawLine.slice(0, 15)})`;
     }
 
-    // Default prices if none found
-    if (hargaBeli === 0) hargaBeli = 15000;
-    if (hargaJual === 0) hargaJual = Math.round(hargaBeli * 1.15);
+    // Harga yang tidak disebutkan tetap 0 agar item bisa masuk Follow Up.
+    // Jangan mengarang harga dari markup/default karena bulk input harus aman.
 
     // Auto-detect store from item name if rule matches
     let itemToko = defaultToko;

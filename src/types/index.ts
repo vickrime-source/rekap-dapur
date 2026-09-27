@@ -157,6 +157,8 @@ export interface FollowUpItemRow {
 
 export interface NoteItem {
   id: string;
+  /** Tanggal pesanan/follow up; legacy notes fall back to createdAt. */
+  tanggal?: string;
   tujuanDapur: string;
   toko?: string;
   pemasok?: string;

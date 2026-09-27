@@ -238,6 +238,7 @@ export default function App() {
     setDbError,
     setConfirmState,
     showToast,
+    onSaveNote: handleSaveNote,
   });
 
   // Guardrail for assistant input: incomplete data is always a Follow Up,
@@ -542,6 +543,7 @@ export default function App() {
             handleSaveNote({
               catatan: note.text,
               tujuanDapur: note.dapur || kitchens[0]?.nama || 'Cluring',
+              tanggal: note.tanggal,
               namaBarang: note.namaBarang,
               qty: note.qty,
               satuan: note.satuan,
@@ -566,6 +568,7 @@ export default function App() {
               handleSaveNote({
                 catatan: note.text,
                 tujuanDapur: note.dapur || kitchens[0]?.nama || 'Cluring',
+                tanggal: note.tanggal,
                 namaBarang: note.namaBarang,
                 qty: note.qty,
                 satuan: note.satuan,

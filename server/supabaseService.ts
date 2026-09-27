@@ -62,6 +62,60 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(url && key);
 }
 
+export async function getAssistantChatMessages(sessionId: string, limit = 100) {
+  if (!sessionId || !isSupabaseConfigured()) return [];
+  try {
+    const { data, error } = await getSupabase()
+      .from('assistant_chat_messages')
+      .select('id, session_id, role, content, metadata, created_at')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: true })
+      .limit(Math.min(Math.max(limit, 1), 200));
+    if (error) {
+      if (isTableMissingError(error)) return [];
+      throw error;
+    }
+    return data || [];
+  } catch (error: any) {
+    if (isTableMissingError(error)) return [];
+    throw error;
+  }
+}
+
+export async function createAssistantChatMessage(message: { sessionId: string; role: 'user' | 'assistant'; content: string; metadata?: Record<string, unknown> }) {
+  if (!message.sessionId || !message.content.trim() || !isSupabaseConfigured()) return null;
+  try {
+    const { data, error } = await getSupabase()
+      .from('assistant_chat_messages')
+      .insert({
+        session_id: message.sessionId,
+        role: message.role,
+        content: message.content.trim(),
+        metadata: message.metadata || {},
+      })
+      .select('id, session_id, role, content, metadata, created_at')
+      .single();
+    if (error) {
+      if (isTableMissingError(error)) return null;
+      throw error;
+    }
+    return data;
+  } catch (error: any) {
+    if (isTableMissingError(error)) return null;
+    throw error;
+  }
+}
+
+export async function clearAssistantChatMessages(sessionId: string) {
+  if (!sessionId || !isSupabaseConfigured()) return;
+  try {
+    const { error } = await getSupabase().from('assistant_chat_messages').delete().eq('session_id', sessionId);
+    if (error && !isTableMissingError(error)) throw error;
+  } catch (error: any) {
+    if (!isTableMissingError(error)) throw error;
+  }
+}
+
 /**
  * Checks whether an error from Supabase indicates that a table/relation has not been created yet in the schema cache.
  */
