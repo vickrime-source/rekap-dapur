@@ -9,6 +9,18 @@ interface ChatMessage {
   text: string;
 }
 
+interface DraftOrderFields {
+  namaBarang?: string;
+  qty?: number;
+  satuan?: string;
+  hargaBeli?: number;
+  hargaJual?: number;
+  tujuanDapur?: string;
+  toko?: string;
+  pemasok?: string;
+  catatan?: string;
+}
+
 interface SmartAssistantChatModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -52,6 +64,7 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
 }) => {
   const [text, setText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [draftOrder, setDraftOrder] = useState<DraftOrderFields | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: 'assistant',
@@ -66,7 +79,53 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
 
   const appendMessage = (message: ChatMessage) => setMessages((previous) => [...previous, message]);
 
+  const normalize = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+  const findKnownValue = (input: string, values: string[]) => {
+    const normalizedInput = normalize(input);
+    const exact = values.find((value) => normalizedInput.includes(normalize(value)));
+    if (exact) return exact;
+
+    const candidates = values.filter((value) => {
+      const firstWord = normalize(value).split(/\s+/)[0];
+      return firstWord.length >= 3 && new RegExp(`\\b(?:dapur|pemasok|supplier|toko)?\\s*${firstWord}\\b`, 'i').test(normalizedInput);
+    });
+    return candidates.length === 1 ? candidates[0] : '';
+  };
+
+  const mergeParsedFields = (input: string, parsed: any, localParsed: any, previousDraft: DraftOrderFields | null): DraftOrderFields => {
+    const merged: DraftOrderFields = { ...(previousDraft || {}) };
+    const mergedValues = merged as Record<string, unknown>;
+    const knownKitchen = findKnownValue(input, kitchenNames);
+    const knownSupplier = findKnownValue(input, pemasokList);
+    const knownStore = findKnownValue(input, storeNames);
+    const isSupplierSelection = Boolean(previousDraft && knownSupplier && !/(dapur|qty|jumlah|kg|kilo|beli|jual|harga|barang|item|pesan)/i.test(input));
+
+    if (isSupplierSelection) {
+      return { ...merged, pemasok: knownSupplier };
+    }
+
+    const fields: Array<keyof DraftOrderFields> = ['namaBarang', 'qty', 'satuan', 'hargaBeli', 'hargaJual', 'tujuanDapur', 'toko', 'pemasok', 'catatan'];
+
+    for (const field of fields) {
+      const remoteValue = parsed?.[field];
+      const localValue = localParsed?.[field];
+      if (remoteValue !== undefined && remoteValue !== null && remoteValue !== '' && !(typeof remoteValue === 'number' && remoteValue <= 0)) {
+        mergedValues[field] = remoteValue;
+      } else if (localValue !== undefined && localValue !== null && localValue !== '' && !(typeof localValue === 'number' && localValue <= 0)) {
+        mergedValues[field] = localValue;
+      }
+    }
+
+    if (knownKitchen) merged.tujuanDapur = knownKitchen;
+    if (knownSupplier) merged.pemasok = knownSupplier;
+    if (knownStore) merged.toko = knownStore;
+    return merged;
+  };
+
   const saveDraft = (parsed: any, originalText: string, missingFields: string[]) => {
+    const isFirstDraft = !draftOrder;
+    setDraftOrder(parsed);
     const draftText = [
       `Draft pesanan: ${parsed.namaBarang || originalText}`,
       parsed.qty ? `Qty ${parsed.qty} ${parsed.satuan || ''}`.trim() : '',
@@ -75,20 +134,22 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
       `Belum lengkap: ${missingFields.join(', ')}`,
     ].filter(Boolean).join(' • ');
 
-    onNoteCreated({
-      text: draftText,
-      dapur: parsed.tujuanDapur || 'Semua Dapur',
-      namaBarang: parsed.namaBarang || originalText,
-      qty: Number(parsed.qty) > 0 ? Number(parsed.qty) : undefined,
-      satuan: parsed.satuan || undefined,
-      pemasok: parsed.pemasok || undefined,
-      tanggal: selectedDate || getTodayWIB(),
-      isDone: false,
-    });
+    if (isFirstDraft) {
+      onNoteCreated({
+        text: draftText,
+        dapur: parsed.tujuanDapur || 'Semua Dapur',
+        namaBarang: parsed.namaBarang || originalText,
+        qty: Number(parsed.qty) > 0 ? Number(parsed.qty) : undefined,
+        satuan: parsed.satuan || undefined,
+        pemasok: parsed.pemasok || undefined,
+        tanggal: selectedDate || getTodayWIB(),
+        isDone: false,
+      });
+    }
 
     appendMessage({
       role: 'assistant',
-      text: `Draft sudah saya simpan ke Follow Up. Yang masih kurang: ${missingFields.join(', ')}.`,
+      text: `${isFirstDraft ? 'Draft sudah saya simpan' : 'Draft sudah saya perbarui'} ke Follow Up. Yang masih kurang: ${missingFields.join(', ')}.`,
     });
   };
 
@@ -103,6 +164,17 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
 
     try {
       let parsed: any = null;
+      if (/(pemasok|supplier).*(apa saja|pilihan|daftar)|apa saja.*(pemasok|supplier)/i.test(originalText)) {
+        appendMessage({
+          role: 'assistant',
+          text: pemasokList.length > 0
+            ? `Pemasok yang tersedia: ${pemasokList.join(', ')}. Balas dengan nama pemasoknya untuk melengkapi draft.`
+            : 'Belum ada daftar pemasok. Tambahkan pemasok dulu dari data master.',
+        });
+        return;
+      }
+
+      const localParsed = parseVoiceAssistantSmart(originalText, kitchens, stores, pemasokList);
       try {
         const response = await fetch('/api/parse-voice-order', {
           method: 'POST',
@@ -121,8 +193,10 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
       }
 
       if (!parsed) {
-        parsed = parseVoiceAssistantSmart(originalText, kitchens, stores, pemasokList);
+        parsed = localParsed;
       }
+
+      parsed = { ...parsed, ...mergeParsedFields(originalText, parsed, localParsed, draftOrder) };
 
       if (parsed.intent === 'CREATE_NOTE') {
         onNoteCreated({
@@ -173,6 +247,7 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
         catatan: parsed.catatan || originalText,
       };
       onOrderCreated(order);
+      setDraftOrder(null);
       appendMessage({
         role: 'assistant',
         text: `Pesanan siap disimpan: ${order.namaBarang} ${order.qty} ${order.satuan} untuk ${order.tujuanDapur}.`,
