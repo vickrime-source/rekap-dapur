@@ -46,7 +46,8 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
     }
 
     const storeNames = stores.map((s) => s.nama);
-    const items = parseWhatsAppText(rawText, defaultToko, defaultDapur, defaultPemasok, storeNames);
+    const kitchenNames = kitchens.map((kitchen) => kitchen.nama);
+    const items = parseWhatsAppText(rawText, defaultToko, defaultDapur, defaultPemasok, storeNames, kitchenNames);
     setParsedItems(items);
     setIsParsed(true);
   };
