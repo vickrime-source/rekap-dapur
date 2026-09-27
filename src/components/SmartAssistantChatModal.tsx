@@ -113,8 +113,6 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
     return pool.filter((value) => value.toLowerCase().includes(query)).slice(0, 6);
   }, [text, kitchenNames, storeNames, pemasokList]);
 
-  if (!isOpen) return null;
-
   const appendMessage = (message: ChatMessage) => {
     setMessages((previous) => [...previous, message]);
     void fetch('/api/assistant-chat', {
@@ -146,6 +144,10 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
       // Riwayat lokal tidak boleh mengganggu input pesanan.
     }
   }, [messages]);
+
+  // Semua Hook harus dipanggil sebelum guard render agar jumlah Hook tetap
+  // sama ketika modal dibuka atau ditutup.
+  if (!isOpen) return null;
 
   const clearChat = () => {
     setMessages([welcomeMessage]);
