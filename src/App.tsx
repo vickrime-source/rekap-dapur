@@ -18,6 +18,7 @@ import { HeaderBanner } from './components/HeaderBanner';
 import { BottomNav, TabType } from './components/BottomNav';
 import { FloatingAddMenu } from './components/FloatingAddMenu';
 import { SmartAssistantChatModal } from './components/SmartAssistantChatModal';
+import { SmartVoiceOrderOverlay } from './components/SmartVoiceOrderOverlay';
 import { DashboardView } from './components/DashboardView';
 import { RekapView } from './components/RekapView';
 import { TransactionsView } from './components/TransactionsView';
@@ -37,7 +38,6 @@ const TextImportModal = React.lazy(() => import('./components/TextImportModal').
 const ExportModal = React.lazy(() => import('./components/ExportModal').then((m) => ({ default: m.ExportModal })));
 const SettingsModal = React.lazy(() => import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal })));
 const ExportHistorySheet = React.lazy(() => import('./components/ExportHistorySheet').then((m) => ({ default: m.ExportHistorySheet })));
-const SmartVoiceOrderOverlay = React.lazy(() => import('./components/SmartVoiceOrderOverlay').then((m) => ({ default: m.SmartVoiceOrderOverlay })));
 
 import { useConfirmDialog } from './hooks/useConfirmDialog';
 import { useMasterData } from './hooks/useMasterData';
