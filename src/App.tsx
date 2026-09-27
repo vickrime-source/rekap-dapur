@@ -552,6 +552,7 @@ export default function App() {
           kitchens={kitchens}
           stores={stores}
           pemasokList={pemasokList}
+          notes={notes}
           selectedDate={selectedDate}
         />
 

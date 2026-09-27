@@ -1,6 +1,6 @@
 import React, { FormEvent, useMemo, useState } from 'react';
 import { Bot, FileText, Send, Sparkles, Upload, User, X } from 'lucide-react';
-import { OrderItem, Kitchen, Store as StoreType } from '../types';
+import { OrderItem, Kitchen, NoteItem, Store as StoreType } from '../types';
 import { parseVoiceAssistantSmart } from '../lib/voiceParser';
 import { formatRupiah, getTodayWIB } from '../lib/formatters';
 
@@ -39,6 +39,7 @@ interface SmartAssistantChatModalProps {
   kitchens: Kitchen[];
   stores: StoreType[];
   pemasokList: string[];
+  notes: NoteItem[];
   selectedDate: string;
 }
 
@@ -60,6 +61,7 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
   kitchens,
   stores,
   pemasokList,
+  notes,
   selectedDate,
 }) => {
   const [text, setText] = useState('');
@@ -78,6 +80,45 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
   if (!isOpen) return null;
 
   const appendMessage = (message: ChatMessage) => setMessages((previous) => [...previous, message]);
+
+  const answerFollowUpQuestion = (input: string) => {
+    const lower = normalize(input);
+    const isQuestion = /(follow\s*-?\s*up|catatan).*(kurang|belum|apa saja|daftar|tampil|cek)|(?:kurang|belum).*(follow\s*-?\s*up|catatan)/i.test(lower);
+    const isWriteCommand = /\b(tambah|tambahkan|pesan|beli|catat|buat|input|simpan)\b/i.test(lower);
+    if (!isQuestion || isWriteCommand) return false;
+
+    const activeNotes = notes.filter((note) => !note.isDone);
+    if (activeNotes.length === 0) {
+      appendMessage({ role: 'assistant', text: 'Saat ini tidak ada Follow Up yang masih aktif.' });
+      return true;
+    }
+
+    const summary = activeNotes.map((note, index) => {
+      const item = note.namaBarang || note.catatan || 'Pesanan tanpa nama barang';
+      const details = [
+        note.qty ? `${note.qty} ${note.satuan || ''}`.trim() : '',
+        note.pemasok ? `pemasok: ${note.pemasok}` : '',
+        note.tujuanDapur ? `dapur: ${note.tujuanDapur}` : '',
+      ].filter(Boolean).join(', ');
+      const missing = note.catatan.match(/Belum lengkap:\s*(.+)$/i)?.[1];
+      return `${index + 1}. ${item}${details ? ` (${details})` : ''}${missing ? ` — masih kurang: ${missing}` : ''}`;
+    }).join('\n');
+
+    appendMessage({ role: 'assistant', text: `Follow Up aktif yang belum selesai:\n${summary}` });
+    return true;
+  };
+
+  const rejectUnclearQuestion = (input: string) => {
+    const isQuestion = /\?|^(apa|apakah|bagaimana|kenapa|mengapa|berapa|siapa|mana|kapan|cek|lihat|tampilkan|status)\b/i.test(input.trim());
+    const isWriteCommand = /\b(tambah|tambahkan|pesan|beli|catat|buat|input|simpan)\b/i.test(input);
+    if (!isQuestion || isWriteCommand) return false;
+
+    appendMessage({
+      role: 'assistant',
+      text: 'Saya belum mengubah data karena ini terbaca sebagai pertanyaan. Kalau ingin menambah pesanan, gunakan kata “tambahkan”, “pesan”, “beli”, atau “catat”.',
+    });
+    return true;
+  };
 
   const normalize = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
@@ -164,6 +205,8 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
 
     try {
       let parsed: any = null;
+      if (answerFollowUpQuestion(originalText)) return;
+      if (rejectUnclearQuestion(originalText)) return;
       if (/(pemasok|supplier).*(apa saja|pilihan|daftar)|apa saja.*(pemasok|supplier)/i.test(originalText)) {
         appendMessage({
           role: 'assistant',
