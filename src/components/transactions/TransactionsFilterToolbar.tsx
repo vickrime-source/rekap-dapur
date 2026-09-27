@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Store as StoreIcon, ChevronDown, Filter, Activity, X } from 'lucide-react';
 
 interface TransactionsFilterToolbarProps {
@@ -16,7 +16,7 @@ interface TransactionsFilterToolbarProps {
   onSearchChange: (query: string) => void;
 }
 
-export const TransactionsFilterToolbar: React.FC<TransactionsFilterToolbarProps> = ({
+export const TransactionsFilterToolbar: React.FC<TransactionsFilterToolbarProps> = React.memo(({
   selectedStoreFilter,
   onSelectStoreFilter,
   storeNames,
@@ -30,6 +30,23 @@ export const TransactionsFilterToolbar: React.FC<TransactionsFilterToolbarProps>
   searchQuery,
   onSearchChange,
 }) => {
+  // Local state for instant typing response without lag
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+
+  // Keep local search in sync with external resets
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
+
+  // Debounce search by 300ms before triggering expensive regex & re-render on transaction batches
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearch !== searchQuery) {
+        onSearchChange(localSearch);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [localSearch, searchQuery, onSearchChange]);
   return (
     <div className="flex flex-wrap items-center justify-between gap-2.5">
       <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
@@ -169,19 +186,22 @@ export const TransactionsFilterToolbar: React.FC<TransactionsFilterToolbarProps>
         </div>
       </div>
 
-      {/* Search Input */}
+      {/* Search Input with Debounced Trigger */}
       <div className="relative flex-1 min-w-[200px] max-w-sm">
         <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
         <input
           type="text"
           placeholder="Cari barang, pemasok, toko, dapur..."
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
+          value={localSearch}
+          onChange={(e) => setLocalSearch(e.target.value)}
           className="w-full pl-9 pr-7 py-2.5 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-full text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 shadow-2xs transition-all min-h-[44px]"
         />
-        {searchQuery && (
+        {localSearch && (
           <button
-            onClick={() => onSearchChange('')}
+            onClick={() => {
+              setLocalSearch('');
+              onSearchChange('');
+            }}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer p-1"
           >
             <X className="w-3.5 h-3.5" />
@@ -190,4 +210,4 @@ export const TransactionsFilterToolbar: React.FC<TransactionsFilterToolbarProps>
       </div>
     </div>
   );
-};
+});

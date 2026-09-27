@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { 
   OrderItem, 
   Kitchen, 
@@ -6,13 +6,10 @@ import {
   DeliveryStatus, 
   Store as StoreType, 
   DashboardPeriod,
-  PeriodSummaryStats,
   InvoicePriceVariant
 } from '../types';
 import { getTodayWIB } from '../lib/formatters';
-import { fetchPeriodSummaryFromDb } from '../lib/supabaseDb';
 import { ActionMenuPortal } from './ActionMenuPortal';
-import { MonthlySyncModal } from './MonthlySyncModal';
 import { CustomDateRange } from './ReportPeriodPicker';
 import { TransactionBatch, ActiveActionMenu } from './transactions/types';
 import { useTransactionData } from './transactions/useTransactionData';
@@ -20,6 +17,9 @@ import { TransactionsHeader } from './transactions/TransactionsHeader';
 import { TransactionsFilterToolbar } from './transactions/TransactionsFilterToolbar';
 import { TransactionsTable } from './transactions/TransactionsTable';
 import { TransactionsMobileList } from './transactions/TransactionsMobileList';
+
+// Lazy load MonthlySyncModal to avoid pulling Google Sheets sync libraries into the initial render
+const MonthlySyncModal = React.lazy(() => import('./MonthlySyncModal').then(m => ({ default: m.MonthlySyncModal })));
 
 export type { TransactionBatch } from './transactions/types';
 
@@ -140,39 +140,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     });
   };
 
-  // Database-aggregated statistics from Supabase
-  const [dbStats, setDbStats] = useState<PeriodSummaryStats | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    let periodQuery: 'hari_ini' | 'mingguan' | 'bulan_ini' | 'all_time' | 'custom' = activePeriod;
-    let targetDate = activePeriod === 'hari_ini' ? getTodayWIB() : (selectedDate || getTodayWIB());
-    let startDate: string | undefined = undefined;
-    let endDate: string | undefined = undefined;
-
-    if (customRange) {
-      periodQuery = 'custom';
-      startDate = customRange.startDate;
-      endDate = customRange.endDate;
-      targetDate = customRange.startDate;
-    } else if (activePeriod === 'bulan_ini') {
-      const [y, m] = selectedMonth.split('-').map(Number);
-      const lastDay = new Date(y, m, 0).getDate();
-      startDate = `${selectedMonth}-01`;
-      endDate = `${selectedMonth}-${String(lastDay).padStart(2, '0')}`;
-      targetDate = startDate;
-    }
-
-    fetchPeriodSummaryFromDb(periodQuery, targetDate, startDate, endDate).then((res) => {
-      if (isMounted && res.success && res.stats) {
-        setDbStats(res.stats);
-      }
-    });
-    return () => {
-      isMounted = false;
-    };
-  }, [activePeriod, selectedDate, selectedMonth, customRange, orders.length]);
-
   // Hook for transaction batches, filtered data, pagination, and totals
   const {
     weekRange,
@@ -202,67 +169,36 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     pageSize: 15,
   });
 
-  const handleToggleBatchPayment = (batch: TransactionBatch) => {
+  const handleToggleBatchPayment = useCallback((batch: TransactionBatch) => {
     const nextStatus: PaymentStatus = batch.payStatus === 'PAID' ? 'UNPAID' : 'PAID';
     if (onUpdateGroupPaymentStatus) {
       onUpdateGroupPaymentStatus(batch.items, nextStatus);
     } else if (onUpdatePaymentStatus) {
       batch.items.forEach((it) => onUpdatePaymentStatus(it.id, nextStatus));
     }
-  };
+  }, [onUpdateGroupPaymentStatus, onUpdatePaymentStatus]);
 
-  const handleToggleBatchDelivery = (batch: TransactionBatch) => {
+  const handleToggleBatchDelivery = useCallback((batch: TransactionBatch) => {
     const nextStatus: DeliveryStatus = batch.delStatus === 'DONE' ? 'PENDING' : 'DONE';
     if (onUpdateGroupDeliveryStatus) {
       onUpdateGroupDeliveryStatus(batch.items, nextStatus);
     } else if (onUpdateDeliveryStatus) {
       batch.items.forEach((it) => onUpdateDeliveryStatus(it.id, nextStatus));
     }
-  };
+  }, [onUpdateGroupDeliveryStatus, onUpdateDeliveryStatus]);
 
-  const handleOpenActionMenu = (rect: DOMRect, batch: TransactionBatch) => {
-    setActiveMenu(activeMenu?.id === batch.id ? null : { id: batch.id, rect, batch });
-  };
+  const handleOpenActionMenu = useCallback((rect: DOMRect, batch: TransactionBatch) => {
+    setActiveMenu((prev) => prev?.id === batch.id ? null : { id: batch.id, rect, batch });
+  }, []);
 
   return (
     <div className="space-y-4 pt-1 pb-36 sm:pb-24 font-sans text-slate-900">
-      {/* 1. TOP HEADER & FINANCIAL SUMMARY */}
+      {/* 1. TOP HEADER - LOG TRANSAKSI */}
       <TransactionsHeader
         activePeriod={activePeriod}
         onSetPeriod={handleSetPeriod}
         onOpenMonthlySync={() => setIsMonthlySyncOpen(true)}
         onOpenSettings={onOpenSettings}
-        stats={dbStats || periodStats}
-        weekRange={weekRange}
-        selectedDate={selectedDate}
-        selectedMonth={selectedMonth}
-        customRange={customRange}
-        onSelectMonth={(month) => {
-          setCustomRange(null);
-          setSelectedMonth(month);
-          if (activePeriod !== 'bulan_ini') {
-            handleSetPeriod('bulan_ini');
-          }
-        }}
-        onSelectCustomRange={(range) => {
-          setCustomRange(range);
-        }}
-        onClearCustomRange={() => {
-          setCustomRange(null);
-        }}
-        selectedStoreFilter={selectedStoreFilter}
-        onFilterStore={(toko) => {
-          setSelectedStoreFilter((prev) => (prev === toko ? 'all' : toko));
-        }}
-        selectedPemasokFilter={selectedPemasok}
-        onFilterPemasok={(pemasok) => {
-          setSelectedPemasok((prev) => (prev === pemasok ? 'all' : pemasok));
-        }}
-        selectedDapurFilter={selectedDapurFilter}
-        onFilterDapur={(dapur) => {
-          setSelectedDapurFilter((prev) => (prev === dapur ? 'all' : dapur));
-        }}
-        periodOrders={periodOrders}
       />
 
       {/* 2. INTEGRATED FILTER TOOLBAR */}
@@ -356,18 +292,22 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       />
 
       {/* Modal Simpan / Update Rekapan Bulanan ke Google Sheets & CSV */}
-      <MonthlySyncModal
-        isOpen={isMonthlySyncOpen}
-        onClose={() => setIsMonthlySyncOpen(false)}
-        orders={orders}
-        stats={periodStats}
-        selectedDate={selectedDate}
-        onOpenSettings={() => {
-          if (onOpenSettings) {
-            onOpenSettings('googlesheets');
-          }
-        }}
-      />
+      {isMonthlySyncOpen && (
+        <React.Suspense fallback={null}>
+          <MonthlySyncModal
+            isOpen={isMonthlySyncOpen}
+            onClose={() => setIsMonthlySyncOpen(false)}
+            orders={orders}
+            stats={periodStats}
+            selectedDate={selectedDate}
+            onOpenSettings={() => {
+              if (onOpenSettings) {
+                onOpenSettings('googlesheets');
+              }
+            }}
+          />
+        </React.Suspense>
+      )}
     </div>
   );
 };

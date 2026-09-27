@@ -101,20 +101,12 @@ describe('Server DOCX Image Compressor (compressDocxImages)', () => {
     const fs = await import('fs');
     const path = await import('path');
 
-    let sigBuf: Buffer;
-    let stampBuf: Buffer;
-
-    if (fs.existsSync('prohe_image2.png') && fs.existsSync('prohe_image3.png')) {
-      sigBuf = fs.readFileSync('prohe_image2.png');
-      stampBuf = fs.readFileSync('prohe_image3.png');
-    } else {
-      sigBuf = await sharp({
-        create: { width: 1536, height: 1024, channels: 4, background: { r: 10, g: 20, b: 80, alpha: 0.9 } },
-      }).png().toBuffer();
-      stampBuf = await sharp({
-        create: { width: 1024, height: 1024, channels: 4, background: { r: 180, g: 0, b: 20, alpha: 0.8 } },
-      }).png().toBuffer();
-    }
+    const sigBuf = await sharp({
+      create: { width: 1536, height: 1024, channels: 4, background: { r: 10, g: 20, b: 80, alpha: 0.9 } },
+    }).png().toBuffer();
+    const stampBuf = await sharp({
+      create: { width: 1024, height: 1024, channels: 4, background: { r: 180, g: 0, b: 20, alpha: 0.8 } },
+    }).png().toBuffer();
 
     const docxZip = new JSZip();
     docxZip.file('word/document.xml', '<w:document><w:body/></w:document>');

@@ -1,9 +1,7 @@
 import React from 'react';
 import { Receipt, Download, Settings } from 'lucide-react';
-import { DashboardPeriod, PeriodSummaryStats, OrderItem } from '../../types';
+import { DashboardPeriod } from '../../types';
 import { PeriodSegmentedControl } from '../PeriodSegmentedControl';
-import { WeeklyReportCard } from '../WeeklyReportCard';
-import { CustomDateRange } from '../ReportPeriodPicker';
 import { ThemeToggle } from '../ThemeToggle';
 
 interface TransactionsHeaderProps {
@@ -11,56 +9,31 @@ interface TransactionsHeaderProps {
   onSetPeriod: (p: DashboardPeriod) => void;
   onOpenMonthlySync: () => void;
   onOpenSettings?: (initialTab?: any) => void;
-  stats: PeriodSummaryStats;
-  weekRange: { start: string; end: string };
-  selectedDate?: string;
-  selectedMonth: string;
-  customRange: CustomDateRange | null;
-  onSelectMonth: (month: string) => void;
-  onSelectCustomRange: (range: CustomDateRange | null) => void;
-  onClearCustomRange: () => void;
-  selectedStoreFilter: string;
-  onFilterStore: (toko: string) => void;
-  selectedPemasokFilter: string;
-  onFilterPemasok: (pemasok: string) => void;
-  selectedDapurFilter: string;
-  onFilterDapur: (dapur: string) => void;
-  periodOrders: OrderItem[];
 }
 
-export const TransactionsHeader: React.FC<TransactionsHeaderProps> = ({
+export const TransactionsHeader: React.FC<TransactionsHeaderProps> = React.memo(({
   activePeriod,
   onSetPeriod,
   onOpenMonthlySync,
   onOpenSettings,
-  stats,
-  weekRange,
-  selectedDate,
-  selectedMonth,
-  customRange,
-  onSelectMonth,
-  onSelectCustomRange,
-  onClearCustomRange,
-  selectedStoreFilter,
-  onFilterStore,
-  selectedPemasokFilter,
-  onFilterPemasok,
-  selectedDapurFilter,
-  onFilterDapur,
-  periodOrders,
 }) => {
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-2xs space-y-3.5 transition-colors duration-200">
       {/* Top Bar: Title, Period Toggle, and Global Action Buttons */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-slate-100 dark:border-slate-800">
         {/* Left: Purple Circular Badge & Page Title */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/30 shrink-0">
             <Receipt className="w-5 h-5" />
           </div>
-          <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight leading-tight">
-            Transaksi &amp; Rekap Keuangan
-          </h1>
+          <div>
+            <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight leading-tight">
+              Log Transaksi
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              Catatan mentah tiap baris pesanan &amp; status operasional
+            </p>
+          </div>
         </div>
 
         {/* Right: Period Segmented Control & Circular Action Buttons */}
@@ -100,26 +73,6 @@ export const TransactionsHeader: React.FC<TransactionsHeaderProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Financial Report & Breakdown Toko/Pengepul */}
-      <WeeklyReportCard
-        stats={stats}
-        weekRange={weekRange}
-        period={activePeriod}
-        selectedDate={selectedDate}
-        selectedMonth={selectedMonth}
-        customRange={customRange}
-        onSelectMonth={onSelectMonth}
-        onSelectCustomRange={onSelectCustomRange}
-        onClearCustomRange={onClearCustomRange}
-        selectedStoreFilter={selectedStoreFilter}
-        onFilterStore={onFilterStore}
-        selectedPemasokFilter={selectedPemasokFilter}
-        onFilterPemasok={onFilterPemasok}
-        selectedDapurFilter={selectedDapurFilter}
-        onFilterDapur={onFilterDapur}
-        periodOrders={periodOrders}
-      />
     </div>
   );
-};
+});

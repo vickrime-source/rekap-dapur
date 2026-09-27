@@ -46,8 +46,8 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
       className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white font-sans overflow-hidden px-4 select-none"
     >
       {/* Background Glow Blobs */}
-      <div className="absolute -top-32 -left-32 w-80 h-80 bg-indigo-600/30 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute -bottom-32 -right-32 w-80 h-80 bg-purple-600/20 rounded-full blur-3xl animate-pulse delay-700" />
+      <div className="absolute -top-32 -left-32 w-80 h-80 bg-indigo-600/10 rounded-full animate-pulse" />
+      <div className="absolute -bottom-32 -right-32 w-80 h-80 bg-purple-600/10 rounded-full animate-pulse delay-700" />
 
       {/* Main Content Box */}
       <div className="relative z-10 flex flex-col items-center max-w-sm text-center">
@@ -57,7 +57,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
           <motion.div
             animate={{ scale: [1, 1.25, 1], opacity: [0.4, 0.8, 0.4] }}
             transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
-            className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-emerald-500 via-indigo-500 to-amber-500 blur-md opacity-60"
+            className="absolute -inset-2 rounded-3xl border border-indigo-400/40 bg-indigo-500/10 opacity-60"
           />
 
           <motion.div

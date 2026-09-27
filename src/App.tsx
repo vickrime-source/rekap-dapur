@@ -17,22 +17,25 @@ import {
 import { HeaderBanner } from './components/HeaderBanner';
 import { BottomNav, TabType } from './components/BottomNav';
 import { DashboardView } from './components/DashboardView';
+import { RekapView } from './components/RekapView';
 import { TransactionsView } from './components/TransactionsView';
-import { OrderModal } from './components/OrderModal';
-import { NoteSheet } from './components/NoteSheet';
-import { FollowUpNoteModal } from './components/FollowUpNoteModal';
-import { InvoiceModal } from './components/InvoiceModal';
-import { InvoiceFormModal } from './components/InvoiceFormModal';
-import { TextImportModal } from './components/TextImportModal';
-import { ExportModal } from './components/ExportModal';
-import { SettingsModal } from './components/SettingsModal';
 import { ConfirmModal } from './components/ConfirmModal';
-import { ExportHistorySheet } from './components/ExportHistorySheet';
-import { SmartVoiceOrderOverlay } from './components/SmartVoiceOrderOverlay';
 import { Toast, ToastMessage, ToastType } from './components/Toast';
 import { getTodayWIB, isOrderToday, isOrderThisWeek, getWeekRange } from './lib/formatters';
 import { sendNewOrderNotification } from './lib/notificationManager';
 import { motion, AnimatePresence } from 'motion/react';
+
+// Lazy-loaded modal components to significantly reduce initial bundle size and tablet memory usage
+const OrderModal = React.lazy(() => import('./components/OrderModal').then((m) => ({ default: m.OrderModal })));
+const NoteSheet = React.lazy(() => import('./components/NoteSheet').then((m) => ({ default: m.NoteSheet })));
+const FollowUpNoteModal = React.lazy(() => import('./components/FollowUpNoteModal').then((m) => ({ default: m.FollowUpNoteModal })));
+const InvoiceModal = React.lazy(() => import('./components/InvoiceModal').then((m) => ({ default: m.InvoiceModal })));
+const InvoiceFormModal = React.lazy(() => import('./components/InvoiceFormModal').then((m) => ({ default: m.InvoiceFormModal })));
+const TextImportModal = React.lazy(() => import('./components/TextImportModal').then((m) => ({ default: m.TextImportModal })));
+const ExportModal = React.lazy(() => import('./components/ExportModal').then((m) => ({ default: m.ExportModal })));
+const SettingsModal = React.lazy(() => import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal })));
+const ExportHistorySheet = React.lazy(() => import('./components/ExportHistorySheet').then((m) => ({ default: m.ExportHistorySheet })));
+const SmartVoiceOrderOverlay = React.lazy(() => import('./components/SmartVoiceOrderOverlay').then((m) => ({ default: m.SmartVoiceOrderOverlay })));
 
 import { useConfirmDialog } from './hooks/useConfirmDialog';
 import { useMasterData } from './hooks/useMasterData';
@@ -323,18 +326,6 @@ export default function App() {
     showToast('Seluruh data pesanan, transaksi, dan catatan berhasil dihapus bersih', 'delete');
   }, [setOrders, setInvoices, setExportHistory, setNotes, showToast]);
 
-  // Horizontal Swipe Gesture threshold logic
-  const handleDragEnd = (_: any, info: { offset: { x: number; y: number }; velocity: { x: number } }) => {
-    const swipeThreshold = 60;
-    if (Math.abs(info.offset.x) > Math.abs(info.offset.y)) {
-      if (info.offset.x < -swipeThreshold && activeTab === 'dashboard') {
-        setActiveTab('transaksi');
-      } else if (info.offset.x > swipeThreshold && activeTab === 'transaksi') {
-        setActiveTab('dashboard');
-      }
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#eef2f6] dark:bg-[#090a0c] text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white pb-36 sm:pb-24 transition-colors duration-200">
       {/* Top Header Banner */}
@@ -366,15 +357,9 @@ export default function App() {
         />
       )}
 
-      {/* Main Content Body */}
-      <main className="flex-1 w-full max-w-7xl xl:max-w-[1536px] mx-auto px-3 sm:px-6 lg:px-8 pt-2 pb-36 sm:pb-32">
-        <motion.div
-          drag="x"
-          dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={0.15}
-          onDragEnd={handleDragEnd}
-          className="w-full touch-pan-y"
-        >
+      {/* Main Content Body (Standard static div without drag gesture for butter-smooth tablet performance) */}
+      <main className="flex-1 w-full max-w-7xl xl:max-w-[1536px] mx-auto px-3 sm:px-4 lg:px-4 xl:px-6 2xl:px-8 pt-2 pb-36 sm:pb-32">
+        <div className="w-full">
           <AnimatePresence mode="wait">
             {activeTab === 'dashboard' ? (
               <motion.div
@@ -410,6 +395,32 @@ export default function App() {
                   onOpenTextImport={() => setIsTextImportOpen(true)}
                   onOpenExportModal={() => setIsExportOpen(true)}
                   onOpenAddModal={() => handleOpenAddModal()}
+                />
+              </motion.div>
+            ) : activeTab === 'rekap' ? (
+              <motion.div
+                key="rekap"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <RekapView
+                  orders={orders}
+                  stores={stores}
+                  kitchens={kitchens}
+                  invoices={invoices}
+                  selectedDate={selectedDate}
+                  period={dashboardPeriod}
+                  onPeriodChange={setDashboardPeriod}
+                  onOpenSettings={(tab) => {
+                    if (tab) setSettingsInitialTab(tab);
+                    setIsSettingsOpen(true);
+                  }}
+                  onOpenExportHistory={() => setIsExportHistoryOpen(true)}
+                  isExportingActive={isExportingActive}
+                  exportHistoryCount={exportHistory.length}
+                  isOnline={isOnline}
                 />
               </motion.div>
             ) : (
@@ -458,7 +469,7 @@ export default function App() {
               </motion.div>
             )}
           </AnimatePresence>
-        </motion.div>
+        </div>
       </main>
 
       {/* Bottom Navigation Bar */}
@@ -481,27 +492,31 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Smart Live Voice Order Assistant */}
-      <SmartVoiceOrderOverlay
-        isActive={isSmartVoiceActive}
-        onClose={() => setIsSmartVoiceActive(false)}
-        onOrderCreated={(newOrder) => {
-          handleSaveOrder(newOrder);
-          sendNewOrderNotification(newOrder.namaBarang, newOrder.qty, newOrder.satuan, newOrder.tujuanDapur);
-        }}
-        onNoteCreated={(note) => {
-          handleSaveNote({
-            catatan: note.text,
-            tujuanDapur: note.dapur || kitchens[0]?.nama || 'Cluring',
-            isDone: false,
-          });
-        }}
-        onEditOrderVoice={handleEditOrderVoice}
-        kitchens={kitchens}
-        stores={stores}
-        pemasokList={pemasokList}
-        selectedDate={selectedDate}
-      />
+      {/* Lazy Suspense Boundary for All Modals to prevent massive upfront bundle loading */}
+      <React.Suspense fallback={null}>
+        {/* Smart Live Voice Order Assistant */}
+        {isSmartVoiceActive && (
+          <SmartVoiceOrderOverlay
+            isActive={isSmartVoiceActive}
+            onClose={() => setIsSmartVoiceActive(false)}
+            onOrderCreated={(newOrder) => {
+              handleSaveOrder(newOrder);
+              sendNewOrderNotification(newOrder.namaBarang, newOrder.qty, newOrder.satuan, newOrder.tujuanDapur);
+            }}
+            onNoteCreated={(note) => {
+              handleSaveNote({
+                catatan: note.text,
+                tujuanDapur: note.dapur || kitchens[0]?.nama || 'Cluring',
+                isDone: false,
+              });
+            }}
+            onEditOrderVoice={handleEditOrderVoice}
+            kitchens={kitchens}
+            stores={stores}
+            pemasokList={pemasokList}
+            selectedDate={selectedDate}
+          />
+        )}
 
       {/* Toast Notification */}
       <Toast toast={toast} onClose={() => setToast(null)} />
@@ -687,6 +702,7 @@ export default function App() {
         onDeleteAllData={handleDeleteAllData}
         onRefreshData={refreshMasterData}
       />
+      </React.Suspense>
     </div>
   );
 }

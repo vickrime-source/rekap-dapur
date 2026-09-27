@@ -365,14 +365,14 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
         >
           {/* Ambient Glow Aura */}
           <div
-            className={`absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-20 rounded-full blur-2xl pointer-events-none transition-colors duration-500 ${
+            className={`absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-20 rounded-full pointer-events-none transition-colors duration-500 ${
               status === 'listening'
-                ? 'bg-rose-500/25'
+                ? 'bg-rose-500/20'
                 : status === 'processing'
-                ? 'bg-indigo-500/35'
+                ? 'bg-indigo-500/20'
                 : status === 'success'
-                ? 'bg-emerald-500/30'
-                : 'bg-rose-500/20'
+                ? 'bg-emerald-500/20'
+                : 'bg-rose-500/15'
             }`}
           />
 

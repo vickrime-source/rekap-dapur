@@ -41,7 +41,7 @@ interface WeeklyReportCardProps {
   periodOrders?: OrderItem[];
 }
 
-export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
+export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = React.memo(({
   stats,
   weekRange,
   onFilterStore,
@@ -578,4 +578,4 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = ({
       </div>
     </div>
   );
-};
+});
