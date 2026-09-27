@@ -240,6 +240,33 @@ export default function App() {
     showToast,
   });
 
+  // Guardrail for assistant input: incomplete data is always a Follow Up,
+  // never a transaction or archive entry, even if an AI response is malformed.
+  const handleSmartOrderCreated = useCallback((newOrder: Omit<OrderItem, 'id' | 'createdAt'>) => {
+    const incomplete = !String(newOrder.namaBarang || '').trim()
+      || !(Number(newOrder.qty) > 0)
+      || !String(newOrder.tujuanDapur || '').trim()
+      || !(Number(newOrder.hargaBeli) > 0)
+      || !(Number(newOrder.hargaJual) > 0)
+      || !String(newOrder.pemasok || '').trim();
+
+    if (incomplete) {
+      void handleSaveNote({
+        catatan: `Draft pesanan: ${newOrder.namaBarang || 'Pesanan baru'} • Belum lengkap, silakan lengkapi sebelum masuk transaksi.`,
+        tujuanDapur: newOrder.tujuanDapur || kitchens[0]?.nama || 'Semua Dapur',
+        namaBarang: newOrder.namaBarang,
+        qty: Number(newOrder.qty) > 0 ? newOrder.qty : undefined,
+        satuan: newOrder.satuan,
+        pemasok: newOrder.pemasok,
+        isDone: false,
+      });
+      return;
+    }
+
+    handleSaveOrder(newOrder);
+    sendNewOrderNotification(newOrder.namaBarang, newOrder.qty, newOrder.satuan, newOrder.tujuanDapur);
+  }, [handleSaveNote, handleSaveOrder, kitchens]);
+
   // Purge legacy cached orders and old dummy master data
   useEffect(() => {
     try {
@@ -510,10 +537,7 @@ export default function App() {
             setIsSmartAssistantChatOpen(false);
             setIsTextImportOpen(true);
           }}
-          onOrderCreated={(newOrder) => {
-            handleSaveOrder(newOrder);
-            sendNewOrderNotification(newOrder.namaBarang, newOrder.qty, newOrder.satuan, newOrder.tujuanDapur);
-          }}
+          onOrderCreated={handleSmartOrderCreated}
           onNoteCreated={(note) => {
             handleSaveNote({
               catatan: note.text,
@@ -536,10 +560,7 @@ export default function App() {
           <SmartVoiceOrderOverlay
             isActive={isSmartVoiceActive}
             onClose={() => setIsSmartVoiceActive(false)}
-            onOrderCreated={(newOrder) => {
-              handleSaveOrder(newOrder);
-              sendNewOrderNotification(newOrder.namaBarang, newOrder.qty, newOrder.satuan, newOrder.tujuanDapur);
-            }}
+            onOrderCreated={handleSmartOrderCreated}
             onNoteCreated={(note) => {
               handleSaveNote({
                 catatan: note.text,
