@@ -1179,8 +1179,9 @@ export async function getPeriodSummaryFromDb(
       const labaBersihItem = cb > 0 ? (cb - beli) * qtyFinal : (omzetItem - modalItem);
       const keKoperasiItem = cb > 0 ? (jual - cb) * qtyFinal : 0;
 
-      // Retur ditanggung PENUH oleh PEMASOK, TIDAK membebani modal toko.
-      const modalTokoItem = rawQtyBeli * beli;
+      // Retur berarti barang tidak jadi dibeli/terjual. Nilai breakdown harus
+      // memakai qty efektif yang sama dengan total utama.
+      const modalTokoItem = modalItem;
 
       totalQty += qtyFinal;
       totalPendapatan += omzetItem;
@@ -1211,7 +1212,7 @@ export async function getPeriodSummaryFromDb(
         storeMap[tokoKey].pemasokSet.add(item.pemasok.trim());
       }
 
-      const bKey = `${item.tanggal}_${item.dapur}_${item.toko}`;
+      const bKey = item.nota_id || `${item.tanggal}_${item.dapur}_${item.toko}_${item.created_at || ''}`;
       storeMap[tokoKey].batchKeys.add(bKey);
       globalBatchKeys.add(bKey);
     }

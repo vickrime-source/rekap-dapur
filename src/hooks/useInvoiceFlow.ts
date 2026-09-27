@@ -78,7 +78,7 @@ export function useInvoiceFlow({
         const rawQJ = parseIndonesianNumber(item.qty);
         const rt = Math.max(0, Number(item.retur) || 0);
         const qf = Math.max(0, rawQJ - rt);
-        const hj = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+        const hj = parseIndonesianNumber(item.hargaJual || 0);
         const cb = Number(item.cashback) || 0;
         const p = (variant === 'cashback' && cb > 0) ? cb : hj;
         return sum + qf * p;
@@ -136,7 +136,7 @@ export function useInvoiceFlow({
           const rawQJ = Number(i.qty || 0);
           const rt = Math.max(0, Number(i.retur) || 0);
           const qf = Math.max(0, rawQJ - rt);
-          return s + qf * (i.hargaJual || i.hargaBeli || 0);
+          return s + qf * (i.hargaJual || 0);
         }, 0);
         const newRecord: InvoiceRecord = {
           id: `inv-rec-${Date.now()}`,
@@ -249,7 +249,7 @@ export function useInvoiceFlow({
         const rawQJ = parseIndonesianNumber(item.qty);
         const rt = Math.max(0, Number(item.retur) || 0);
         const qf = Math.max(0, rawQJ - rt);
-        return sum + qf * parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+        return sum + qf * parseIndonesianNumber(item.hargaJual || 0);
       },
       0
     );
@@ -284,7 +284,7 @@ export function useInvoiceFlow({
       const rawQJ = Number(i.qty || 0);
       const rt = Math.max(0, Number(i.retur) || 0);
       const qf = Math.max(0, rawQJ - rt);
-      return s + qf * (i.hargaJual || i.hargaBeli || 0);
+      return s + qf * (i.hargaJual || 0);
     }, 0);
     const newRecord: InvoiceRecord = {
       id: `inv-rec-${Date.now()}`,
@@ -337,7 +337,7 @@ export function useInvoiceFlow({
         const rawQJ = parseIndonesianNumber(item.qty);
         const rt = Math.max(0, Number(item.retur) || 0);
         const qf = Math.max(0, rawQJ - rt);
-        const hj = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+        const hj = parseIndonesianNumber(item.hargaJual || 0);
         const cb = Number(item.cashback) || 0;
         const p = (variant === 'cashback' && cb > 0) ? cb : hj;
         return sum + qf * p;

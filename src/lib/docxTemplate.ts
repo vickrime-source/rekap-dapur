@@ -161,7 +161,7 @@ export function prepareScopedInvoiceData(options: ExportInvoiceOptions) {
   let grandTotal = 0;
   const itemsFormatted = validItems.map((item, index) => {
     const q = parseIndonesianNumber(item.qty);
-    const unitPrice = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+    const unitPrice = parseIndonesianNumber(item.hargaJual || 0);
     const subtotal = q * unitPrice;
     grandTotal += subtotal;
 

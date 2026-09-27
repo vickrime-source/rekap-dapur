@@ -125,7 +125,7 @@ export const InvoicePaperA4 = React.forwardRef<HTMLDivElement, InvoicePaperA4Pro
             const rawQ = parseIndonesianNumber(item.qty);
             const retQ = Math.min(rawQ, Math.max(0, Number(item.retur) || 0));
             const q = Math.max(0, rawQ - retQ);
-            const hargaJual = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+            const hargaJual = parseIndonesianNumber(item.hargaJual || 0);
             const cb = Number(item.cashback) || 0;
             const p = (priceVariant === 'cashback' && cb > 0) ? cb : hargaJual;
             return (

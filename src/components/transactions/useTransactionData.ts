@@ -140,8 +140,8 @@ export function useTransactionData({
       const labaBersihItem = cb > 0 ? ((cb - beli) * qtyFinal) : (omzetItem - modalItem);
       const keKoperasiItem = cb > 0 ? ((jual - cb) * qtyFinal) : 0;
 
-      // Retur ditanggung PENUH oleh PEMASOK, TIDAK membebani modal toko.
-      const modalTokoItem = rawQtyBeli * beli;
+      // Retur berarti bagian tersebut tidak jadi dibeli/terjual.
+      const modalTokoItem = modalItem;
 
       totalQty += qtyFinal;
       totalPendapatan += omzetItem;
@@ -172,7 +172,7 @@ export function useTransactionData({
         storeMap[tokoKey].pemasokSet.add(item.pemasok.trim());
       }
 
-      const bKey = `${item.tanggal}_${item.tujuanDapur}_${item.toko}`;
+      const bKey = item.notaId || item.nota_id || `${item.tanggal}_${item.tujuanDapur}_${item.toko}_${item.createdAt || ''}`;
       storeMap[tokoKey].batchKeys.add(bKey);
       globalBatchKeys.add(bKey);
     }
@@ -255,7 +255,7 @@ export function useTransactionData({
           const rawQ = Number(i.qty) || 0;
           const ret = Math.max(0, Number(i.retur) || 0);
           const qFinal = Math.max(0, rawQ - ret);
-          return sum + qFinal * (Number(i.hargaJual || i.hargaBeli) || 0);
+          return sum + qFinal * (Number(i.hargaJual) || 0);
         },
         0
       );
@@ -271,7 +271,7 @@ export function useTransactionData({
         const qFinal = Math.max(0, rawQ - ret);
         const qBeliEfektif = Math.max(0, rawQBeli - ret);
         const hb = Number(i.hargaBeli) || 0;
-        const hj = Number(i.hargaJual || i.hargaBeli) || 0;
+        const hj = Number(i.hargaJual) || 0;
         const cb = Number(i.cashback) || 0;
         const modal = qBeliEfektif * hb;
         const omzet = qFinal * hj;
@@ -347,7 +347,7 @@ export function useTransactionData({
               const rq = Number(i.qty) || 0;
               const rt = Math.max(0, Number(i.retur) || 0);
               const qf = Math.max(0, rq - rt);
-              return sum + qf * (Number(i.hargaJual || i.hargaBeli) || 0);
+              return sum + qf * (Number(i.hargaJual) || 0);
             }, 0) ||
             totalBeli;
 
@@ -363,7 +363,7 @@ export function useTransactionData({
               const q = Math.max(0, rq - rt);
               const qBeliEfektif = Math.max(0, rawQBeli - rt);
               const hb = Number(i.hargaBeli) || 0;
-              const hj = Number(i.hargaJual || i.hargaBeli) || 0;
+              const hj = Number(i.hargaJual) || 0;
               const cb = Number(i.cashback) || 0;
               const modal = qBeliEfektif * hb;
               if (cb > 0) {

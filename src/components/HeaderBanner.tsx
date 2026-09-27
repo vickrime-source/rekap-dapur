@@ -150,7 +150,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
       const isDone = item.deliveryStatus === 'DONE' || (item.status === 'selesai' && !item.deliveryStatus);
 
       // Group per keberangkatan (trx) sesuai acuan tabel pesanan (tanggal + tujuan dapur + toko)
-      const batchKey = `${item.tanggal}||${item.tujuanDapur}||${item.toko}`;
+      const batchKey = item.notaId || item.nota_id || `${item.tanggal}||${item.tujuanDapur}||${item.toko}||${item.createdAt || ''}`;
 
       if (!batchMap.has(batchKey)) {
         batchMap.set(batchKey, { allPaid: isPaid, allDone: isDone });
@@ -170,7 +170,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
       const qtyFinal = Math.max(0, rawQtyJual - returQty);
       const qtyBeliEfektif = Math.max(0, rawQtyBeli - returQty);
       const beli = parseIndonesianNumber(item.hargaBeli);
-      const jual = parseIndonesianNumber(item.hargaJual || item.hargaBeli);
+      const jual = parseIndonesianNumber(item.hargaJual);
       const cb = parseIndonesianNumber(item.cashback);
       const modalItem = qtyBeliEfektif * beli;
       const omzetItem = qtyFinal * jual;

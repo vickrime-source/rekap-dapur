@@ -43,7 +43,7 @@ export const InvoiceFormModal: React.FC<InvoiceFormModalProps> = ({
     const rawQ = parseIndonesianNumber(item.qty);
     const retQ = Math.max(0, Number(item.retur) || 0);
     const qFinal = Math.max(0, rawQ - retQ);
-    const p = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+    const p = parseIndonesianNumber(item.hargaJual || 0);
     return sum + qFinal * p;
   }, 0);
 

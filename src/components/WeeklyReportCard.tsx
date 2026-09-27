@@ -163,8 +163,8 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = React.memo(({
         const beli = parseIndonesianNumber(item.hargaBeli) || 0;
         const jual = parseIndonesianNumber(item.hargaJual) || 0;
         const cb = parseIndonesianNumber(item.cashback) || 0;
-        // Retur ditanggung pemasok, tidak membebani modal toko:
-        const itemBeli = rawQtyBeli * beli;
+        // Retur berarti bagian tersebut tidak jadi dibeli/terjual.
+        const itemBeli = qtyBeliEfektif * beli;
         const itemJual = qtyFinal * jual;
         const labaBersihItem = cb > 0 ? ((cb - beli) * qtyFinal) : (itemJual - (qtyBeliEfektif * beli));
         const keKoperasiItem = cb > 0 ? ((jual - cb) * qtyFinal) : 0;
@@ -194,7 +194,7 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = React.memo(({
         if (item.pemasok && item.pemasok.trim() && item.pemasok.trim() !== '-') {
           map[tokoKey].pemasokSet.add(item.pemasok.trim());
         }
-        const bKey = `${item.tanggal || item.createdAt || ''}_${item.tujuanDapur || ''}_${tokoKey}`;
+      const bKey = item.notaId || item.nota_id || `${item.tanggal || item.createdAt || ''}_${item.tujuanDapur || ''}_${tokoKey}`;
         map[tokoKey].batchKeys.add(bKey);
       }
 
@@ -290,7 +290,7 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = React.memo(({
       map[pKey].totalBeli += itemBeli;
       map[pKey].orderCount += 1;
 
-      const bKey = `${item.tanggal || item.createdAt || ''}_${item.tujuanDapur || ''}_${pKey}`;
+      const bKey = item.notaId || item.nota_id || `${item.tanggal || item.createdAt || ''}_${item.tujuanDapur || ''}_${pKey}`;
       map[pKey].batchKeys.add(bKey);
 
       if (item.toko && item.toko.trim()) {
@@ -387,7 +387,7 @@ export const WeeklyReportCard: React.FC<WeeklyReportCardProps> = React.memo(({
       map[dapurKey].totalLabaBersih += itemLaba;
       map[dapurKey].orderCount += 1;
 
-      const bKey = `${item.tanggal || item.createdAt || ''}_${dapurKey}_${item.toko || ''}`;
+      const bKey = item.notaId || item.nota_id || `${item.tanggal || item.createdAt || ''}_${dapurKey}_${item.toko || ''}`;
       map[dapurKey].batchKeys.add(bKey);
     }
 

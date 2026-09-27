@@ -17,7 +17,6 @@ import {
   saveOrderToDb, 
   saveOrdersBatchToDb, 
   updateOrderInDb, 
-  batchUpdateStatusInDb, 
   deleteOrderFromDb, 
   deleteOrdersFromDb, 
   saveTransactionToDb, 
@@ -158,17 +157,22 @@ export function useOrderOperations({
       })
     );
 
-    const res = await batchUpdateStatusInDb(targetIds, {
-      paymentStatus,
-      status: paymentStatus === 'PAID' ? 'selesai' : 'pending',
-    });
-    if (!res.success) {
-      setDbError(res.error || 'Gagal update pembayaran grup');
-      showToast(`Gagal update grup: ${res.error}`, 'error');
+    const results = await Promise.all(targetIds.map((targetId) => {
+      const item = orders.find((o) => o.id === targetId);
+      const delivery = item?.deliveryStatus || (item?.status === 'selesai' ? 'DONE' : 'PENDING');
+      return updateOrderInDb(targetId, {
+        paymentStatus,
+        status: paymentStatus === 'PAID' && delivery === 'DONE' ? 'selesai' : 'pending',
+      });
+    }));
+    const failed = results.find((result) => !result.success);
+    if (failed) {
+      setDbError(failed.error || 'Gagal update pembayaran grup');
+      showToast(`Gagal update grup: ${failed.error}`, 'error');
     } else {
       showToast(`Status pembayaran grup berhasil diperbarui (${paymentStatus})`, 'success');
     }
-  }, [setOrders, setDbError, showToast]);
+  }, [orders, setOrders, setDbError, showToast]);
 
   const handleUpdateGroupDeliveryStatus = useCallback(async (groupItems: OrderItem[], deliveryStatus: DeliveryStatus) => {
     if (!groupItems || groupItems.length === 0) return;
@@ -188,17 +192,22 @@ export function useOrderOperations({
       })
     );
 
-    const res = await batchUpdateStatusInDb(targetIds, {
-      deliveryStatus,
-      status: deliveryStatus === 'DONE' ? 'selesai' : 'pending',
-    });
-    if (!res.success) {
-      setDbError(res.error || 'Gagal update pengiriman grup');
-      showToast(`Gagal update pengiriman grup: ${res.error}`, 'error');
+    const results = await Promise.all(targetIds.map((targetId) => {
+      const item = orders.find((o) => o.id === targetId);
+      const payment = item?.paymentStatus || (item?.status === 'selesai' ? 'PAID' : 'UNPAID');
+      return updateOrderInDb(targetId, {
+        deliveryStatus,
+        status: payment === 'PAID' && deliveryStatus === 'DONE' ? 'selesai' : 'pending',
+      });
+    }));
+    const failed = results.find((result) => !result.success);
+    if (failed) {
+      setDbError(failed.error || 'Gagal update pengiriman grup');
+      showToast(`Gagal update pengiriman grup: ${failed.error}`, 'error');
     } else {
       showToast(`Status pengiriman grup berhasil diperbarui (${deliveryStatus})`, 'success');
     }
-  }, [setOrders, setDbError, showToast]);
+  }, [orders, setOrders, setDbError, showToast]);
 
   const handleDuplicateOrder = useCallback(async (item: OrderItem) => {
     const duplicated: OrderItem = {
@@ -363,7 +372,7 @@ export function useOrderOperations({
         const rawQJ = Number(it.qty || 0);
         const rt = Math.max(0, Number(it.retur) || 0);
         const qf = Math.max(0, rawQJ - rt);
-        return sum + qf * Number(it.hargaJual || it.hargaBeli || 0);
+        return sum + qf * Number(it.hargaJual || 0);
       }, 0);
       const newInvoiceRec: InvoiceRecord = {
         id: `tx-${Date.now()}`,
@@ -479,7 +488,7 @@ export function useOrderOperations({
                       const rawQJ = Number(it.qty || 0);
                       const rt = Math.max(0, Number(it.retur) || 0);
                       const qf = Math.max(0, rawQJ - rt);
-                      return s + qf * (Number(it.hargaJual || it.hargaBeli) || 0);
+                      return s + qf * (Number(it.hargaJual) || 0);
                     }, 0);
                     return {
                       ...inv,

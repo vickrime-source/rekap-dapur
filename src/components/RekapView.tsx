@@ -149,7 +149,7 @@ export const RekapView: React.FC<RekapViewProps> = React.memo(({
       const qtyFinal = Math.max(0, rawQtyJual - returQty);
       const qtyBeliEfektif = Math.max(0, rawQtyBeli - returQty);
       const beli = parseIndonesianNumber(item.hargaBeli) || 0;
-      const jual = parseIndonesianNumber(item.hargaJual || item.hargaBeli) || 0;
+      const jual = parseIndonesianNumber(item.hargaJual) || 0;
       const cb = parseIndonesianNumber(item.cashback) || 0;
 
       const modalItem = qtyBeliEfektif * beli;

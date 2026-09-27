@@ -33,7 +33,7 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
     const rawQ = parseIndonesianNumber(item.qty);
     const retQ = Math.min(rawQ, Math.max(0, Number(item.retur) || 0));
     const q = Math.max(0, rawQ - retQ);
-    const hargaJual = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+    const hargaJual = parseIndonesianNumber(item.hargaJual || 0);
     const cb = Number(item.cashback) || 0;
 
     // Varian Ori: HARGA = harga_jual. NILAI = harga_jual * qty.

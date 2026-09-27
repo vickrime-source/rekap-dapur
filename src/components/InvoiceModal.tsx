@@ -99,7 +99,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
     const rawQ = parseIndonesianNumber(item.qty);
     const retQ = Math.min(rawQ, Math.max(0, Number(item.retur) || 0));
     const q = Math.max(0, rawQ - retQ);
-    const hj = parseIndonesianNumber(item.hargaJual || item.hargaBeli || 0);
+    const hj = parseIndonesianNumber(item.hargaJual || 0);
     const cb = Number(item.cashback) || 0;
     const p = (priceVariant === 'cashback' && cb > 0) ? cb : hj;
     return sum + q * p;
