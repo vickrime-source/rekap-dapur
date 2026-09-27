@@ -23,6 +23,7 @@ export type VoiceIntent = 'CREATE_NOTE' | 'CREATE_ORDER' | 'EDIT_ORDER';
 
 export interface VoiceAssistantResult {
   intent: VoiceIntent;
+  missingFields?: string[];
   // If CREATE_NOTE:
   noteText?: string;
   noteDapur?: string;
@@ -80,11 +81,13 @@ KLASIFIKASI INTENT:
    - "namaBarang": Nama komoditas makanan (misal: "Ayam", "Bawang Merah", "Telur").
    - "qty": Angka kuantitas (misal 10, 0.5, 2).
    - "satuan": Satuan (misal: "Kg", "Gram", "Pcs", "Tray", "Pack", "Liter", "Ikat").
-   - "hargaBeli": Angka harga beli dalam rupiah. Jika tidak disebutkan isi 0.
-   - "hargaJual": Angka harga jual dalam rupiah. Jika tidak disebutkan isi 0.
+   - "hargaBeli": Angka harga beli dalam rupiah. Jika tidak disebutkan, jangan mengarang nilai.
+   - "hargaJual": Angka harga jual dalam rupiah. Jika tidak disebutkan, jangan mengarang nilai.
    - "toko": Nama toko kita jika ada.
    - "pemasok": Nama supplier jika ada.
    - "catatan": Catatan pesanan jika ada.
+   - Jangan mengarang dapur, qty, harga, pemasok, atau barang yang tidak disebutkan.
+   - Jika data CREATE_ORDER belum lengkap, tetap kembalikan intent CREATE_ORDER dan isi hanya field yang benar-benar ditemukan.
 
 3. "EDIT_ORDER": Jika pengguna mengatakan "edit harga/item/kg...", "ubah...", "ganti qty...", "koreksi harga...", "revisi...".
    Contoh: "edit harga ayam jadi 32 ribu", "ganti qty ayam dapur cluring jadi 15 kg", "ubah harga beli jadi 28 ribu".
@@ -144,11 +147,11 @@ KLASIFIKASI INTENT:
       noteText: data.noteText,
       noteDapur: data.noteDapur,
       tujuanDapur: data.tujuanDapur || '',
-      namaBarang: data.namaBarang || (data.intent === 'CREATE_ORDER' ? 'Ayam' : ''),
-      qty: Number(data.qty) || 1,
-      satuan: data.satuan || 'Kg',
-      hargaBeli: Number(data.hargaBeli) || 0,
-      hargaJual: Number(data.hargaJual) || 0,
+      namaBarang: data.namaBarang || '',
+      qty: data.qty !== undefined ? Number(data.qty) : undefined,
+      satuan: data.satuan || undefined,
+      hargaBeli: data.hargaBeli !== undefined ? Number(data.hargaBeli) : undefined,
+      hargaJual: data.hargaJual !== undefined ? Number(data.hargaJual) : undefined,
       toko: data.toko || '',
       pemasok: data.pemasok || '',
       catatan: data.catatan || '',

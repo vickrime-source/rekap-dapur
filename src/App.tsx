@@ -16,6 +16,8 @@ import {
 } from './constants/initialData';
 import { HeaderBanner } from './components/HeaderBanner';
 import { BottomNav, TabType } from './components/BottomNav';
+import { FloatingAddMenu } from './components/FloatingAddMenu';
+import { SmartAssistantChatModal } from './components/SmartAssistantChatModal';
 import { DashboardView } from './components/DashboardView';
 import { RekapView } from './components/RekapView';
 import { TransactionsView } from './components/TransactionsView';
@@ -70,6 +72,7 @@ export default function App() {
   const [isNoteSheetOpen, setIsNoteSheetOpen] = useState(false);
   const [autoStartVoiceNote, setAutoStartVoiceNote] = useState(false);
   const [isSmartVoiceActive, setIsSmartVoiceActive] = useState(false);
+  const [isSmartAssistantChatOpen, setIsSmartAssistantChatOpen] = useState(false);
   const [isTextImportOpen, setIsTextImportOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -485,15 +488,49 @@ export default function App() {
             <BottomNav
               activeTab={activeTab}
               onChangeTab={setActiveTab}
-              onOpenAddModal={() => handleOpenAddModal()}
-              onStartVoiceHold={() => setIsSmartVoiceActive(true)}
             />
           </motion.div>
         )}
       </AnimatePresence>
 
+      {!isSmartVoiceActive && (
+        <FloatingAddMenu
+          onVoice={() => setIsSmartVoiceActive(true)}
+          onManual={() => handleOpenAddModal()}
+          onAssistant={() => setIsSmartAssistantChatOpen(true)}
+        />
+      )}
+
       {/* Lazy Suspense Boundary for All Modals to prevent massive upfront bundle loading */}
       <React.Suspense fallback={null}>
+        <SmartAssistantChatModal
+          isOpen={isSmartAssistantChatOpen}
+          onClose={() => setIsSmartAssistantChatOpen(false)}
+          onOpenBatch={() => {
+            setIsSmartAssistantChatOpen(false);
+            setIsTextImportOpen(true);
+          }}
+          onOrderCreated={(newOrder) => {
+            handleSaveOrder(newOrder);
+            sendNewOrderNotification(newOrder.namaBarang, newOrder.qty, newOrder.satuan, newOrder.tujuanDapur);
+          }}
+          onNoteCreated={(note) => {
+            handleSaveNote({
+              catatan: note.text,
+              tujuanDapur: note.dapur || kitchens[0]?.nama || 'Cluring',
+              namaBarang: note.namaBarang,
+              qty: note.qty,
+              satuan: note.satuan,
+              pemasok: note.pemasok,
+              isDone: false,
+            });
+          }}
+          kitchens={kitchens}
+          stores={stores}
+          pemasokList={pemasokList}
+          selectedDate={selectedDate}
+        />
+
         {/* Smart Live Voice Order Assistant */}
         {isSmartVoiceActive && (
           <SmartVoiceOrderOverlay
@@ -507,6 +544,10 @@ export default function App() {
               handleSaveNote({
                 catatan: note.text,
                 tujuanDapur: note.dapur || kitchens[0]?.nama || 'Cluring',
+                namaBarang: note.namaBarang,
+                qty: note.qty,
+                satuan: note.satuan,
+                pemasok: note.pemasok,
                 isDone: false,
               });
             }}

@@ -24,6 +24,7 @@ export type VoiceIntent = 'CREATE_NOTE' | 'CREATE_ORDER' | 'EDIT_ORDER';
 
 export interface SmartVoiceResult {
   intent: VoiceIntent;
+  missingFields?: string[];
   // Note:
   noteText?: string;
   noteDapur?: string;
@@ -309,28 +310,16 @@ export function parseVoiceOrderSmart(
 ) {
   const parsed = parseVoiceInput(transcript, availableKitchens, availableStores, availablePemasok);
 
-  const finalKitchen =
-    parsed.tujuanDapur ||
-    (availableKitchens.length > 0 ? availableKitchens[0].nama : 'Cluring');
-
-  const finalStore =
-    parsed.toko ||
-    (availableStores.length > 0 ? availableStores[0].nama : 'HTG');
-
-  const finalPemasok =
-    parsed.pemasok ||
-    (availablePemasok.length > 0 ? availablePemasok[0] : 'Ajeng fruits');
-
   return {
     rawTranscript: parsed.rawTranscript,
-    namaBarang: parsed.namaBarang || 'Ayam',
-    qty: parsed.qty || 1,
-    satuan: parsed.satuan || 'Kg',
-    hargaBeli: parsed.hargaBeli || 0,
-    hargaJual: parsed.hargaJual || 0,
-    tujuanDapur: finalKitchen,
-    toko: finalStore,
-    pemasok: finalPemasok,
+    namaBarang: parsed.namaBarang || '',
+    qty: parsed.qty,
+    satuan: parsed.satuan,
+    hargaBeli: parsed.hargaBeli,
+    hargaJual: parsed.hargaJual,
+    tujuanDapur: parsed.tujuanDapur || '',
+    toko: parsed.toko || '',
+    pemasok: parsed.pemasok || '',
     catatan: parsed.catatan,
   };
 }

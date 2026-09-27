@@ -10,7 +10,17 @@ interface SmartVoiceOrderOverlayProps {
   isActive: boolean;
   onClose: () => void;
   onOrderCreated: (order: Omit<OrderItem, 'id' | 'createdAt'>) => void;
-  onNoteCreated?: (note: { text: string; category: 'FOLLOW_UP' | 'URGENT' | 'CATATAN'; dapur?: string; tanggal: string; isDone: boolean }) => void;
+  onNoteCreated?: (note: {
+    text: string;
+    category: 'FOLLOW_UP' | 'URGENT' | 'CATATAN';
+    dapur?: string;
+    namaBarang?: string;
+    qty?: number;
+    satuan?: string;
+    pemasok?: string;
+    tanggal: string;
+    isDone: boolean;
+  }) => void;
   onEditOrderVoice?: (params: { targetBarang: string; targetDapur?: string; newQty?: number; newSatuan?: string; newHargaBeli?: number; newHargaJual?: number }) => boolean;
   kitchens: Kitchen[];
   stores: StoreType[];
@@ -162,6 +172,47 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
       }
 
       // --- INTENT C: CREATE ORDER (Default) ---
+      const missingFields: string[] = [];
+      if (!String(parsedData.namaBarang || '').trim()) missingFields.push('nama barang');
+      if (!parsedData.tujuanDapur) missingFields.push('dapur tujuan');
+      if (!(Number(parsedData.qty) > 0)) missingFields.push('jumlah/qty');
+      if (!(Number(parsedData.hargaBeli) > 0)) missingFields.push('harga beli');
+      if (!(Number(parsedData.hargaJual) > 0)) missingFields.push('harga jual');
+      if (!String(parsedData.pemasok || '').trim()) missingFields.push('pemasok');
+
+      if (missingFields.length > 0) {
+        const draftParts = [
+          `Draft pesanan: ${parsedData.namaBarang || text}`,
+          parsedData.qty ? `Qty ${parsedData.qty} ${parsedData.satuan || ''}`.trim() : '',
+          parsedData.hargaBeli ? `Beli ${formatRupiah(Number(parsedData.hargaBeli))}` : '',
+          parsedData.hargaJual ? `Jual ${formatRupiah(Number(parsedData.hargaJual))}` : '',
+          `Belum lengkap: ${missingFields.join(', ')}`,
+        ].filter(Boolean).join(' • ');
+
+        onNoteCreated?.({
+          text: draftParts,
+          category: 'FOLLOW_UP',
+          dapur: parsedData.tujuanDapur || 'Semua Dapur',
+          namaBarang: parsedData.namaBarang || text,
+          qty: Number(parsedData.qty) > 0 ? Number(parsedData.qty) : undefined,
+          satuan: parsedData.satuan || undefined,
+          pemasok: parsedData.pemasok || undefined,
+          tanggal: selectedDate || getTodayWIB(),
+          isDone: false,
+        });
+
+        setSuccessInfo({
+          title: 'Draft Pesanan Disimpan ✓',
+          subtitle: `Reminder: lengkapi ${missingFields.join(', ')}`,
+          iconType: 'note',
+        });
+        setStatus('success');
+        setTimeout(() => {
+          if (isActiveRef.current) onClose();
+        }, 2600);
+        return;
+      }
+
       const finalKitchen =
         parsedData.tujuanDapur ||
         (kitchens.length > 0 ? kitchens[0].nama : 'Cluring');
