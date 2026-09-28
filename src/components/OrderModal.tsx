@@ -29,7 +29,6 @@ import {
 import { getTodayWIB, formatTanggalWeb } from '../lib/formatters';
 import { getItemSuggestions } from '../lib/suggestions';
 import { parseVoiceInput } from '../lib/voiceParser';
-import { guessStoreForItem } from '../lib/storeMatcher';
 import { 
   saveMasterTokoToDb, 
   saveMasterPemasokToDb, 
@@ -155,7 +154,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   };
 
   // Computed master lists
-  const availableStores = masterToko.length > 0 ? masterToko.map((t) => t.nama) : stores.map((s) => s.nama);
   const availableKitchens = masterDapur.length > 0 ? masterDapur.map((d) => d.nama) : kitchens.map((k) => k.nama);
   const availablePemasok = masterPemasok.length > 0 ? masterPemasok.map((p) => p.nama) : pemasokList;
 
@@ -413,12 +411,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     }
 
     if (parsed.tujuanDapur) setTujuanDapur(parsed.tujuanDapur);
-    if (parsed.toko) {
-      setToko(parsed.toko);
-    } else if (parsed.namaBarang) {
-      const autoStore = guessStoreForItem(parsed.namaBarang, availableStores);
-      if (autoStore) setToko(autoStore);
-    }
+    if (parsed.toko) setToko(parsed.toko);
     if (parsed.pemasok) setPemasok(parsed.pemasok);
 
     setVoiceNotice(`✓ Terdeteksi: ${parsed.namaBarang || 'Pesanan'} (${parsed.qty || 1} ${parsed.satuan || 'Kg'})`);
@@ -525,12 +518,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const handleItemNameChange = (val: string) => {
     updateCurrentItem('namaBarang', val);
 
-    // Auto-select toko jika cocok
-    const autoStore = guessStoreForItem(val, availableStores);
-    if (autoStore && !toko) {
-      setToko(autoStore);
-    }
-
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
@@ -571,11 +558,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
   const selectSuggestion = (itemText: string) => {
     updateCurrentItem('namaBarang', itemText);
-
-    const autoStore = guessStoreForItem(itemText, availableStores);
-    if (autoStore) {
-      setToko(autoStore);
-    }
 
     const match = existingOrders.find(
       (o) => o.namaBarang.toLowerCase() === itemText.toLowerCase() && (o.hargaBeli > 0 || o.hargaJual > 0)

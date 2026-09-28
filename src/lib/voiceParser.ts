@@ -49,6 +49,40 @@ export interface SmartVoiceResult {
   rawTranscript: string;
 }
 
+function normalizeContextText(value: string): string {
+  return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+function findExplicitMasterValue(input: string, values: string[]): string {
+  const normalizedInput = normalizeContextText(input);
+  return values.find((value) => {
+    const normalizedValue = normalizeContextText(value);
+    return normalizedValue.length > 0 && normalizedInput.includes(normalizedValue);
+  }) || '';
+}
+
+/**
+ * Gemini boleh membantu membaca angka dan nama barang, tetapi konteks master
+ * tidak boleh diisi dari tebakan. Dapur/toko/pemasok hanya dipertahankan jika
+ * nama tersebut benar-benar tertulis di sumber input.
+ */
+export function keepOnlyExplicitMasterContext(
+  parsed: SmartVoiceResult,
+  input: string,
+  kitchens: string[] = [],
+  stores: string[] = [],
+  pemasokList: string[] = [],
+): SmartVoiceResult {
+  return {
+    ...parsed,
+    noteDapur: findExplicitMasterValue(input, kitchens),
+    tujuanDapur: findExplicitMasterValue(input, kitchens),
+    targetDapur: findExplicitMasterValue(input, kitchens) || undefined,
+    toko: findExplicitMasterValue(input, stores),
+    pemasok: findExplicitMasterValue(input, pemasokList),
+  };
+}
+
 const INDO_NUMBER_WORDS: Record<string, number> = {
   'setengah': 0.5,
   'seperempat': 0.25,

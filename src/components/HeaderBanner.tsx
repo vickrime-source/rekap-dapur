@@ -8,15 +8,13 @@ import {
   Loader2,
   Receipt,
   Plus,
-  CircleCheck,
   CheckCircle2,
   Circle,
-  Trash2,
+  Pencil,
   FileText,
   Utensils,
   Tag,
   Scale,
-  Check,
   Database,
   ArrowRightCircle,
   Store,
@@ -47,7 +45,6 @@ interface HeaderBannerProps {
   onPeriodChange?: (period: DashboardPeriod) => void;
   onToggleNoteStatus: (noteId: string) => void;
   onFollowUpNote?: (note: NoteItem) => void;
-  onDeleteNote: (noteId: string) => void;
   onOpenNewNoteSheet: (startVoice?: boolean) => void;
   onOpenSettings: () => void;
   onOpenExportHistory: () => void;
@@ -71,7 +68,6 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
   onPeriodChange,
   onToggleNoteStatus,
   onFollowUpNote,
-  onDeleteNote,
   onOpenNewNoteSheet,
   onOpenSettings,
   onOpenExportHistory,
@@ -583,32 +579,21 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                         )}
                       </div>
 
-                      {/* Right: [✓ Checklist Button] [Trash Button] */}
+                      {/* Right: satu tombol edit untuk mencegah salah tekan */}
                       <div className="flex items-center gap-1 flex-shrink-0">
-                        {/* Checklist Button: Klik untuk membuka proses Follow Up (lengkapi harga & simpan ke transaksi) */}
+                        {/* Edit Button: lengkapi field sebelum dipindahkan ke transaksi */}
                         <button
                           type="button"
                           onClick={() => (onFollowUpNote ? onFollowUpNote(note) : onToggleNoteStatus(note.id))}
-                          title={note.isDone ? "Sudah masuk transaksi (Klik untuk tinjau/ubah)" : "Proses Follow Up"}
-                          aria-label="Proses Follow Up"
+                          title={note.isDone ? "Tinjau Follow Up" : "Edit dan lengkapi Follow Up"}
+                          aria-label="Edit Follow Up"
                           className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer border ${
                             note.isDone
                               ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-200 dark:hover:bg-emerald-900'
                               : 'bg-indigo-50/90 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-600 dark:hover:bg-indigo-600 hover:text-white active:scale-95 shadow-2xs'
                           }`}
                         >
-                          <CircleCheck className="w-5 h-5" />
-                        </button>
-
-                        {/* Delete button */}
-                        <button
-                          type="button"
-                          onClick={() => onDeleteNote(note.id)}
-                          className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-transparent hover:border-rose-200 dark:hover:border-rose-800 transition-all cursor-pointer"
-                          title="Hapus Follow Up"
-                          aria-label="Hapus Follow Up"
-                        >
-                          <Trash2 className="w-4 h-4" />
+                          <Pencil className="w-4 h-4" />
                         </button>
                       </div>
                     </div>

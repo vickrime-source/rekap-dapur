@@ -1,7 +1,7 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Bot, FileText, Send, Sparkles, Trash2, Upload, User, X } from 'lucide-react';
+import { Bot, FileText, Send, Sparkles, Trash2, User, X } from 'lucide-react';
 import { OrderItem, Kitchen, NoteItem, Store as StoreType } from '../types';
-import { parseVoiceAssistantSmart } from '../lib/voiceParser';
+import { keepOnlyExplicitMasterContext, parseVoiceAssistantSmart } from '../lib/voiceParser';
 import { formatRupiah, getTodayWIB } from '../lib/formatters';
 
 interface ChatMessage {
@@ -24,7 +24,7 @@ interface DraftOrderFields {
 interface SmartAssistantChatModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onOpenBatch: (initialText?: string) => void;
+  onBulkImport: (rawText: string) => void;
   onOrderCreated: (order: Omit<OrderItem, 'id' | 'createdAt'>) => void;
   onNoteCreated: (note: {
     text: string;
@@ -33,6 +33,7 @@ interface SmartAssistantChatModalProps {
     qty?: number;
     satuan?: string;
     pemasok?: string;
+    toko?: string;
     tanggal: string;
     isDone: boolean;
   }) => void;
@@ -49,6 +50,7 @@ const fieldLabels: Record<string, string> = {
   'jumlah/qty': 'qty',
   'harga beli': 'harga beli',
   'harga jual': 'harga jual',
+  toko: 'toko',
   pemasok: 'pemasok',
 };
 
@@ -61,7 +63,7 @@ const welcomeMessage: ChatMessage = {
 export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = ({
   isOpen,
   onClose,
-  onOpenBatch,
+  onBulkImport,
   onOrderCreated,
   onNoteCreated,
   kitchens,
@@ -265,11 +267,12 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
     if (isFirstDraft) {
       onNoteCreated({
         text: draftText,
-        dapur: parsed.tujuanDapur || 'Semua Dapur',
+        dapur: parsed.tujuanDapur || '',
         namaBarang: parsed.namaBarang || originalText,
         qty: Number(parsed.qty) > 0 ? Number(parsed.qty) : undefined,
         satuan: parsed.satuan || undefined,
         pemasok: parsed.pemasok || undefined,
+        toko: parsed.toko || undefined,
         tanggal: selectedDate || getTodayWIB(),
         isDone: false,
       });
@@ -294,9 +297,9 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
       if (isBulkReportInput(originalText)) {
         appendMessage({
           role: 'assistant',
-          text: 'Ini terlihat seperti laporan bulk. Saya tidak menyimpannya sebagai satu pesanan. Saya buka Import Batch untuk memecah dan menampilkan preview dulu.',
+          text: 'Ini laporan bulk. Saya pecah otomatis; data lengkap masuk Pesanan, sedangkan yang belum menyebut toko, dapur, pemasok, atau harga masuk Follow Up.',
         });
-        onOpenBatch(originalText);
+        onBulkImport(originalText);
         return;
       }
 
@@ -335,12 +338,14 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
         parsed = localParsed;
       }
 
+      parsed = keepOnlyExplicitMasterContext(parsed, originalText, kitchenNames, storeNames, pemasokList);
       parsed = { ...parsed, ...mergeParsedFields(originalText, parsed, localParsed, draftOrder) };
 
       if (parsed.intent === 'CREATE_NOTE') {
         onNoteCreated({
           text: parsed.noteText || originalText,
-          dapur: parsed.noteDapur || 'Semua Dapur',
+          dapur: parsed.noteDapur || '',
+          toko: parsed.toko || undefined,
           tanggal: selectedDate || getTodayWIB(),
           isDone: false,
         });
@@ -362,6 +367,7 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
       if (!(Number(parsed.qty) > 0)) missingFields.push(fieldLabels['jumlah/qty']);
       if (!(Number(parsed.hargaBeli) > 0)) missingFields.push(fieldLabels['harga beli']);
       if (!(Number(parsed.hargaJual) > 0)) missingFields.push(fieldLabels['harga jual']);
+      if (!String(parsed.toko || '').trim()) missingFields.push('toko');
       if (!String(parsed.pemasok || '').trim()) missingFields.push(fieldLabels.pemasok);
 
       if (missingFields.length > 0) {
@@ -369,7 +375,6 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
         return;
       }
 
-      const guessedStore = parsed.toko || stores[0]?.nama || 'HTG';
       const order: Omit<OrderItem, 'id' | 'createdAt'> = {
         namaBarang: parsed.namaBarang,
         qty: Number(parsed.qty),
@@ -377,7 +382,7 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
         hargaBeli: Number(parsed.hargaBeli),
         hargaJual: Number(parsed.hargaJual),
         tujuanDapur: parsed.tujuanDapur,
-        toko: guessedStore,
+        toko: parsed.toko || '',
         pemasok: parsed.pemasok,
         status: 'pending',
         paymentStatus: 'UNPAID',
@@ -435,9 +440,6 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
         </div>
 
         <div className="border-t border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-          <button type="button" onClick={onOpenBatch} className="mb-2 inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-[11px] font-extrabold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-300">
-            <Upload className="h-3.5 w-3.5" /> Import Batch WhatsApp
-          </button>
           <form onSubmit={processText} className="flex items-end gap-2">
             <textarea value={text} onChange={(event) => setText(event.target.value)} rows={2} placeholder="Tulis perintah pesanan..." className="min-h-11 flex-1 resize-none rounded-2xl border border-slate-300 bg-slate-50 px-3.5 py-3 text-xs font-semibold text-slate-800 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
             <button type="submit" disabled={isProcessing || !text.trim()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/25 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40" aria-label="Kirim pesan">
@@ -453,7 +455,7 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
               ))}
             </div>
           )}
-          <p className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-slate-400"><FileText className="h-3 w-3" /> Data belum lengkap akan masuk Follow Up, bukan dipaksakan menjadi transaksi.</p>
+          <p className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-slate-400"><FileText className="h-3 w-3" /> Tempel pesan biasa atau bulk langsung di sini. Data belum lengkap masuk Follow Up.</p>
         </div>
       </div>
     </div>

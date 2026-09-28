@@ -23,7 +23,6 @@ import { Kitchen, NoteItem, FollowUpItemRow, Store as StoreType, MasterToko, Mas
 import { motion, AnimatePresence } from 'motion/react';
 import { getItemSuggestions } from '../lib/suggestions';
 import { parseVoiceInput } from '../lib/voiceParser';
-import { guessStoreForItem } from '../lib/storeMatcher';
 import { SatuanAutocomplete } from './SatuanAutocomplete';
 import { PemasokAutocomplete } from './PemasokAutocomplete';
 import { saveMasterSatuanToDb } from '../lib/supabaseDb';
@@ -90,7 +89,6 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
   const [isPemasokOpen, setIsPemasokOpen] = useState<boolean>(false);
 
   // Available masters
-  const availableStores = masterToko.length > 0 ? masterToko.map((t) => t.nama) : stores.map((s) => s.nama);
   const availablePemasok = masterPemasok.length > 0 ? masterPemasok.map((p) => p.nama) : pemasokList;
 
   // Filtered lists for Autocomplete
@@ -312,9 +310,6 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
       return next;
     });
 
-    const autoStore = guessStoreForItem(parsed.namaBarang, availableStores);
-    if (autoStore && !toko) setToko(autoStore);
-
     setVoiceNotice(`✓ Berhasil: "${parsed.namaBarang}" sebanyak ${parsed.qty} ${parsed.satuan}`);
   };
 
@@ -330,11 +325,6 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
   // Update suggestions when user types namaBarang in a row
   const handleItemNameChange = (idx: number, val: string) => {
     handleUpdateItemRow(idx, 'namaBarang', val);
-
-    const autoStore = guessStoreForItem(val, availableStores);
-    if (autoStore && !toko) {
-      setToko(autoStore);
-    }
 
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -376,8 +366,6 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
 
   const handleSelectSuggestion = (idx: number, item: string) => {
     handleUpdateItemRow(idx, 'namaBarang', item);
-    const autoStore = guessStoreForItem(item, availableStores);
-    if (autoStore && !toko) setToko(autoStore);
     setShowSuggestions(false);
     setActiveSuggestionIdx(null);
   };

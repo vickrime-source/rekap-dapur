@@ -713,6 +713,7 @@ export function useOrderOperations({
       !(Number(res.qty) > 0)
       || !(Number(res.hargaBeli) > 0)
       || !(Number(res.hargaJual) > 0)
+      || !String(res.toko || '').trim()
       || !String(res.pemasok || '').trim()
       || !String(res.tujuanDapur || '').trim()
     );
@@ -726,6 +727,7 @@ export function useOrderOperations({
         catatan: `Draft bulk: ${res.namaBarang.trim()} • Belum lengkap: ${[
           !(Number(res.hargaBeli) > 0) ? 'harga beli' : '',
           !(Number(res.hargaJual) > 0) ? 'harga jual' : '',
+          !String(res.toko || '').trim() ? 'toko' : '',
           !String(res.pemasok || '').trim() ? 'pemasok' : '',
           !String(res.tujuanDapur || '').trim() ? 'dapur tujuan' : '',
         ].filter(Boolean).join(', ')}`,
@@ -733,6 +735,7 @@ export function useOrderOperations({
         namaBarang: res.namaBarang.trim(),
         qty: Number(res.qty) > 0 ? Number(res.qty) : undefined,
         satuan: res.satuan || 'Kg',
+        toko: res.toko || undefined,
         pemasok: res.pemasok || undefined,
         tanggal: res.tanggal || targetDate || selectedDate,
         isDone: false,
@@ -742,7 +745,7 @@ export function useOrderOperations({
 
     const newOrdersAdded: OrderItem[] = completeParsed.map((res, index) => {
       const tanggal = res.tanggal || targetDate || selectedDate;
-      const toko = res.toko || stores[0]?.nama || 'HTG';
+      const toko = res.toko || '';
       const dapur = res.tujuanDapur || '';
       const pemasok = res.pemasok || '';
       const contextKey = `${tanggal}||${dapur.trim().toLowerCase()}||${toko.trim().toLowerCase()}||${pemasok.trim().toLowerCase()}`;

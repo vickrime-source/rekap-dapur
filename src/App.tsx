@@ -26,6 +26,7 @@ import { ConfirmModal } from './components/ConfirmModal';
 import { Toast, ToastMessage, ToastType } from './components/Toast';
 import { getTodayWIB, isOrderToday, isOrderThisWeek, getWeekRange } from './lib/formatters';
 import { sendNewOrderNotification } from './lib/notificationManager';
+import { parseWhatsAppText } from './lib/parserWA';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Lazy-loaded modal components to significantly reduce initial bundle size and tablet memory usage
@@ -34,7 +35,6 @@ const NoteSheet = React.lazy(() => import('./components/NoteSheet').then((m) => 
 const FollowUpNoteModal = React.lazy(() => import('./components/FollowUpNoteModal').then((m) => ({ default: m.FollowUpNoteModal })));
 const InvoiceModal = React.lazy(() => import('./components/InvoiceModal').then((m) => ({ default: m.InvoiceModal })));
 const InvoiceFormModal = React.lazy(() => import('./components/InvoiceFormModal').then((m) => ({ default: m.InvoiceFormModal })));
-const TextImportModal = React.lazy(() => import('./components/TextImportModal').then((m) => ({ default: m.TextImportModal })));
 const ExportModal = React.lazy(() => import('./components/ExportModal').then((m) => ({ default: m.ExportModal })));
 const SettingsModal = React.lazy(() => import('./components/SettingsModal').then((m) => ({ default: m.SettingsModal })));
 const ExportHistorySheet = React.lazy(() => import('./components/ExportHistorySheet').then((m) => ({ default: m.ExportHistorySheet })));
@@ -73,16 +73,10 @@ export default function App() {
   const [autoStartVoiceNote, setAutoStartVoiceNote] = useState(false);
   const [isSmartVoiceActive, setIsSmartVoiceActive] = useState(false);
   const [isSmartAssistantChatOpen, setIsSmartAssistantChatOpen] = useState(false);
-  const [isTextImportOpen, setIsTextImportOpen] = useState(false);
-  const [textImportInitialText, setTextImportInitialText] = useState('');
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'kelola_data' | 'dapur' | 'toko' | 'pemasok' | 'template' | 'notifikasi' | 'install' | 'danger'>('kelola_data');
 
-  const openTextImport = useCallback((initialText = '') => {
-    setTextImportInitialText(initialText);
-    setIsTextImportOpen(true);
-  }, []);
 
   // Confirm Modal Hook
   const { confirmState, setConfirmState } = useConfirmDialog();
@@ -253,6 +247,7 @@ export default function App() {
     const incomplete = !String(newOrder.namaBarang || '').trim()
       || !(Number(newOrder.qty) > 0)
       || !String(newOrder.tujuanDapur || '').trim()
+      || !String(newOrder.toko || '').trim()
       || !(Number(newOrder.hargaBeli) > 0)
       || !(Number(newOrder.hargaJual) > 0)
       || !String(newOrder.pemasok || '').trim();
@@ -260,11 +255,12 @@ export default function App() {
     if (incomplete) {
       void handleSaveNote({
         catatan: `Draft pesanan: ${newOrder.namaBarang || 'Pesanan baru'} • Belum lengkap, silakan lengkapi sebelum masuk transaksi.`,
-        tujuanDapur: newOrder.tujuanDapur || kitchens[0]?.nama || 'Semua Dapur',
+        tujuanDapur: newOrder.tujuanDapur || '',
         namaBarang: newOrder.namaBarang,
         qty: Number(newOrder.qty) > 0 ? newOrder.qty : undefined,
         satuan: newOrder.satuan,
         pemasok: newOrder.pemasok,
+        toko: newOrder.toko,
         isDone: false,
       });
       return;
@@ -272,7 +268,23 @@ export default function App() {
 
     handleSaveOrder(newOrder);
     sendNewOrderNotification(newOrder.namaBarang, newOrder.qty, newOrder.satuan, newOrder.tujuanDapur);
-  }, [handleSaveNote, handleSaveOrder, kitchens]);
+  }, [handleSaveNote, handleSaveOrder]);
+
+  const handleBulkImport = useCallback((rawText: string) => {
+    const parsedItems = parseWhatsAppText(
+      rawText,
+      '',
+      '',
+      '',
+      stores.map((store) => store.nama),
+      kitchens.map((kitchen) => kitchen.nama),
+    );
+    if (parsedItems.length === 0) {
+      showToast('Tidak ada item yang terbaca dari pesan bulk', 'error');
+      return;
+    }
+    void handleImportParsedItems(parsedItems, selectedDate);
+  }, [handleImportParsedItems, kitchens, selectedDate, showToast, stores]);
 
   // Purge legacy cached orders and old dummy master data
   useEffect(() => {
@@ -376,7 +388,6 @@ export default function App() {
           onPeriodChange={setDashboardPeriod}
           onToggleNoteStatus={handleToggleNoteStatus}
           onFollowUpNote={handleOpenFollowUpNote}
-          onDeleteNote={handleDeleteNote}
           onOpenNewNoteSheet={(startVoice) => {
             setAutoStartVoiceNote(!!startVoice);
             setIsNoteSheetOpen(true);
@@ -429,7 +440,6 @@ export default function App() {
                   onOpenInvoiceModal={handleStartInvoiceFlow}
                   onExportInvoicePdf={handleDirect1ClickExportInvoicePdf}
                   onViewInvoice={handleViewInvoice}
-                  onOpenTextImport={() => openTextImport()}
                   onOpenExportModal={() => setIsExportOpen(true)}
                   onOpenAddModal={() => handleOpenAddModal()}
                 />
@@ -540,20 +550,18 @@ export default function App() {
         <SmartAssistantChatModal
           isOpen={isSmartAssistantChatOpen}
           onClose={() => setIsSmartAssistantChatOpen(false)}
-          onOpenBatch={(initialText) => {
-            setIsSmartAssistantChatOpen(false);
-            openTextImport(initialText || '');
-          }}
+          onBulkImport={handleBulkImport}
           onOrderCreated={handleSmartOrderCreated}
           onNoteCreated={(note) => {
             handleSaveNote({
               catatan: note.text,
-              tujuanDapur: note.dapur || kitchens[0]?.nama || 'Cluring',
+              tujuanDapur: note.dapur || '',
               tanggal: note.tanggal,
               namaBarang: note.namaBarang,
               qty: note.qty,
               satuan: note.satuan,
               pemasok: note.pemasok,
+              toko: note.toko,
               isDone: false,
             });
           }}
@@ -573,12 +581,13 @@ export default function App() {
             onNoteCreated={(note) => {
               handleSaveNote({
                 catatan: note.text,
-                tujuanDapur: note.dapur || kitchens[0]?.nama || 'Cluring',
+                tujuanDapur: note.dapur || '',
                 tanggal: note.tanggal,
                 namaBarang: note.namaBarang,
                 qty: note.qty,
                 satuan: note.satuan,
                 pemasok: note.pemasok,
+                toko: note.toko,
                 isDone: false,
               });
             }}
@@ -639,6 +648,11 @@ export default function App() {
           setFollowUpNoteTarget(null);
         }}
         onDone={handleCompleteFollowUpNote}
+        onDelete={async (noteId) => {
+          await handleDeleteNote(noteId);
+          setFollowUpNoteTarget(null);
+          setIsFollowUpModalOpen(false);
+        }}
         kitchens={kitchens}
         stores={stores}
         pemasokList={pemasokList}
@@ -720,19 +734,7 @@ export default function App() {
         onSaveInvoiceRecord={handleSaveInvoiceRecord}
       />
 
-      {/* 4. Text Import (WhatsApp Parser) Modal */}
-      <TextImportModal
-        isOpen={isTextImportOpen}
-        onClose={() => setIsTextImportOpen(false)}
-        initialText={textImportInitialText}
-        onImportItems={handleImportParsedItems}
-        kitchens={kitchens}
-        stores={stores}
-        pemasokList={pemasokList}
-        selectedDate={selectedDate}
-      />
-
-      {/* 5. Export Spreadsheet (.xlsx & .csv) Bottom Sheet */}
+      {/* 4. Export Spreadsheet (.xlsx & .csv) Bottom Sheet */}
       <ExportModal
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}

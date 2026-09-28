@@ -10,11 +10,11 @@ import {
   FileText,
   Check,
   Search,
-  ChevronDown
+  ChevronDown,
+  Trash2
 } from 'lucide-react';
 import { NoteItem, Kitchen, Store as StoreType, MasterToko, MasterPemasok, MasterDapur, MasterSatuan } from '../types';
 import { getTodayWIB, formatTanggalWeb } from '../lib/formatters';
-import { guessStoreForItem } from '../lib/storeMatcher';
 import { getItemSuggestions } from '../lib/suggestions';
 import { saveMasterTokoToDb, saveMasterDapurToDb, saveMasterPemasokToDb, saveMasterSatuanToDb } from '../lib/supabaseDb';
 import { MoneyInput, formatIDR } from './MoneyInput';
@@ -40,6 +40,7 @@ export interface FollowUpNoteModalProps {
     tanggal: string;
     catatanTambahan?: string;
   }) => Promise<void> | void;
+  onDelete?: (noteId: string) => Promise<void> | void;
   kitchens: Kitchen[];
   stores: StoreType[];
   pemasokList: string[];
@@ -61,6 +62,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
   onClose,
   note,
   onDone,
+  onDelete,
   kitchens = [],
   stores = [],
   pemasokList = [],
@@ -156,16 +158,8 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
     setQty(itemQty && Number(itemQty) > 0 ? itemQty : 1);
     setSatuan(itemSatuan || 'Kg');
 
-    // Tentukan Toko
-    let initialToko = note?.toko || '';
-    if (!initialToko && itemNama) {
-      const guessed = guessStoreForItem(itemNama, availableStores);
-      if (guessed) initialToko = guessed;
-    }
-    if (!initialToko && availableStores.length > 0) {
-      initialToko = availableStores[0];
-    }
-    setToko(initialToko);
+    // Toko tidak pernah ditebak dari nama barang atau master pertama.
+    setToko(note?.toko || '');
 
     // Tentukan Pemasok
     const initialPemasok = itemPemasok || note?.pemasok || '';
@@ -203,7 +197,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
       const initialSatuan = firstItem?.satuan || note.satuan || 'Kg';
       const initialPemasok = firstItem?.pemasok || note.pemasok || '';
 
-      setTujuanDapur(note.tujuanDapur || kitchens[0]?.nama || '');
+      setTujuanDapur(note.tujuanDapur || '');
       setTanggal(note.tanggal || note.createdAt?.slice(0, 10) || selectedDate || getTodayWIB());
       setCatatanAwal(note.catatan || '');
       setIsSubmitting(false);
@@ -373,6 +367,27 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
       }
       footer={
         <div className="flex items-center justify-between gap-3">
+          {onDelete ? (
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={async () => {
+                if (!window.confirm('Hapus Follow Up ini? Data yang dihapus tidak masuk transaksi.')) return;
+                setIsSubmitting(true);
+                try {
+                  await onDelete(note.id);
+                  onClose();
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 px-3 py-2.5 text-xs font-bold text-rose-600 transition-colors hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
+              title="Hapus Follow Up"
+            >
+              <Trash2 className="h-4 w-4" />
+              Hapus
+            </button>
+          ) : <span />}
           <button
             type="button"
             onClick={onClose}
@@ -490,9 +505,6 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                 onChange={(e) => {
                   const val = e.target.value;
                   setNamaBarang(val);
-                  const autoStore = guessStoreForItem(val, availableStores);
-                  if (autoStore) setToko(autoStore);
-
                   if (debounceTimerRef.current) {
                     clearTimeout(debounceTimerRef.current);
                   }
@@ -522,8 +534,6 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                       const chosen = suggestions[selectedSugIdx];
                       if (chosen) {
                         setNamaBarang(chosen);
-                        const autoStore = guessStoreForItem(chosen, availableStores);
-                        if (autoStore) setToko(autoStore);
                         setShowSuggestions(false);
                       }
                     } else if (e.key === 'Escape') {
@@ -564,8 +574,6 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
                       onMouseDown={(e) => {
                         e.preventDefault();
                         setNamaBarang(sug);
-                        const autoStore = guessStoreForItem(sug, availableStores);
-                        if (autoStore) setToko(autoStore);
                         setShowSuggestions(false);
                       }}
                       onMouseEnter={() => setSelectedSugIdx(idx)}

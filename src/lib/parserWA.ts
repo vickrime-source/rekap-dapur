@@ -1,5 +1,4 @@
 import { TextParseResult } from '../types';
-import { guessStoreForItem } from './storeMatcher';
 
 const UNITS: Record<string, string> = {
   kg: 'Kg', kilo: 'Kg', kilogram: 'Kg', gram: 'Gram', gr: 'Gram', g: 'Gram',
@@ -29,7 +28,7 @@ type Formula = {
  */
 export function parseWhatsAppText(
   text: string,
-  defaultToko = 'HTG',
+  defaultToko = '',
   defaultDapur = '',
   defaultPemasok = '',
   availableStores: string[] = [],
@@ -41,6 +40,7 @@ export function parseWhatsAppText(
   const pendingBuyIndexes: number[] = [];
   const defaultYear = detectReportYear(text) || new Date().getFullYear();
   let currentDapur = defaultDapur;
+  let currentToko = defaultToko;
   let currentDate = '';
   let lastItemIndex = -1;
 
@@ -58,6 +58,12 @@ export function parseWhatsAppText(
       continue;
     }
 
+    const toko = parseTokoHeader(line, availableStores);
+    if (toko) {
+      currentToko = toko;
+      continue;
+    }
+
     const dateInLine = parseDate(line, defaultYear);
     if (dateInLine) {
       currentDate = dateInLine;
@@ -72,7 +78,7 @@ export function parseWhatsAppText(
           qty: formula.qty || 1,
           hargaBeli: 0,
           hargaJual: formula.hargaSatuan || 0,
-          toko: guessStoreForItem(formula.namaBarang, availableStores) || defaultToko,
+          toko: currentToko,
           tujuanDapur: currentDapur,
           pemasok: defaultPemasok,
           tanggal: currentDate || undefined,
@@ -104,7 +110,7 @@ export function parseWhatsAppText(
 
     results.push({
       ...plainItem,
-      toko: guessStoreForItem(plainItem.namaBarang, availableStores) || defaultToko,
+      toko: currentToko,
       tujuanDapur: currentDapur,
       pemasok: defaultPemasok,
       tanggal: currentDate || undefined,
@@ -137,6 +143,19 @@ function parseDapurHeader(line: string): string {
   const match = line.match(new RegExp(`\\bdapur\\s+(.+?)(?=\\s+(?:${DAYS})\\b|\\s+\\d{1,2}[/-]\\d{1,2}|$)`, 'i'));
   if (!match) return '';
   return match[1].replace(/[\s:_-]+$/, '').trim();
+}
+
+function parseTokoHeader(line: string, availableStores: string[]): string {
+  const normalized = line.trim().replace(/[.:_-]+$/, '').trim();
+  const codeMatch = normalized.match(/^(LA|LB|HTG|PW)(?:\s*\/.*)?$/i);
+  if (!codeMatch) return '';
+
+  const code = codeMatch[1].toUpperCase();
+  const known = availableStores.find((store) => {
+    const value = store.trim().toUpperCase();
+    return value === code || value.startsWith(`${code} `) || value.startsWith(`${code}/`);
+  });
+  return known || code;
 }
 
 function parseFormulaLine(line: string): Formula | null {

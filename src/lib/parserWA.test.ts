@@ -76,4 +76,17 @@ Senin 28/9
       pemasok: '',
     });
   });
+
+  it('hanya mengisi toko jika kode toko tertulis di sumber', () => {
+    const result = parseWhatsAppText(
+      'Dapur Singojuruh\nMinggu 27/9\nLA\nJual 2x10000 = 20000 apel\nBeli 2x7000 = 14000',
+      '',
+      '',
+      '',
+      ['HTG', 'LA / Lumbung Adifruta'],
+      ['Singojuruh'],
+    );
+
+    expect(result[0]).toMatchObject({ toko: 'LA / Lumbung Adifruta' });
+  });
 });

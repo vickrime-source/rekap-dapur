@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Sparkles, CheckCircle2, AlertCircle, X, Loader2, Square, FileText, ShoppingBag, Edit3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { OrderItem, Kitchen, Store as StoreType } from '../types';
-import { parseVoiceAssistantSmart, SmartVoiceResult } from '../lib/voiceParser';
-import { guessStoreForItem } from '../lib/storeMatcher';
+import { keepOnlyExplicitMasterContext, parseVoiceAssistantSmart, SmartVoiceResult } from '../lib/voiceParser';
 import { formatRupiah, getTodayWIB } from '../lib/formatters';
 
 interface SmartVoiceOrderOverlayProps {
@@ -18,6 +17,7 @@ interface SmartVoiceOrderOverlayProps {
     qty?: number;
     satuan?: string;
     pemasok?: string;
+    toko?: string;
     tanggal: string;
     isDone: boolean;
   }) => void;
@@ -97,6 +97,14 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
         parsedData = parseVoiceAssistantSmart(text, kitchens, stores, pemasokList);
       }
 
+      parsedData = keepOnlyExplicitMasterContext(
+        parsedData,
+        text,
+        kitchens.map((kitchen) => kitchen.nama),
+        stores.map((store) => store.nama),
+        pemasokList,
+      );
+
       const intent = parsedData.intent || 'CREATE_ORDER';
 
       // --- INTENT A: CREATE NOTE ---
@@ -108,7 +116,8 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
           onNoteCreated({
             text: noteText,
             category: 'FOLLOW_UP',
-            dapur: noteDapur || (kitchens[0]?.nama || 'Semua Dapur'),
+            dapur: noteDapur || '',
+            toko: parsedData.toko || undefined,
             tanggal: selectedDate || getTodayWIB(),
             isDone: false,
           });
@@ -178,6 +187,7 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
       if (!(Number(parsedData.qty) > 0)) missingFields.push('jumlah/qty');
       if (!(Number(parsedData.hargaBeli) > 0)) missingFields.push('harga beli');
       if (!(Number(parsedData.hargaJual) > 0)) missingFields.push('harga jual');
+      if (!String(parsedData.toko || '').trim()) missingFields.push('toko');
       if (!String(parsedData.pemasok || '').trim()) missingFields.push('pemasok');
 
       if (missingFields.length > 0) {
@@ -192,11 +202,12 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
         onNoteCreated?.({
           text: draftParts,
           category: 'FOLLOW_UP',
-          dapur: parsedData.tujuanDapur || 'Semua Dapur',
+          dapur: parsedData.tujuanDapur || '',
           namaBarang: parsedData.namaBarang || text,
           qty: Number(parsedData.qty) > 0 ? Number(parsedData.qty) : undefined,
           satuan: parsedData.satuan || undefined,
           pemasok: parsedData.pemasok || undefined,
+          toko: parsedData.toko || undefined,
           tanggal: selectedDate || getTodayWIB(),
           isDone: false,
         });
@@ -213,23 +224,9 @@ export const SmartVoiceOrderOverlay: React.FC<SmartVoiceOrderOverlayProps> = ({
         return;
       }
 
-      const finalKitchen =
-        parsedData.tujuanDapur ||
-        (kitchens.length > 0 ? kitchens[0].nama : 'Cluring');
-
-      let finalStore = parsedData.toko;
-      if (!finalStore && parsedData.namaBarang) {
-        const storeNames = stores.map((s) => s.nama);
-        const guessed = guessStoreForItem(parsedData.namaBarang, storeNames);
-        if (guessed) finalStore = guessed;
-      }
-      if (!finalStore) {
-        finalStore = stores.length > 0 ? stores[0].nama : 'HTG';
-      }
-
-      const finalPemasok =
-        parsedData.pemasok ||
-        (pemasokList.length > 0 ? pemasokList[0] : 'Ajeng fruits');
+      const finalKitchen = parsedData.tujuanDapur || '';
+      const finalStore = parsedData.toko || '';
+      const finalPemasok = parsedData.pemasok || '';
 
       const newOrderPayload: Omit<OrderItem, 'id' | 'createdAt'> = {
         namaBarang: parsedData.namaBarang || 'Ayam',

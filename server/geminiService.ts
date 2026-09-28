@@ -64,9 +64,9 @@ Tugas Anda adalah memahami perintah suara pengguna dan menentukan INTENT serta m
 Teks ucapan suara pengguna:
 "${transcriptText}"
 
-Daftar Dapur Tersedia: ${availableKitchens.join(', ') || 'Cluring, Siliragung, Glenmore, Sempu, Pesanggaran'}
-Daftar Toko Tersedia: ${availableStores.join(', ') || 'HTG, PROHE, LUWENG BOGA, ADIFRUITA'}
-Daftar Pemasok Tersedia: ${availablePemasok.join(', ') || 'Ajeng fruits, Sari buah, PMB'}
+Daftar Dapur Tersedia: ${availableKitchens.join(', ') || '(tidak ada daftar; kosongkan jika tidak disebutkan)'}
+Daftar Toko Tersedia: ${availableStores.join(', ') || '(tidak ada daftar; kosongkan jika tidak disebutkan)'}
+Daftar Pemasok Tersedia: ${availablePemasok.join(', ') || '(tidak ada daftar; kosongkan jika tidak disebutkan)'}
 
 KLASIFIKASI INTENT:
 1. "CREATE_NOTE": Jika pengguna mengatakan "buat notes...", "catat...", "tulis catatan...", "note...", atau memberikan instruksi memo/pengingat/follow up.
@@ -86,7 +86,7 @@ KLASIFIKASI INTENT:
    - "toko": Nama toko kita jika ada.
    - "pemasok": Nama supplier jika ada.
    - "catatan": Catatan pesanan jika ada.
-   - Jangan mengarang dapur, qty, harga, pemasok, atau barang yang tidak disebutkan.
+   - Jangan mengarang dapur, toko, qty, harga, pemasok, atau barang yang tidak disebutkan.
    - Jika data CREATE_ORDER belum lengkap, tetap kembalikan intent CREATE_ORDER dan isi hanya field yang benar-benar ditemukan.
 
 3. "EDIT_ORDER": Jika pengguna mengatakan "edit harga/item/kg...", "ubah...", "ganti qty...", "koreksi harga...", "revisi...".

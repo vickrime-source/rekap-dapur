@@ -48,7 +48,6 @@ interface DashboardViewProps {
   onOpenInvoiceModal: (items: OrderItem[], kitchenName?: string, storeName?: string) => void;
   onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string, variant?: InvoicePriceVariant) => void;
   onViewInvoice?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
-  onOpenTextImport?: () => void;
   onOpenExportModal?: () => void;
   kitchens: Kitchen[];
   stores: StoreType[];
