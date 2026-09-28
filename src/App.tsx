@@ -74,9 +74,15 @@ export default function App() {
   const [isSmartVoiceActive, setIsSmartVoiceActive] = useState(false);
   const [isSmartAssistantChatOpen, setIsSmartAssistantChatOpen] = useState(false);
   const [isTextImportOpen, setIsTextImportOpen] = useState(false);
+  const [textImportInitialText, setTextImportInitialText] = useState('');
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'kelola_data' | 'dapur' | 'toko' | 'pemasok' | 'template' | 'notifikasi' | 'install' | 'danger'>('kelola_data');
+
+  const openTextImport = useCallback((initialText = '') => {
+    setTextImportInitialText(initialText);
+    setIsTextImportOpen(true);
+  }, []);
 
   // Confirm Modal Hook
   const { confirmState, setConfirmState } = useConfirmDialog();
@@ -423,7 +429,7 @@ export default function App() {
                   onOpenInvoiceModal={handleStartInvoiceFlow}
                   onExportInvoicePdf={handleDirect1ClickExportInvoicePdf}
                   onViewInvoice={handleViewInvoice}
-                  onOpenTextImport={() => setIsTextImportOpen(true)}
+                  onOpenTextImport={() => openTextImport()}
                   onOpenExportModal={() => setIsExportOpen(true)}
                   onOpenAddModal={() => handleOpenAddModal()}
                 />
@@ -534,9 +540,9 @@ export default function App() {
         <SmartAssistantChatModal
           isOpen={isSmartAssistantChatOpen}
           onClose={() => setIsSmartAssistantChatOpen(false)}
-          onOpenBatch={() => {
+          onOpenBatch={(initialText) => {
             setIsSmartAssistantChatOpen(false);
-            setIsTextImportOpen(true);
+            openTextImport(initialText || '');
           }}
           onOrderCreated={handleSmartOrderCreated}
           onNoteCreated={(note) => {
@@ -718,6 +724,7 @@ export default function App() {
       <TextImportModal
         isOpen={isTextImportOpen}
         onClose={() => setIsTextImportOpen(false)}
+        initialText={textImportInitialText}
         onImportItems={handleImportParsedItems}
         kitchens={kitchens}
         stores={stores}

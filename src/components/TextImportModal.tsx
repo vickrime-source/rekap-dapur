@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, FileText, Check, AlertCircle, Sparkles, PlusCircle } from 'lucide-react';
 import { TextParseResult, Kitchen, Store as StoreType } from '../types';
 import { parseWhatsAppText } from '../lib/parserWA';
@@ -12,6 +12,7 @@ interface TextImportModalProps {
   stores: StoreType[];
   pemasokList: string[];
   selectedDate: string;
+  initialText?: string;
 }
 
 export const TextImportModal: React.FC<TextImportModalProps> = ({
@@ -22,6 +23,7 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
   stores,
   pemasokList,
   selectedDate,
+  initialText = '',
 }) => {
   const [rawText, setRawText] = useState('');
   const [parsedItems, setParsedItems] = useState<TextParseResult[]>([]);
@@ -30,6 +32,14 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
   const [defaultPemasok, setDefaultPemasok] = useState(pemasokList[0] || 'Ajeng fruits');
   const [targetDate, setTargetDate] = useState(selectedDate);
   const [isParsed, setIsParsed] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setRawText(initialText);
+    setParsedItems([]);
+    setIsParsed(false);
+    setTargetDate(selectedDate);
+  }, [isOpen, initialText, selectedDate]);
 
   if (!isOpen) return null;
 

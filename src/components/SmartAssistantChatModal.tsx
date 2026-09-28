@@ -24,7 +24,7 @@ interface DraftOrderFields {
 interface SmartAssistantChatModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onOpenBatch: () => void;
+  onOpenBatch: (initialText?: string) => void;
   onOrderCreated: (order: Omit<OrderItem, 'id' | 'createdAt'>) => void;
   onNoteCreated: (note: {
     text: string;
@@ -291,6 +291,15 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
     setIsProcessing(true);
 
     try {
+      if (isBulkReportInput(originalText)) {
+        appendMessage({
+          role: 'assistant',
+          text: 'Ini terlihat seperti laporan bulk. Saya tidak menyimpannya sebagai satu pesanan. Saya buka Import Batch untuk memecah dan menampilkan preview dulu.',
+        });
+        onOpenBatch(originalText);
+        return;
+      }
+
       let parsed: any = null;
       if (answerFollowUpQuestion(originalText)) return;
       if (rejectUnclearQuestion(originalText)) return;
@@ -450,3 +459,17 @@ export const SmartAssistantChatModal: React.FC<SmartAssistantChatModalProps> = (
     </div>
   );
 };
+
+function isBulkReportInput(input: string): boolean {
+  const normalized = input.toLowerCase();
+  const jualCount = (normalized.match(/\bjual\b/g) || []).length;
+  const beliCount = (normalized.match(/\bbeli\b/g) || []).length;
+  const dapurCount = (normalized.match(/\bdapur\b/g) || []).length;
+  const lineCount = input.split(/\r?\n/).filter((line) => line.trim()).length;
+
+  return input.length >= 280
+    || lineCount >= 8
+    || jualCount >= 2
+    || beliCount >= 2
+    || dapurCount >= 2;
+}
