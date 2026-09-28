@@ -221,6 +221,7 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                         <tr className="border-b border-indigo-100 dark:border-slate-700 font-extrabold text-slate-700 dark:text-slate-300">
                           <th className="p-2.5">Nama Barang</th>
                           <th className="p-2.5 text-center">Qty</th>
+                          <th className="p-2.5 text-center">Qty Beli</th>
                           <th className="p-2.5">Harga Beli</th>
                           <th className="p-2.5">Harga Jual</th>
                           <th className="p-2.5">Tujuan Dapur</th>
@@ -244,6 +245,16 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                                 min="1"
                                 value={item.qty}
                                 onChange={(e) => handleItemChange(idx, 'qty', parseInt(e.target.value) || 1)}
+                                className="w-full p-1.5 clay-input text-xs font-bold text-center bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
+                              />
+                            </td>
+                            <td className="p-2 w-20">
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder={String(item.qty)}
+                                value={item.qtyBeli ?? ''}
+                                onChange={(e) => handleItemChange(idx, 'qtyBeli', e.target.value === '' ? undefined : parseFloat(e.target.value) || 0)}
                                 className="w-full p-1.5 clay-input text-xs font-bold text-center bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
                               />
                             </td>

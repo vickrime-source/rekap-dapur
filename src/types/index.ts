@@ -136,12 +136,15 @@ export interface InvoiceRecord {
 export interface TextParseResult {
   namaBarang: string;
   qty: number;
+  qtyBeli?: number;
+  qty_beli?: number;
   satuan?: string;
   hargaBeli: number;
   hargaJual: number;
   toko?: string;
   tujuanDapur?: string;
   pemasok?: string;
+  tanggal?: string;
 }
 
 export type FollowUpStatus = 'pending' | 'completed' | 'cancelled';

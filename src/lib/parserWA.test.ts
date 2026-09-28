@@ -34,4 +34,27 @@ describe('parseWhatsAppText', () => {
     expect(result[0]).toMatchObject({ namaBarang: 'Beras Premium', qty: 5, satuan: 'Kg', hargaBeli: 14000, hargaJual: 16500 });
     expect(result[1]).toMatchObject({ namaBarang: 'Telur', qty: 2, satuan: 'Tray', hargaBeli: 370000, hargaJual: 0 });
   });
+
+  it('membaca format laporan asli dengan nama barang menempel setelah total jual', () => {
+    const result = parseWhatsAppText(
+      `Pesanan Dapur 27-1 Oktober 26
+Dapur Siliragung
+Senin 28/9
+1. Jual 8x420.000 = 3.360.000klengkeng biru
+2. Beli 8x400.000 = 3.200.000
+Dapur Tamanagung
+Senin 28/9
+1. Jual 15x425.000 = 6.375.000klengkeng biru
+2. Beli 14x400.000 = 5.600.000`,
+      'HTG',
+      'Siliragung',
+      'Ajeng',
+      [],
+      ['Siliragung', 'Tamanagung'],
+    );
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({ namaBarang: 'klengkeng biru', qty: 8, qtyBeli: 8, hargaJual: 420000, hargaBeli: 400000, tanggal: '2026-09-28' });
+    expect(result[1]).toMatchObject({ namaBarang: 'klengkeng biru', qty: 15, qtyBeli: 14, hargaJual: 425000, hargaBeli: 400000, tanggal: '2026-09-28' });
+  });
 });

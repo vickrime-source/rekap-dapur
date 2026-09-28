@@ -731,7 +731,7 @@ export function useOrderOperations({
         qty: Number(res.qty) > 0 ? Number(res.qty) : undefined,
         satuan: res.satuan || 'Kg',
         pemasok: res.pemasok || undefined,
-        tanggal: targetDate || selectedDate,
+        tanggal: res.tanggal || targetDate || selectedDate,
         isDone: false,
       });
     }
@@ -741,6 +741,8 @@ export function useOrderOperations({
       namaBarang: res.namaBarang.trim(),
       item: res.namaBarang.trim(),
       qty: Number(res.qty) > 0 ? Number(res.qty) : 1,
+      qtyBeli: Number(res.qtyBeli) > 0 ? Number(res.qtyBeli) : undefined,
+      qty_beli: Number(res.qtyBeli) > 0 ? Number(res.qtyBeli) : undefined,
       satuan: res.satuan || 'Kg',
       hargaBeli: Number(res.hargaBeli) || 0,
       hargaJual: Number(res.hargaJual) || 0,
@@ -749,7 +751,7 @@ export function useOrderOperations({
       dapur: res.tujuanDapur || kitchens[0]?.nama || 'Dapur',
       pemasok: res.pemasok || pemasokList[0] || 'Ajeng fruits',
       status: 'pending',
-      tanggal: targetDate || selectedDate,
+      tanggal: res.tanggal || targetDate || selectedDate,
       createdAt: new Date().toISOString(),
     }));
 
