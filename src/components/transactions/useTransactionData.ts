@@ -219,7 +219,7 @@ export function useTransactionData({
       const dapur = o.tujuanDapur || 'Siliragung';
       const toko = o.toko || '';
       const pemasok = o.pemasok || '-';
-      const key = `${tanggal}||${dapur}||${toko}||${pemasok}`;
+      const key = o.notaId || o.nota_id || `${tanggal}||${dapur}||${toko}||${pemasok}`;
 
       if (!groups[key]) {
         groups[key] = [];

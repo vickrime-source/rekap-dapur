@@ -717,6 +717,9 @@ export function useOrderOperations({
       || !String(res.tujuanDapur || '').trim()
     );
     const completeParsed = validParsed.filter((res) => !incompleteParsed.includes(res));
+    const batchId = `bulk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const importCreatedAt = new Date().toISOString();
+    const notaByContext = new Map<string, string>();
 
     for (const res of incompleteParsed) {
       await onSaveNote({
@@ -726,34 +729,47 @@ export function useOrderOperations({
           !String(res.pemasok || '').trim() ? 'pemasok' : '',
           !String(res.tujuanDapur || '').trim() ? 'dapur tujuan' : '',
         ].filter(Boolean).join(', ')}`,
-        tujuanDapur: res.tujuanDapur || 'Semua Dapur',
+        tujuanDapur: res.tujuanDapur || '',
         namaBarang: res.namaBarang.trim(),
         qty: Number(res.qty) > 0 ? Number(res.qty) : undefined,
         satuan: res.satuan || 'Kg',
         pemasok: res.pemasok || undefined,
         tanggal: res.tanggal || targetDate || selectedDate,
         isDone: false,
+        batchId,
       });
     }
 
-    const newOrdersAdded: OrderItem[] = completeParsed.map((res, index) => ({
-      id: `ord-imp-${Date.now()}-${index}`,
-      namaBarang: res.namaBarang.trim(),
-      item: res.namaBarang.trim(),
-      qty: Number(res.qty) > 0 ? Number(res.qty) : 1,
-      qtyBeli: Number(res.qtyBeli) > 0 ? Number(res.qtyBeli) : undefined,
-      qty_beli: Number(res.qtyBeli) > 0 ? Number(res.qtyBeli) : undefined,
-      satuan: res.satuan || 'Kg',
-      hargaBeli: Number(res.hargaBeli) || 0,
-      hargaJual: Number(res.hargaJual) || 0,
-      toko: res.toko || stores[0]?.nama || 'HTG',
-      tujuanDapur: res.tujuanDapur || kitchens[0]?.nama || 'Dapur',
-      dapur: res.tujuanDapur || kitchens[0]?.nama || 'Dapur',
-      pemasok: res.pemasok || pemasokList[0] || 'Ajeng fruits',
-      status: 'pending',
-      tanggal: res.tanggal || targetDate || selectedDate,
-      createdAt: new Date().toISOString(),
-    }));
+    const newOrdersAdded: OrderItem[] = completeParsed.map((res, index) => {
+      const tanggal = res.tanggal || targetDate || selectedDate;
+      const toko = res.toko || stores[0]?.nama || 'HTG';
+      const dapur = res.tujuanDapur || '';
+      const pemasok = res.pemasok || '';
+      const contextKey = `${tanggal}||${dapur.trim().toLowerCase()}||${toko.trim().toLowerCase()}||${pemasok.trim().toLowerCase()}`;
+      const notaId = notaByContext.get(contextKey) || `nota-${batchId}-${notaByContext.size + 1}`;
+      notaByContext.set(contextKey, notaId);
+
+      return {
+        id: `ord-imp-${Date.now()}-${index}`,
+        namaBarang: res.namaBarang.trim(),
+        item: res.namaBarang.trim(),
+        qty: Number(res.qty) > 0 ? Number(res.qty) : 1,
+        qtyBeli: Number(res.qtyBeli) > 0 ? Number(res.qtyBeli) : undefined,
+        qty_beli: Number(res.qtyBeli) > 0 ? Number(res.qtyBeli) : undefined,
+        notaId,
+        nota_id: notaId,
+        satuan: res.satuan || 'Kg',
+        hargaBeli: Number(res.hargaBeli) || 0,
+        hargaJual: Number(res.hargaJual) || 0,
+        toko,
+        tujuanDapur: dapur,
+        dapur,
+        pemasok,
+        status: 'pending',
+        tanggal,
+        createdAt: importCreatedAt,
+      };
+    });
 
     if (newOrdersAdded.length === 0) {
       showToast(`${incompleteParsed.length} item bulk masuk Follow Up karena belum lengkap`, 'info');

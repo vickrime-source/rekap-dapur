@@ -471,7 +471,7 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
     const map = new Map<string, OrderItem[]>();
 
     sortedOrders.forEach((item) => {
-      const key = `${item.tanggal}||${item.tujuanDapur}||${item.toko}`;
+      const key = item.notaId || item.nota_id || `${item.tanggal}||${item.tujuanDapur}||${item.toko}`;
       if (!map.has(key)) {
         map.set(key, []);
       }

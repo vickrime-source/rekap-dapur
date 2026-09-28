@@ -289,6 +289,8 @@ export function mapRawNote(row: any): NoteItem {
     status: row.status || (row.is_done ? 'DONE' : 'FOLLOW UP'),
     isDone: Boolean(row.is_done !== undefined ? row.is_done : row.isDone),
     orderId: row.order_id || row.orderId,
+    tanggal: row.tanggal || row.tanggal_pesanan || undefined,
+    batchId: row.batch_id || row.batchId || undefined,
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
   };
 }
@@ -327,6 +329,8 @@ export function buildNotesPayload(note: Partial<NoteItem>) {
     status: note.status || (note.isDone ? 'DONE' : 'FOLLOW UP'),
     is_done: Boolean(note.isDone),
     order_id: note.orderId || null,
+    tanggal: note.tanggal || null,
+    batch_id: note.batchId || null,
     items: itemsArray,
   };
 }

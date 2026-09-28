@@ -28,8 +28,8 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
   const [rawText, setRawText] = useState('');
   const [parsedItems, setParsedItems] = useState<TextParseResult[]>([]);
   const [defaultToko, setDefaultToko] = useState(stores[0]?.nama || 'HTG');
-  const [defaultDapur, setDefaultDapur] = useState(kitchens[0]?.nama || 'Siliragung');
-  const [defaultPemasok, setDefaultPemasok] = useState(pemasokList[0] || 'Ajeng fruits');
+  // Konteks yang tidak ada di teks tidak boleh ditebak dari master pertama.
+  // User masih bisa memilih default secara eksplisit sebelum memproses.
   const [targetDate, setTargetDate] = useState(selectedDate);
   const [isParsed, setIsParsed] = useState(false);
 
@@ -57,10 +57,14 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
 
     const storeNames = stores.map((s) => s.nama);
     const kitchenNames = kitchens.map((kitchen) => kitchen.nama);
-    const items = parseWhatsAppText(rawText, defaultToko, defaultDapur, defaultPemasok, storeNames, kitchenNames);
+    // Dapur dan pemasok wajib berasal dari teks atau diisi per item pada preview.
+    // Tidak ada fallback master global karena itu dapat membuat data terlihat lengkap padahal sumbernya kosong.
+    const items = parseWhatsAppText(rawText, defaultToko, '', '', storeNames, kitchenNames);
     setParsedItems(items);
     setIsParsed(true);
   };
+
+  const missingContextCount = parsedItems.filter((item) => !item.tanggal || !item.tujuanDapur || !item.pemasok).length;
 
   const handleItemChange = (index: number, field: keyof TextParseResult, value: any) => {
     const updated = [...parsedItems];
@@ -122,7 +126,7 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                 </div>
 
                 {/* Default Selectors for Bulk Assign */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
                   <div>
                     <label className="block font-extrabold text-slate-700 dark:text-slate-300 mb-1">Tanggal Pesanan</label>
                     <input
@@ -144,29 +148,8 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="block font-extrabold text-slate-700 dark:text-slate-300 mb-1">Default Dapur</label>
-                    <select
-                      value={defaultDapur}
-                      onChange={(e) => setDefaultDapur(e.target.value)}
-                      className="w-full p-2.5 clay-input text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
-                    >
-                      {kitchens.map((k) => (
-                        <option key={k.id} value={k.nama} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">{k.nama}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-extrabold text-slate-700 dark:text-slate-300 mb-1">Default Pemasok</label>
-                    <select
-                      value={defaultPemasok}
-                      onChange={(e) => setDefaultPemasok(e.target.value)}
-                      className="w-full p-2.5 clay-input text-xs font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
-                    >
-                      {pemasokList.map((p) => (
-                        <option key={p} value={p} className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">{p}</option>
-                      ))}
-                    </select>
+                  <div className="col-span-2 sm:col-span-1 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-[11px] font-bold text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200 flex items-center">
+                    Dapur dan pemasok dibaca dari teks. Jika tidak tertulis, item otomatis masuk Follow Up.
                   </div>
                 </div>
 
@@ -219,6 +202,15 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                   </button>
                 </div>
 
+                {parsedItems.length > 0 && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-xs text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200">
+                    <span className="font-extrabold">Audit sumber:</span>{' '}
+                    {missingContextCount > 0
+                      ? `${missingContextCount} item belum punya tanggal, dapur, atau pemasok dari teks. Item ini akan masuk Follow Up, bukan langsung menjadi pesanan.`
+                      : 'Tanggal, dapur, dan pemasok terisi dari teks atau pilihan default yang kamu pilih.'}
+                  </div>
+                )}
+
                 {parsedItems.length === 0 ? (
                   <div className="clay-badge-rose p-4 rounded-2xl text-xs flex items-center gap-2 font-bold">
                     <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -230,11 +222,13 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                       <thead>
                         <tr className="border-b border-indigo-100 dark:border-slate-700 font-extrabold text-slate-700 dark:text-slate-300">
                           <th className="p-2.5">Nama Barang</th>
+                          <th className="p-2.5">Tanggal</th>
                           <th className="p-2.5 text-center">Qty</th>
                           <th className="p-2.5 text-center">Qty Beli</th>
                           <th className="p-2.5">Harga Beli</th>
                           <th className="p-2.5">Harga Jual</th>
                           <th className="p-2.5">Tujuan Dapur</th>
+                          <th className="p-2.5">Pemasok</th>
                           <th className="p-2.5 text-center">Aksi</th>
                         </tr>
                       </thead>
@@ -246,6 +240,14 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                                 type="text"
                                 value={item.namaBarang}
                                 onChange={(e) => handleItemChange(idx, 'namaBarang', e.target.value)}
+                                className="w-full p-1.5 clay-input text-xs font-bold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
+                              />
+                            </td>
+                            <td className="p-2 w-32">
+                              <input
+                                type="date"
+                                value={item.tanggal || ''}
+                                onChange={(e) => handleItemChange(idx, 'tanggal', e.target.value || undefined)}
                                 className="w-full p-1.5 clay-input text-xs font-bold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
                               />
                             </td>
@@ -292,6 +294,18 @@ export const TextImportModal: React.FC<TextImportModalProps> = ({
                               >
                                 {kitchens.map((k) => (
                                   <option key={k.id} value={k.nama} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">{k.nama}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="p-2 w-36">
+                              <select
+                                value={item.pemasok || ''}
+                                onChange={(e) => handleItemChange(idx, 'pemasok', e.target.value)}
+                                className="w-full p-1.5 clay-input text-xs font-bold bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
+                              >
+                                <option value="" className="bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-300">Belum disebutkan</option>
+                                {pemasokList.map((p) => (
+                                  <option key={p} value={p} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">{p}</option>
                                 ))}
                               </select>
                             </td>

@@ -174,6 +174,8 @@ export interface NoteItem {
   status?: FollowUpStatus | string;
   createdAt: string;
   orderId?: string;
+  /** ID batch import agar item satu sumber dapat ditampilkan sebagai satu grup. */
+  batchId?: string;
 }
 
 export interface ExportHistoryItem {

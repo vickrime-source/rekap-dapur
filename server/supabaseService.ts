@@ -257,7 +257,7 @@ export const ORDER_COLUMNS = 'id,dapur,item,tanggal,qty,satuan,toko,status_pemba
 export const ORDER_COLUMNS_LEGACY = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at,cashback,retur';
 export const TRANSACTION_COLUMNS = 'id,invoice_number,tanggal,tanggal_print,pemasok,barang,toko,dapur,qty,harga_beli,total,total_profit,status_pembayaran,items,catatan,created_at';
 export const TRANSACTION_COLUMNS_LEGACY = 'id,invoice_number,tanggal,tanggal_print,pemasok,barang,toko,dapur,qty,harga_beli,total,total_profit,status_pembayaran,items,created_at';
-export const NOTE_COLUMNS = 'id,dapur,item,qty,satuan,catatan,status,is_done,order_id,created_at,items';
+export const NOTE_COLUMNS = 'id,dapur,item,qty,satuan,catatan,status,is_done,order_id,tanggal,batch_id,created_at,items';
 export const NOTE_COLUMNS_LEGACY = 'id,dapur,item,qty,satuan,catatan,status,is_done,order_id,created_at';
 export const TOKO_COLUMNS = 'id,nama,created_at';
 export const PEMASOK_COLUMNS = 'id,nama,created_at';
@@ -945,6 +945,8 @@ export async function createNoteInDb(note: any) {
     status: note.status || (note.isDone ? 'DONE' : 'FOLLOW UP'),
     is_done: Boolean(note.is_done !== undefined ? note.is_done : note.isDone),
     order_id: note.order_id || note.orderId || null,
+    tanggal: note.tanggal || null,
+    batch_id: note.batch_id || note.batchId || null,
     created_at: note.created_at || note.createdAt || new Date().toISOString(),
     updated_at: new Date().toISOString(),
     items: itemsArray,
@@ -965,6 +967,8 @@ export async function createNoteInDb(note: any) {
     if (error && (error.code === '42703' || error.message?.includes('items'))) {
       const legacyRecord = { ...record };
       delete legacyRecord.items;
+      delete legacyRecord.tanggal;
+      delete legacyRecord.batch_id;
       const res = await supabase.from('notes').insert(legacyRecord).select(NOTE_COLUMNS_LEGACY);
       data = res.data;
       error = res.error;
@@ -1000,6 +1004,8 @@ export async function updateNoteInDb(id: string, updates: any) {
   if (updates.satuan !== undefined) payload.satuan = updates.satuan;
   if (updates.dapur !== undefined || updates.tujuanDapur !== undefined) payload.dapur = updates.dapur || updates.tujuanDapur;
   if (updates.order_id !== undefined || updates.orderId !== undefined) payload.order_id = updates.order_id || updates.orderId;
+  if (updates.tanggal !== undefined) payload.tanggal = updates.tanggal || null;
+  if (updates.batch_id !== undefined || updates.batchId !== undefined) payload.batch_id = updates.batch_id || updates.batchId || null;
 
   if (updates.items !== undefined) {
     payload.items = Array.isArray(updates.items) ? updates.items : [];
@@ -1025,6 +1031,8 @@ export async function updateNoteInDb(id: string, updates: any) {
     if (error && (error.code === '42703' || error.message?.includes('items'))) {
       const legacyPayload = { ...payload };
       delete legacyPayload.items;
+      delete legacyPayload.tanggal;
+      delete legacyPayload.batch_id;
       const res = await supabase.from('notes').update(legacyPayload).eq('id', id).select(NOTE_COLUMNS_LEGACY);
       data = res.data;
       error = res.error;

@@ -91,6 +91,8 @@ export interface FallbackNote {
   status: string;
   is_done: boolean;
   order_id: string | null;
+  tanggal?: string | null;
+  batch_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -494,6 +496,8 @@ export function createLocalNote(note: any): FallbackNote {
     status: note.status || (isDone ? 'DONE' : 'FOLLOW UP'),
     is_done: isDone,
     order_id: note.order_id || note.orderId || null,
+    tanggal: note.tanggal || null,
+    batch_id: note.batch_id || note.batchId || null,
     created_at: note.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };

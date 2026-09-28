@@ -57,4 +57,23 @@ Senin 28/9
     expect(result[0]).toMatchObject({ namaBarang: 'klengkeng biru', qty: 8, qtyBeli: 8, hargaJual: 420000, hargaBeli: 400000, tanggal: '2026-09-28' });
     expect(result[1]).toMatchObject({ namaBarang: 'klengkeng biru', qty: 15, qtyBeli: 14, hargaJual: 425000, hargaBeli: 400000, tanggal: '2026-09-28' });
   });
+
+  it('tidak mengarang dapur atau pemasok ketika konteks tidak ada di sumber', () => {
+    const result = parseWhatsAppText(
+      'Senin 28/9\nJual 5x10000 = 50000 tomat\nBeli 5x7000 = 35000',
+      'HTG',
+      '',
+      '',
+      [],
+      [],
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      namaBarang: 'tomat',
+      tanggal: '2026-09-28',
+      tujuanDapur: '',
+      pemasok: '',
+    });
+  });
 });

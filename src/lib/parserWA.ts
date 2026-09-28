@@ -30,8 +30,8 @@ type Formula = {
 export function parseWhatsAppText(
   text: string,
   defaultToko = 'HTG',
-  defaultDapur = 'Siliragung',
-  defaultPemasok = 'Ajeng fruits',
+  defaultDapur = '',
+  defaultPemasok = '',
   availableStores: string[] = [],
   availableKitchens: string[] = [],
 ): TextParseResult[] {

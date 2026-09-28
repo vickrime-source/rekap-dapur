@@ -21,7 +21,8 @@ import {
   ArrowRightCircle,
   Store,
   Truck,
-  Calendar
+  Calendar,
+  ChevronDown
 } from 'lucide-react';
 import { OrderItem, NoteItem, Kitchen, DashboardPeriod } from '../types';
 import { 
@@ -112,6 +113,31 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
   }, [notes, selectedDate]);
 
   const activeNotesCount = notes.filter((note) => !note.isDone).length;
+
+  const followUpGroups = useMemo(() => {
+    const groups = new Map<string, { id: string; notes: NoteItem[] }>();
+
+    for (const note of sortedNotes) {
+      const dateKey = note.tanggal || '';
+      const dapurKey = (note.tujuanDapur || '').trim().toLowerCase();
+      const pemasokKey = (note.pemasok || '').trim().toLowerCase();
+      // Batch ID adalah sumber paling aman. Untuk data lama, kelompokkan hanya
+      // draft bulk dengan konteks yang sama; catatan manual tetap terpisah.
+      const isBulkDraft = /^\s*Draft bulk:/i.test(note.catatan || '');
+      const key = note.batchId
+        ? `${note.batchId}|${dateKey}|${dapurKey}|${pemasokKey}`
+        : (isBulkDraft
+        ? `legacy-bulk|${dateKey}|${dapurKey}|${pemasokKey}`
+        : `note|${note.id}`);
+      const existing = groups.get(key);
+      if (existing) existing.notes.push(note);
+      else groups.set(key, { id: key, notes: [note] });
+    }
+
+    return Array.from(groups.values());
+  }, [sortedNotes]);
+
+  const [openFollowUpGroups, setOpenFollowUpGroups] = useState<Record<string, boolean>>({});
 
   const weekRange = useMemo(() => getWeekRange(selectedDate), [selectedDate]);
 
@@ -431,22 +457,61 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
               </div>
             </div>
 
-            {/* List of Follow Up Items with Checklist Icon & Trash */}
-            <div className="mt-2 space-y-1.5 max-h-[125px] overflow-y-auto pr-1">
+            {/* Follow Up dikelompokkan agar 92 item tetap bisa diaudit tanpa menjadi daftar panjang. */}
+            <div className="mt-2 space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
               {sortedNotes.length === 0 ? (
                 <div className="text-center py-2 text-slate-400 dark:text-slate-500 text-[11px] font-medium italic">
                   Belum ada catatan follow up.
                 </div>
               ) : (
-                sortedNotes.map((note) => {
-                  const noteDate = note.tanggal || note.createdAt?.slice(0, 10) || selectedDate;
+                followUpGroups.map((group) => {
+                  const first = group.notes[0];
+                  const isOpen = openFollowUpGroups[group.id] ?? group.notes.some((note) => !note.isDone);
+                  const activeCount = group.notes.filter((note) => !note.isDone).length;
+                  const groupDate = first.tanggal ? formatTanggalWeb(first.tanggal, false) : 'Tanggal belum disebut';
+                  const groupDapur = first.tujuanDapur?.trim() || 'Dapur belum disebut';
+                  const groupPemasok = first.pemasok?.trim() || 'Pemasok belum disebut';
+
                   return (
+                    <div key={group.id} className="rounded-xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-slate-800 shadow-2xs overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setOpenFollowUpGroups((prev) => ({ ...prev, [group.id]: !isOpen }))}
+                        aria-expanded={isOpen}
+                        className="w-full flex items-center justify-between gap-2 p-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap">
+                          <ChevronDown className={`w-4 h-4 flex-shrink-0 text-indigo-600 dark:text-indigo-300 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                          <span className={`flex-shrink-0 text-[8.5px] font-black uppercase px-1.5 py-0.5 rounded border ${first.tujuanDapur ? 'bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800' : 'bg-amber-50 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'}`}>
+                            {groupDapur}
+                          </span>
+                          <span className="flex flex-shrink-0 items-center gap-0.5 rounded bg-slate-100 px-1.5 py-0.5 text-[8.5px] font-black text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                            <Calendar className="h-2.5 w-2.5" />
+                            {groupDate}
+                          </span>
+                          <span className={`flex-shrink-0 text-[8.5px] font-bold px-1.5 py-0.5 rounded border truncate max-w-[125px] flex items-center gap-0.5 ${first.pemasok ? 'bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800' : 'bg-amber-50 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'}`}>
+                            <Truck className="w-2.5 h-2.5" />
+                            <span>{groupPemasok}</span>
+                          </span>
+                          <span className="flex-shrink-0 text-[8.5px] font-black px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/70 text-indigo-800 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-700">
+                            {group.notes.length} item{group.notes.length === 1 ? '' : 's'}
+                          </span>
+                          {activeCount !== group.notes.length && (
+                            <span className="text-[8px] font-bold text-emerald-700 dark:text-emerald-300">{activeCount} aktif</span>
+                          )}
+                        </div>
+                      </button>
+
+                      {isOpen && <div className="border-t border-slate-200 dark:border-slate-700 p-1.5 space-y-1.5">
+                        {group.notes.map((note) => {
+                          const noteDate = note.tanggal ? formatTanggalWeb(note.tanggal, false) : 'Tanggal belum disebut';
+                          return (
                     <div
                       key={note.id}
                       className={`flex items-center justify-between gap-2 p-1.5 sm:p-2 rounded-xl border transition-all ${
                         note.isDone
                           ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60 text-emerald-950 dark:text-emerald-200'
-                          : 'bg-white dark:bg-slate-800 border-slate-200/90 dark:border-slate-700/80 shadow-2xs hover:border-indigo-300 dark:hover:border-indigo-500'
+                          : 'bg-slate-50/80 dark:bg-slate-900/50 border-slate-200/90 dark:border-slate-700/80 hover:border-indigo-300 dark:hover:border-indigo-500'
                       }`}
                     >
                       {/* Left: [Dapur] [Toko] [Pemasok] [Nama Barang] [Qty] [Catatan] */}
@@ -459,9 +524,9 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                         ) : null}
 
                         {/* Tanggal Follow Up */}
-                        <span className="flex flex-shrink-0 items-center gap-0.5 rounded bg-slate-100 px-1.5 py-0.5 text-[8.5px] font-black text-slate-600 dark:bg-slate-700 dark:text-slate-300" title="Tanggal Follow Up">
+                        <span className="flex flex-shrink-0 items-center gap-0.5 rounded bg-slate-100 px-1.5 py-0.5 text-[8.5px] font-black text-slate-600 dark:bg-slate-700 dark:text-slate-300" title="Tanggal sumber / Follow Up">
                           <Calendar className="h-2.5 w-2.5" />
-                          {formatTanggalWeb(noteDate, false)}
+                          {noteDate}
                         </span>
 
                         {/* Toko Badge */}
@@ -546,6 +611,10 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
+                    </div>
+                          );
+                        })}
+                      </div>}
                     </div>
                   );
                 })
