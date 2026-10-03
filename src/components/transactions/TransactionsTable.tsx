@@ -62,8 +62,8 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = React.memo(({
           <h3 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">Tidak Ada Transaksi Ditemukan</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 font-medium max-w-sm mx-auto">
             {selectedStoreFilter !== 'all'
-              ? `Tidak ada transaksi untuk Toko ${selectedStoreFilter} pada periode ini.`
-              : 'Coba sesuaikan pilihan periode, filter status, atau kata kunci pencarian.'}
+              ? `Tidak ada transaksi untuk Toko ${selectedStoreFilter}.`
+              : 'Coba sesuaikan filter atau kata kunci pencarian.'}
           </p>
           {selectedStoreFilter !== 'all' && (
             <button

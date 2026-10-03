@@ -349,6 +349,7 @@ export default function App() {
           onFollowUpNote={handleOpenFollowUpNote}
           onOpenNewNoteSheet={() => setIsNoteSheetOpen(true)}
           onDeleteSelectedNotes={confirmDeleteSelectedNotes}
+          onOpenRekap={() => setActiveTab('rekap')}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenExportHistory={() => setIsExportHistoryOpen(true)}
           isSyncingGas={isLoadingDb}
@@ -380,8 +381,6 @@ export default function App() {
                   pemasokList={pemasokList}
                   selectedDate={selectedDate}
                   onDateChange={setSelectedDate}
-                  period={dashboardPeriod}
-                  onPeriodChange={setDashboardPeriod}
                   onToggleStatus={handleToggleStatus}
                   onUpdatePaymentStatus={handleUpdatePaymentStatus}
                   onUpdateDeliveryStatus={handleUpdateDeliveryStatus}
@@ -440,8 +439,6 @@ export default function App() {
                   stores={stores}
                   selectedDate={selectedDate}
                   onDateChange={setSelectedDate}
-                  period={dashboardPeriod}
-                  onPeriodChange={setDashboardPeriod}
                   onToggleStatus={handleToggleStatus}
                   onUpdatePaymentStatus={handleUpdatePaymentStatus}
                   onUpdateDeliveryStatus={handleUpdateDeliveryStatus}
@@ -458,10 +455,6 @@ export default function App() {
                   onDeleteInvoice={handleDeleteInvoice}
                   onDeleteTransaction={handleDeleteTransaction}
                   onOpenAddModal={handleOpenAddModal}
-                  onOpenSettings={(tab) => {
-                    if (tab) setSettingsInitialTab(tab);
-                    setIsSettingsOpen(true);
-                  }}
                   onOpenExportHistory={() => setIsExportHistoryOpen(true)}
                   isExportingActive={isExportingActive}
                   exportHistoryCount={exportHistory.length}

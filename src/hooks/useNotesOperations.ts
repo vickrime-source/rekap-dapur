@@ -41,6 +41,7 @@ export function useNotesOperations({
 
   const handleCompleteFollowUpNote = useCallback(async (data: {
     noteId: string;
+    itemIndex?: number;
     namaBarang: string;
     qty: number;
     satuan: string;
@@ -53,6 +54,14 @@ export function useNotesOperations({
     catatanTambahan?: string;
   }) => {
     const targetNote = notes.find((n) => n.id === data.noteId);
+    if (!targetNote) {
+      showToast('Follow Up tidak ditemukan. Muat ulang data sebelum mencoba lagi.', 'error');
+      throw new Error('Follow Up tidak ditemukan');
+    }
+    if (targetNote.items && targetNote.items.length > 1 && (data.itemIndex === undefined || data.itemIndex < 0 || data.itemIndex >= targetNote.items.length)) {
+      showToast('Item Follow Up tidak valid. Pilih ulang item sebelum menyimpan.', 'error');
+      throw new Error('Item Follow Up tidak valid');
+    }
     const targetTanggal = data.tanggal || selectedDate || getTodayWIB();
 
     const cleanD = data.tujuanDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
@@ -81,62 +90,67 @@ export function useNotesOperations({
       catatan: data.catatanTambahan ? `Dari Catatan: ${data.catatanTambahan}` : `Dari Catatan: ${data.namaBarang} (${data.qty} ${data.satuan})`,
     };
 
-    // Langkah 1: Buat dan simpan pesanan transaksi terlebih dahulu (Transaction-Safe)
-    try {
-      const saveRes = await saveOrderToDb(newOrderFromNote);
-      if (saveRes && !saveRes.success && saveRes.error) {
-        console.warn('Gagal menyimpan pesanan ke server, simpan di memori lokal:', saveRes.error);
-      }
-    } catch (err) {
-      console.warn('Gagal membuat transaksi di database:', err);
+    // Jangan keluarkan Follow Up sebelum pesanan benar-benar tersimpan di server.
+    const saveRes = await saveOrderToDb(newOrderFromNote);
+    if (!saveRes.success) {
+      const message = saveRes.error || 'Gagal menyimpan pesanan';
+      showToast(`Pesanan gagal disimpan: ${message}. Follow Up tetap ada.`, 'error');
+      throw new Error(message);
     }
 
-    // Langkah 2: Tambahkan ke state transaksi / pesanan lokal
-    setOrders((prev) => [newOrderFromNote, ...prev]);
+    const savedOrder = saveRes.data || newOrderFromNote;
+    setOrders((prev) => prev.some((order) => order.id === savedOrder.id) ? prev : [savedOrder, ...prev]);
 
-    // Langkah 3: Soft completion - tandai status follow up menjadi 'completed' (BUKAN delete)
-    setNotes((prev) =>
-      prev.map((n) =>
-        n.id === data.noteId
-          ? {
-              ...n,
-              isDone: true,
-              status: 'completed',
-              orderId: newOrderFromNote.id,
-              namaBarang: data.namaBarang,
-              qty: data.qty,
-              satuan: data.satuan,
-              toko: data.toko,
-              pemasok: data.pemasok,
-              tujuanDapur: data.tujuanDapur,
-            }
-          : n
-      )
-    );
+    // Catatan multi-item: keluarkan hanya item yang diproses, sisanya tetap Follow Up.
+    const remainingItems = targetNote.items && targetNote.items.length > 1
+      ? targetNote.items.filter((_, index) => index !== (data.itemIndex ?? 0))
+      : [];
 
-    // Langkah 4: Update status follow up di database Supabase secara soft completion
-    if (targetNote) {
-      try {
-        await updateNoteInDb(targetNote.id, {
-          isDone: true,
-          status: 'completed',
-          orderId: newOrderFromNote.id,
-          namaBarang: data.namaBarang,
-          qty: data.qty,
-          satuan: data.satuan,
-          toko: data.toko,
-          pemasok: data.pemasok,
-          tujuanDapur: data.tujuanDapur,
-        });
-      } catch (err) {
-        console.warn('Gagal memperbarui status follow up di Supabase:', err);
-      }
+    if (remainingItems.length > 0) {
+      const firstRemaining = remainingItems[0];
+      const remainingNote: NoteItem = {
+        ...targetNote,
+        items: remainingItems,
+        namaBarang: firstRemaining.namaBarang,
+        qty: firstRemaining.qty,
+        satuan: firstRemaining.satuan,
+        pemasok: firstRemaining.pemasok || targetNote.pemasok,
+        isDone: false,
+        status: 'FOLLOW UP',
+        orderId: undefined,
+      };
+      const updateRes = await updateNoteInDb(targetNote.id, remainingNote);
+      setNotes((prev) => prev.map((note) => note.id === targetNote.id ? remainingNote : note));
+      showToast(
+        updateRes.success
+          ? `Pesanan ${data.namaBarang} tersimpan. ${remainingItems.length} item masih Follow Up.`
+          : `Pesanan tersimpan, tetapi sisa Follow Up gagal disinkronkan: ${updateRes.error || 'coba muat ulang'}. Jangan input ulang item ini.`,
+        updateRes.success ? 'success' : 'error'
+      );
+      return;
     }
 
-    showToast(
-      `✓ Follow Up Berhasil: "${data.namaBarang}" (${data.qty} ${data.satuan}) telah masuk ke Transaksi Pesanan!`,
-      'success'
-    );
+    // Catatan satu item: hapus permanen setelah pesanan tersimpan.
+    let deleteRes = await deleteNoteFromDb(targetNote.id);
+    if (!deleteRes.success) deleteRes = await deleteNoteFromDb(targetNote.id);
+    if (!deleteRes.success) {
+      // Jika hapus gagal, tandai selesai agar catatan tidak muncul lagi saat data dimuat ulang.
+      const fallbackRes = await updateNoteInDb(targetNote.id, {
+        ...targetNote,
+        isDone: true,
+        status: 'completed',
+        orderId: savedOrder.id,
+      });
+      showToast(
+        fallbackRes.success
+          ? 'Pesanan tersimpan. Follow Up disembunyikan, tetapi penghapusan di server belum berhasil.'
+          : 'Pesanan tersimpan, tetapi Follow Up gagal dihapus dari server. Jangan proses ulang item ini.',
+        'error'
+      );
+    } else {
+      showToast(`Pesanan ${data.namaBarang} tersimpan; Follow Up telah dihapus.`, 'success');
+    }
+    setNotes((prev) => prev.filter((note) => note.id !== targetNote.id));
   }, [notes, selectedDate, masterToko, masterPemasok, masterDapur, setOrders, setNotes, showToast]);
 
   const handleToggleNoteStatus = useCallback(async (noteId: string) => {

@@ -29,6 +29,7 @@ export interface FollowUpNoteModalProps {
   note: NoteItem | null;
   onDone: (data: {
     noteId: string;
+    itemIndex?: number;
     namaBarang: string;
     qty: number;
     satuan: string;
@@ -321,6 +322,7 @@ export const FollowUpNoteModal: React.FC<FollowUpNoteModalProps> = ({
 
       await onDone({
         noteId: note.id,
+        itemIndex: activeItemIndex,
         namaBarang: namaBarang.trim(),
         qty: quantity,
         satuan: satuan.trim() || 'Kg',

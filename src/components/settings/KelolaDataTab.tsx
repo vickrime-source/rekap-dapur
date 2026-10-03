@@ -3,10 +3,6 @@ import {
   Store as StoreIcon, 
   Truck, 
   Utensils, 
-  Database, 
-  Copy, 
-  CheckCircle2, 
-  Code2 
 } from 'lucide-react';
 import { Kitchen, Store as StoreType } from '../../types';
 import { KelolaSubTab, SafetyDialogState } from './types';
@@ -25,9 +21,6 @@ interface KelolaDataTabProps {
   onUpdateKitchens: (kitchens: Kitchen[]) => void;
   onRefreshData?: () => void | Promise<void>;
   onOpenSafetyDialog: (dialog: SafetyDialogState) => void;
-  onCopySql: () => void;
-  copiedSql: boolean;
-  onShowSqlModal: () => void;
 }
 
 export const KelolaDataTab: React.FC<KelolaDataTabProps> = ({
@@ -41,9 +34,6 @@ export const KelolaDataTab: React.FC<KelolaDataTabProps> = ({
   onUpdateKitchens,
   onRefreshData,
   onOpenSafetyDialog,
-  onCopySql,
-  copiedSql,
-  onShowSqlModal,
 }) => {
   return (
     <div className="space-y-4 font-sans">
@@ -108,52 +98,6 @@ export const KelolaDataTab: React.FC<KelolaDataTabProps> = ({
             {kitchens.length}
           </span>
         </button>
-      </div>
-
-      {/* Database SQL Helper Banner */}
-      <div className="flex items-center justify-between p-3 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-900/60">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
-            <Database className="w-4 h-4" />
-          </div>
-          <div className="min-w-0">
-            <h4 className="text-xs font-black text-indigo-950 dark:text-indigo-200 truncate">
-              Skrip SQL Database (Supabase / Postgres)
-            </h4>
-            <p className="text-[10px] text-indigo-700 dark:text-indigo-400 font-medium truncate">
-              Tabel &amp; data master dapur, toko, pemasok
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={onCopySql}
-            className="px-2.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
-            title="Salin query SQL ke clipboard"
-          >
-            {copiedSql ? (
-              <>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-emerald-700 dark:text-emerald-300">Tersalin!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" />
-                <span>Salin SQL</span>
-              </>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={onShowSqlModal}
-            className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-[11px] font-black transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
-            title="Lihat query SQL lengkap"
-          >
-            <Code2 className="w-3.5 h-3.5" />
-            <span>Lihat SQL</span>
-          </button>
-        </div>
       </div>
 
       {/* --- SUB-VIEW 1: TOKO --- */}

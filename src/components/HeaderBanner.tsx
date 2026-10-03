@@ -21,7 +21,10 @@ import {
   Truck,
   Calendar,
   ChevronDown,
-  Trash2
+  Trash2,
+  ListChecks,
+  Square,
+  CheckSquare2
 } from 'lucide-react';
 import { OrderItem, NoteItem, Kitchen, DashboardPeriod } from '../types';
 import { 
@@ -48,6 +51,7 @@ interface HeaderBannerProps {
   onFollowUpNote?: (note: NoteItem) => void;
   onOpenNewNoteSheet: () => void;
   onDeleteSelectedNotes: (noteIds: string[]) => void;
+  onOpenRekap: () => void;
   onOpenSettings: () => void;
   onOpenExportHistory: () => void;
   onOpenSyncSheet?: () => void;
@@ -69,6 +73,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
   onFollowUpNote,
   onOpenNewNoteSheet,
   onDeleteSelectedNotes,
+  onOpenRekap,
   onOpenSettings,
   onOpenExportHistory,
   onOpenSyncSheet,
@@ -89,6 +94,12 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
     }
   };
 
+  // Data konversi lama tetap tersimpan untuk audit, tetapi bukan lagi antrean Follow Up.
+  const followUpNotes = useMemo(
+    () => notes.filter((note) => !note.orderId && String(note.status || '').toLowerCase() !== 'completed'),
+    [notes]
+  );
+
   const sortedNotes = useMemo(() => {
     const today = new Date(`${selectedDate || new Date().toISOString().slice(0, 10)}T00:00:00`).getTime();
     const getNoteDate = (note: NoteItem) => note.tanggal || note.createdAt?.slice(0, 10) || selectedDate;
@@ -97,15 +108,15 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
       return Number.isFinite(time) ? Math.abs(time - today) : Number.MAX_SAFE_INTEGER;
     };
 
-    return [...notes].sort((a, b) => {
+    return [...followUpNotes].sort((a, b) => {
       if (a.isDone !== b.isDone) return a.isDone ? 1 : -1;
       const distanceDiff = getDistance(a) - getDistance(b);
       if (distanceDiff !== 0) return distanceDiff;
       return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
     });
-  }, [notes, selectedDate]);
+  }, [followUpNotes, selectedDate]);
 
-  const activeNotesCount = notes.filter((note) => !note.isDone).length;
+  const activeNotesCount = followUpNotes.filter((note) => !note.isDone).length;
 
   const followUpGroups = useMemo(() => {
     const groups = new Map<string, { id: string; notes: NoteItem[] }>();
@@ -135,16 +146,16 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
-    const existingIds = new Set(notes.map((note) => note.id));
+    const existingIds = new Set(followUpNotes.map((note) => note.id));
     setSelectedNoteIds((previous) => {
       const remaining = [...previous].filter((id) => existingIds.has(id));
       return remaining.length === previous.size ? previous : new Set(remaining);
     });
-  }, [notes]);
+  }, [followUpNotes]);
 
   useEffect(() => {
-    if (notes.length === 0) setIsSelectingNotes(false);
-  }, [notes.length]);
+    if (followUpNotes.length === 0) setIsSelectingNotes(false);
+  }, [followUpNotes.length]);
 
   const toggleNoteSelection = (ids: string[]) => {
     setSelectedNoteIds((previous) => {
@@ -364,28 +375,28 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
         </div>
 
         {/* SUB-ROW: Status Operasional & Follow Up Notes */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5">
+        <div className="grid grid-cols-1 gap-2.5">
           {/* Left: Status Operasional (Estimasi Laba, Pesanan & Pending) */}
-          <div className="md:col-span-4 tablet-landscape-full-col grid grid-cols-1 sm:grid-cols-3 md:flex md:flex-col tablet-landscape-grid-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {/* 1. Box Estimasi Laba (Teratas) */}
-            <div className="flex-1 bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/90 dark:border-emerald-800/60 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between shadow-2xs transition-colors duration-200">
+            <button type="button" onClick={onOpenRekap} aria-label="Buka Rekap dari Laba Bersih" title="Buka Rekap" className="order-2 w-full bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/90 dark:border-emerald-800/60 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between text-left shadow-2xs transition-colors duration-200 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 cursor-pointer">
               <div className="flex items-center gap-2 min-w-0">
                 <div className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center border border-emerald-600 shadow-xs flex-shrink-0">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 </div>
                 <div className="min-w-0">
                   <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block">
-                    Estimasi Laba
+                    Laba Bersih
                   </span>
                   <span className="text-xs sm:text-sm font-black font-nominal text-emerald-950 dark:text-emerald-100 leading-none truncate block">
                     <AnimatedCounter value={totalLabaBersih} format="rupiah" />
                   </span>
                 </div>
               </div>
-            </div>
+            </button>
 
             {/* 2. Box Pesanan (Tengah - Per Keberangkatan) */}
-            <div className="flex-1 bg-white dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between shadow-2xs transition-colors duration-200">
+            <div className="order-1 bg-white dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between shadow-2xs transition-colors duration-200">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 flex items-center justify-center border border-indigo-100 dark:border-indigo-800/80 flex-shrink-0">
                   <ShoppingBag className="w-3.5 h-3.5" />
@@ -402,7 +413,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
             </div>
 
             {/* 3. Box Pending (Bawah - Per Keberangkatan) */}
-            <div className={`flex-1 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between border shadow-2xs transition-colors duration-200 ${
+            <div className={`order-3 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between border shadow-2xs transition-colors duration-200 ${
               pendingBatches > 0
                 ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-200/90 dark:border-rose-800/60'
                 : 'bg-white dark:bg-slate-800/90 border-slate-200/90 dark:border-slate-700/80'
@@ -434,7 +445,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
               <button
                 type="button"
                 onClick={() => handleSetPeriod('all_time')}
-                className="text-[10.5px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 border border-indigo-200 dark:border-indigo-800 rounded-xl px-2.5 py-1.5 text-center cursor-pointer transition-colors shadow-2xs w-full"
+                className="order-4 text-[10.5px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 border border-indigo-200 dark:border-indigo-800 rounded-xl px-2.5 py-1.5 text-center cursor-pointer transition-colors shadow-2xs w-full"
                 title="Klik untuk melihat semua pesanan yang tersimpan di database"
               >
                 Data aman: Ada {orders.length} pesanan di All Time &rarr;
@@ -443,7 +454,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
           </div>
 
           {/* Right Column: HIGHLIGHT FOLLOW UP */}
-          <div className="md:col-span-8 tablet-landscape-full-col bg-slate-50/90 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-[inset_1px_1px_2px_rgba(255,255,255,0.9)] dark:shadow-none transition-colors duration-200">
+          <div className="bg-slate-50/90 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-[inset_1px_1px_2px_rgba(255,255,255,0.9)] dark:shadow-none transition-colors duration-200">
             {/* Header of Follow Up Section */}
             <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-1.5">
@@ -453,7 +464,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                 <span className="text-[11px] font-black uppercase tracking-wider text-slate-900 dark:text-slate-100">
                   FOLLOW UP
                 </span>
-                {notes.length > 0 && (
+                {followUpNotes.length > 0 && (
                   <span className="text-[9.5px] font-black px-1.5 py-0.2 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300">
                     {activeNotesCount}
                   </span>
@@ -468,39 +479,50 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                       setIsSelectingNotes((value) => !value);
                       setSelectedNoteIds(new Set());
                     }}
-                    className="rounded-xl border border-slate-300 px-2.5 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+                    aria-label={isSelectingNotes ? 'Selesai memilih Follow Up' : 'Pilih banyak Follow Up'}
+                    aria-pressed={isSelectingNotes}
+                    title={isSelectingNotes ? 'Selesai memilih' : 'Pilih banyak'}
+                    className={`flex h-8 w-8 items-center justify-center rounded-xl border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 ${isSelectingNotes ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-slate-300 text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700'}`}
                   >
-                    {isSelectingNotes ? 'Batal pilih' : 'Pilih banyak'}
+                    <ListChecks className="h-4 w-4" />
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={onOpenNewNoteSheet}
-                  className="px-2.5 py-1 rounded-xl bg-indigo-900 hover:bg-indigo-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white text-[10px] font-black flex items-center gap-1 shadow-xs active:scale-95 transition-all cursor-pointer"
+                  aria-label="Tambah Follow Up"
+                  title="Tambah Follow Up"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs active:scale-95 transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
                 >
-                  <Plus className="w-3 h-3 stroke-[3]" />
-                  <span>Tambah Follow Up</span>
+                  <Plus className="w-4 h-4 stroke-[2.7]" />
                 </button>
               </div>
             </div>
 
             {isSelectingNotes && (
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 py-2 dark:border-slate-700">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-200 py-2 dark:border-slate-700">
                 <button
                   type="button"
-                  onClick={() => toggleNoteSelection(notes.map((note) => note.id))}
-                  className="text-[10px] font-bold text-indigo-700 hover:underline dark:text-indigo-300"
+                  onClick={() => toggleNoteSelection(followUpNotes.map((note) => note.id))}
+                  aria-label={selectedNoteIds.size === followUpNotes.length ? 'Batal pilih semua Follow Up' : 'Pilih semua Follow Up'}
+                  title={selectedNoteIds.size === followUpNotes.length ? 'Batal pilih semua' : 'Pilih semua'}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-700 hover:bg-indigo-100 dark:text-indigo-300 dark:hover:bg-indigo-950 focus-visible:outline-2 focus-visible:outline-indigo-500"
                 >
-                  {selectedNoteIds.size === notes.length ? 'Batal pilih semua' : 'Pilih semua'}
+                  {selectedNoteIds.size === followUpNotes.length ? <CheckSquare2 className="h-4 w-4" /> : <Square className="h-4 w-4" />}
                 </button>
-                <button
-                  type="button"
-                  disabled={selectedNoteIds.size === 0}
-                  onClick={() => onDeleteSelectedNotes([...selectedNoteIds])}
-                  className="inline-flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-[10px] font-black text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <Trash2 className="h-3 w-3" /> Hapus {selectedNoteIds.size} terpilih
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <span aria-live="polite" className="min-w-6 rounded-full bg-indigo-100 px-1.5 py-0.5 text-center text-[10px] font-black text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">{selectedNoteIds.size}</span>
+                  <button
+                    type="button"
+                    disabled={selectedNoteIds.size === 0}
+                    onClick={() => onDeleteSelectedNotes([...selectedNoteIds])}
+                    aria-label={`Hapus ${selectedNoteIds.size} Follow Up terpilih`}
+                    title={`Hapus ${selectedNoteIds.size} terpilih`}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-35 dark:text-rose-400 dark:hover:bg-rose-950 focus-visible:outline-2 focus-visible:outline-rose-500"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             )}
 
@@ -523,11 +545,12 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
 
                   return (
                     <div key={group.id} className="rounded-xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-slate-800 shadow-2xs overflow-hidden">
+                      <div className="flex items-center">
                       <button
                         type="button"
                         onClick={() => setOpenFollowUpGroups((prev) => ({ ...prev, [group.id]: !isOpen }))}
                         aria-expanded={isOpen}
-                        className="w-full flex items-center justify-between gap-2 p-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
+                        className="min-w-0 flex-1 flex items-center justify-between gap-2 p-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap">
                           <ChevronDown className={`w-4 h-4 flex-shrink-0 text-indigo-600 dark:text-indigo-300 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -555,17 +578,18 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                         <button
                           type="button"
                           onClick={() => toggleNoteSelection(groupIds)}
-                          aria-label={`Pilih ${group.notes.length} Follow Up di grup ${groupDapur}`}
+                          aria-label={selectedInGroup === group.notes.length ? `Batal pilih grup ${groupDapur}` : `Pilih ${group.notes.length} Follow Up di grup ${groupDapur}`}
                           aria-pressed={selectedInGroup === group.notes.length}
-                          className="mx-2 rounded-lg border border-indigo-300 px-2 py-1 text-[9px] font-bold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-950"
+                          title={selectedInGroup === group.notes.length ? 'Batal pilih grup' : 'Pilih grup'}
+                          className="mx-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-indigo-700 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950 focus-visible:outline-2 focus-visible:outline-indigo-500"
                         >
-                          {selectedInGroup === group.notes.length ? 'Batal grup' : `Pilih grup${selectedInGroup ? ` (${selectedInGroup}/${group.notes.length})` : ''}`}
+                          {selectedInGroup === group.notes.length ? <CheckSquare2 className="h-4 w-4" /> : <Square className="h-4 w-4" />}
                         </button>
                       )}
+                      </div>
 
                       {isOpen && <div className="border-t border-slate-200 dark:border-slate-700 p-1.5 space-y-1.5">
                         {group.notes.map((note) => {
-                          const noteDate = note.tanggal ? formatTanggalWeb(note.tanggal, false) : 'Tanggal belum disebut';
                           return (
                     <div
                       key={note.id}
@@ -584,34 +608,13 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                           className="h-4 w-4 shrink-0 accent-indigo-600"
                         />
                       )}
-                      {/* Left: [Dapur] [Toko] [Pemasok] [Nama Barang] [Qty] [Catatan] */}
+                      {/* Detail item; konteks dapur, tanggal, dan pemasok sudah terlihat di kepala grup. */}
                       <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 flex-wrap sm:flex-nowrap">
-                        {/* Dapur Badge */}
-                        {note.tujuanDapur ? (
-                          <span className="flex-shrink-0 text-[8.5px] font-black uppercase px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                            {note.tujuanDapur}
-                          </span>
-                        ) : null}
-
-                        {/* Tanggal Follow Up */}
-                        <span className="flex flex-shrink-0 items-center gap-0.5 rounded bg-slate-100 px-1.5 py-0.5 text-[8.5px] font-black text-slate-600 dark:bg-slate-700 dark:text-slate-300" title="Tanggal sumber / Follow Up">
-                          <Calendar className="h-2.5 w-2.5" />
-                          {noteDate}
-                        </span>
-
                         {/* Toko Badge */}
                         {note.toko ? (
                           <span className="flex-shrink-0 text-[8.5px] font-black uppercase px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 truncate max-w-[90px] flex items-center gap-0.5">
                             <Store className="w-2.5 h-2.5" />
                             <span>{note.toko}</span>
-                          </span>
-                        ) : null}
-
-                        {/* Pemasok Badge */}
-                        {note.pemasok ? (
-                          <span className="flex-shrink-0 text-[8.5px] font-bold px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 truncate max-w-[80px] flex items-center gap-0.5">
-                            <Truck className="w-2.5 h-2.5" />
-                            <span>{note.pemasok}</span>
                           </span>
                         ) : null}
 

@@ -886,6 +886,8 @@ export async function getNotesFromDb(limit: number = 100) {
     let result: any = await supabase
       .from('notes')
       .select(NOTE_COLUMNS)
+      .or('is_done.eq.false,is_done.is.null')
+      .is('order_id', null)
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -894,6 +896,8 @@ export async function getNotesFromDb(limit: number = 100) {
       result = await supabase
         .from('notes')
         .select(NOTE_COLUMNS_LEGACY)
+        .or('is_done.eq.false,is_done.is.null')
+        .is('order_id', null)
         .order('created_at', { ascending: false })
         .limit(limit);
     }

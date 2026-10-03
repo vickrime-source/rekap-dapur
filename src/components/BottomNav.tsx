@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, BarChart3, TableProperties, Plus } from 'lucide-react';
+import { LayoutDashboard, TableProperties, Plus } from 'lucide-react';
 
 export type TabType = 'dashboard' | 'rekap' | 'transaksi';
 
@@ -9,75 +9,42 @@ interface BottomNavProps {
   onOpenManual: () => void;
 }
 
-export const BottomNav: React.FC<BottomNavProps> = ({
-  activeTab,
-  onChangeTab,
-  onOpenManual,
-}) => {
-  return (
-    <div className="fixed bottom-3 sm:bottom-4 md:bottom-5 left-0 right-0 z-30 px-3 sm:px-4 max-w-lg md:max-w-xl mx-auto no-print pointer-events-none">
-      <nav className="clay-card relative bg-white dark:bg-slate-900 h-[72px] rounded-3xl flex items-center justify-between px-4 sm:px-6 md:px-8 border border-slate-200/80 dark:border-slate-800 shadow-lg pointer-events-auto transition-colors duration-200">
-        <div className="flex items-center gap-3 sm:gap-7">
-        {/* 1. Dashboard */}
-        <button
-          onClick={() => onChangeTab('dashboard')}
-          className={`flex flex-col items-center justify-center space-y-0.5 transition-all cursor-pointer ${
-            activeTab === 'dashboard' 
-              ? 'text-indigo-600 dark:text-indigo-400 scale-105 font-extrabold' 
-              : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-semibold'
-          }`}
-        >
-          <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'dashboard' ? 'clay-pill-active text-[#4f46e5] dark:text-white' : ''}`}>
-            <LayoutDashboard className="w-5 h-5" />
-          </div>
-          <span className="text-[10px] uppercase tracking-wider">Dashboard</span>
-        </button>
+export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChangeTab, onOpenManual }) => (
+  <div className="fixed bottom-3 sm:bottom-4 md:bottom-5 left-0 right-0 z-30 px-3 sm:px-4 max-w-[620px] mx-auto no-print pointer-events-none">
+    <nav aria-label="Navigasi utama" className="clay-card relative h-[72px] rounded-[28px] flex items-center justify-between px-9 sm:px-14 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-lg pointer-events-auto transition-colors duration-200">
+      <button
+        type="button"
+        onClick={() => onChangeTab('dashboard')}
+        aria-current={activeTab === 'dashboard' ? 'page' : undefined}
+        className={`flex min-w-20 flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${activeTab === 'dashboard' ? 'text-indigo-600 dark:text-indigo-400 font-extrabold' : 'text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-300 font-semibold'}`}
+      >
+        <span className={`p-1.5 rounded-xl transition-all ${activeTab === 'dashboard' ? 'clay-pill-active text-[#4f46e5] dark:text-white' : ''}`}>
+          <LayoutDashboard className="w-5 h-5" />
+        </span>
+        <span className="text-[10px] uppercase tracking-wider">Dashboard</span>
+      </button>
 
-        {/* 2. Rekap (BARU) */}
-        <button
-          onClick={() => onChangeTab('rekap')}
-          className={`flex flex-col items-center justify-center space-y-0.5 transition-all cursor-pointer ${
-            activeTab === 'rekap' 
-              ? 'text-indigo-600 dark:text-indigo-400 scale-105 font-extrabold' 
-              : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-semibold'
-          }`}
-        >
-          <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'rekap' ? 'clay-pill-active text-[#4f46e5] dark:text-white' : ''}`}>
-            <BarChart3 className="w-5 h-5" />
-          </div>
-          <span className="text-[10px] uppercase tracking-wider">Rekap</span>
-        </button>
+      <button
+        type="button"
+        onClick={onOpenManual}
+        aria-label="Input pesanan manual"
+        title="Input pesanan manual"
+        className="absolute left-1/2 -top-5 -translate-x-1/2 flex h-16 w-16 items-center justify-center rounded-[20px] bg-indigo-600 text-white shadow-[0_8px_25px_rgba(79,70,229,0.45)] ring-4 ring-white dark:ring-slate-900 transition-transform hover:scale-105 active:scale-95"
+      >
+        <Plus className="h-9 w-9 stroke-[2.7]" />
+      </button>
 
-        </div>
-
-        <button
-          type="button"
-          onClick={onOpenManual}
-          aria-label="Input pesanan manual"
-          title="Input pesanan manual"
-          className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5 text-indigo-600 dark:text-indigo-300"
-        >
-          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-500/30 transition-transform hover:scale-105 active:scale-95">
-            <Plus className="h-6 w-6 stroke-[2.8]" />
-          </span>
-          <span className="text-[9px] font-black uppercase tracking-wide">Input</span>
-        </button>
-
-        {/* 3. Transaksi */}
-        <button
-          onClick={() => onChangeTab('transaksi')}
-          className={`flex flex-col items-center justify-center space-y-0.5 transition-all cursor-pointer ${
-            activeTab === 'transaksi' 
-              ? 'text-indigo-600 dark:text-indigo-400 scale-105 font-extrabold' 
-              : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-semibold'
-          }`}
-        >
-          <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'transaksi' ? 'clay-pill-active text-[#4f46e5] dark:text-white' : ''}`}>
-            <TableProperties className="w-5 h-5" />
-          </div>
-          <span className="text-[10px] uppercase tracking-wider">Transaksi</span>
-        </button>
-      </nav>
-    </div>
-  );
-};
+      <button
+        type="button"
+        onClick={() => onChangeTab('transaksi')}
+        aria-current={activeTab === 'transaksi' ? 'page' : undefined}
+        className={`flex min-w-20 flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${activeTab === 'transaksi' ? 'text-indigo-600 dark:text-indigo-400 font-extrabold' : 'text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-300 font-semibold'}`}
+      >
+        <span className={`p-1.5 rounded-xl transition-all ${activeTab === 'transaksi' ? 'clay-pill-active text-[#4f46e5] dark:text-white' : ''}`}>
+          <TableProperties className="w-5 h-5" />
+        </span>
+        <span className="text-[10px] uppercase tracking-wider">Transaksi</span>
+      </button>
+    </nav>
+  </div>
+);

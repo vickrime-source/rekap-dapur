@@ -14,7 +14,6 @@ import {
   deleteMasterPemasokFromDb, 
   deleteMasterDapurFromDb 
 } from '../lib/supabaseDb';
-import { MASTER_TABLES_SQL } from '../lib/masterSqlScript';
 
 import { SettingsTab, KelolaSubTab, SafetyDialogState } from './settings/types';
 import { KelolaDataTab } from './settings/KelolaDataTab';
@@ -23,7 +22,6 @@ import { NotificationTab } from './settings/NotificationTab';
 import { InstallAppTab } from './settings/InstallAppTab';
 import { DangerZoneTab } from './settings/DangerZoneTab';
 import { SafetyDeleteDialog } from './settings/SafetyDeleteDialog';
-import { SqlViewerModal } from './settings/SqlViewerModal';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -72,10 +70,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [safetyDialog, setSafetyDialog] = useState<SafetyDialogState | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // SQL Script modal state
-  const [showSqlModal, setShowSqlModal] = useState<boolean>(false);
-  const [copiedSql, setCopiedSql] = useState<boolean>(false);
-
   useEffect(() => {
     if (isOpen) {
       onRefreshData?.();
@@ -94,12 +88,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
     }
   }, [initialTab, isOpen]);
-
-  const handleCopySql = () => {
-    navigator.clipboard.writeText(MASTER_TABLES_SQL);
-    setCopiedSql(true);
-    setTimeout(() => setCopiedSql(false), 2500);
-  };
 
   // Execute safe deletion
   const handleExecuteSafetyDelete = async () => {
@@ -272,9 +260,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onUpdateKitchens={onUpdateKitchens}
                 onRefreshData={onRefreshData}
                 onOpenSafetyDialog={setSafetyDialog}
-                onCopySql={handleCopySql}
-                copiedSql={copiedSql}
-                onShowSqlModal={() => setShowSqlModal(true)}
               />
             )}
 
@@ -305,13 +290,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           onConfirmDelete={handleExecuteSafetyDelete}
         />
 
-        {/* SQL Viewer Modal */}
-        <SqlViewerModal
-          isOpen={showSqlModal}
-          onClose={() => setShowSqlModal(false)}
-          copiedSql={copiedSql}
-          onCopySql={handleCopySql}
-        />
       </div>
     </AnimatePresence>
   );
