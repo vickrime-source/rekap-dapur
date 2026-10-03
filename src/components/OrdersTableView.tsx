@@ -125,16 +125,6 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
         <div className="font-bold break-words text-slate-900 dark:text-slate-100 text-xs leading-snug">
           {item.namaBarang}
         </div>
-        {getKeKoperasi(item) > 0 && (
-          <div className="mt-1 text-[9px] leading-tight font-bold text-amber-700 dark:text-amber-300" title="Nilai ke koperasi setelah cashback">
-            Koperasi +{formatRupiah(getKeKoperasi(item))}
-          </div>
-        )}
-        {item.catatan?.trim() && (
-          <span className="mt-1 inline-flex max-w-full items-center gap-0.5 text-[9px] text-slate-500 dark:text-slate-400" title={item.catatan.trim()}>
-            <FileText className="h-3 w-3 shrink-0" /> <span className="truncate">{item.catatan.trim()}</span>
-          </span>
-        )}
       </td>
 
       {/* 3.5. PEMASOK (PER ROW ITEM - Mengikuti masing-masing barang) */}
@@ -289,7 +279,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
         const totalBeli = qtyBeliEfektif * hbNum;
 
         return (
-          <td className="py-2.5 px-1.5 text-right whitespace-nowrap align-middle">
+          <td className="py-2.5 px-1.5 text-right whitespace-nowrap align-middle border-r border-slate-100 dark:border-slate-800">
             <div className="font-semibold text-slate-600 dark:text-slate-300 font-nominal text-xs sm:text-[12.5px]">
               {formatRupiah(totalBeli)}
             </div>
@@ -299,6 +289,37 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
           </td>
         );
       })()}
+
+      {/* 11. CASHBACK (PER ROW ITEM) */}
+      {(() => {
+        const totalCashback = getKeKoperasi(item);
+        return (
+          <td className="py-2.5 px-1.5 text-right whitespace-nowrap align-middle border-r border-slate-100 dark:border-slate-800">
+            {totalCashback > 0 ? (
+              <span className="inline-block text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-200/90 dark:border-amber-800 font-bold font-nominal text-xs">
+                +{formatRupiah(totalCashback)}
+              </span>
+            ) : (
+              <span className="text-slate-300 dark:text-slate-600 font-medium block text-center">-</span>
+            )}
+          </td>
+        );
+      })()}
+
+      {/* 12. CATATAN (PER ROW ITEM) */}
+      <td className="py-2.5 px-2 text-left align-middle border-r border-slate-100 dark:border-slate-800 min-w-0">
+        {item.catatan?.trim() ? (
+          <span
+            className="inline-flex max-w-full items-center gap-1 text-[11px] text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 font-medium align-middle"
+            title={item.catatan.trim()}
+          >
+            <FileText className="w-3 h-3 text-slate-400 shrink-0" />
+            <span className="truncate">{item.catatan.trim()}</span>
+          </span>
+        ) : (
+          <span className="text-slate-300 dark:text-slate-600 font-medium text-center block">-</span>
+        )}
+      </td>
 
       {/* 13. AKSI (MERGED PER GROUP) */}
       {isFirst && (
@@ -585,14 +606,14 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
       {/* 
         ========================================================================
         TABEL TRANSAKSI PESANAN
-        Struktur kolom inti; nilai koperasi dan penanda catatan ada di sel item.
+        Struktur kolom: NO, DAPUR, ITEM, PEMASOK, DATE, QTY, TOKO, PAYMENT, DELIVERY, H. JUAL, H. BELI, CASHBACK, CATATAN, AKSI
         ========================================================================
       */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden font-sans">
         <div className="overflow-x-auto w-full">
-          <table className="w-full min-w-[1200px] xl:min-w-0 table-fixed text-left border-collapse text-xs relative">
+          <table className="w-full min-w-[1300px] xl:min-w-0 table-fixed text-left border-collapse text-xs relative">
             <colgroup>
-              {[3, 7, 12, 9, 10, 5, 10, 8, 8, 10, 10, 8].map((width, index) => (
+              {[3, 7, 11, 8, 8, 4.5, 7.5, 7, 7, 8.5, 8.5, 7.5, 13.5, 7].map((width, index) => (
                 <col key={index} style={{ width: `${width}%` }} />
               ))}
             </colgroup>
@@ -641,6 +662,14 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
                 {/* 10. H. BELI */}
                 <th className="py-3 px-1.5 text-right whitespace-nowrap bg-slate-100 dark:bg-slate-800 sticky top-0">
                   H. BELI
+                </th>
+                {/* 11. CASHBACK */}
+                <th className="py-3 px-1.5 text-right whitespace-nowrap bg-slate-100 dark:bg-slate-800 sticky top-0 text-amber-700 dark:text-amber-400">
+                  CASHBACK
+                </th>
+                {/* 12. CATATAN */}
+                <th className="py-3 px-2 text-left whitespace-nowrap bg-slate-100 dark:bg-slate-800 sticky top-0 text-slate-700 dark:text-slate-300">
+                  CATATAN
                 </th>
                 {/* 13. AKSI */}
                 <th className="py-3 px-1 text-center whitespace-nowrap bg-slate-100 dark:bg-slate-800 sticky top-0">
