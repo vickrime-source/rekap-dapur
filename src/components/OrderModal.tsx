@@ -7,7 +7,6 @@ import {
   Truck, 
   Calendar, 
   Trash2,
-  Mic,
   AlertCircle,
   Clock,
   CheckCircle,
@@ -28,7 +27,6 @@ import {
 } from '../types';
 import { getTodayWIB, formatTanggalWeb } from '../lib/formatters';
 import { getItemSuggestions } from '../lib/suggestions';
-import { parseVoiceInput } from '../lib/voiceParser';
 import { 
   saveMasterTokoToDb, 
   saveMasterPemasokToDb, 
@@ -135,12 +133,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [activeSuggestionRowId, setActiveSuggestionRowId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selectedSugIdx, setSelectedSugIdx] = useState<number>(0);
-
-  // Voice Recognition States
-  const [isListening, setIsListening] = useState<boolean>(false);
-  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
-  const recognitionRef = useRef<any>(null);
 
   const handleAddMasterSatuanInternal = async (nama: string) => {
     if (onAddMasterSatuan) {
@@ -300,123 +292,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       setCatatan('');
     }
 
-    setVoiceNotice(null);
-    setVoiceError(null);
-    setIsListening(false);
     setIsTokoOpen(false);
     setIsDapurOpen(false);
     setIsPemasokOpen(false);
 
-    return () => {
-      stopVoiceRecognition();
-    };
   }, [initialData, prefilledKitchen, isOpen, selectedDate, masterToko, masterDapur, masterPemasok]);
-
-  // Voice recognition cleanup
-  const stopVoiceRecognition = () => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.abort();
-      } catch (e) {
-        // ignore
-      }
-      recognitionRef.current = null;
-    }
-    setIsListening(false);
-  };
-
-  const toggleVoice = () => {
-    if (isListening) {
-      stopVoiceRecognition();
-      return;
-    }
-
-    stopVoiceRecognition();
-    setVoiceError(null);
-    setVoiceNotice(null);
-
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      setVoiceError('Browser tidak mendukung Speech Recognition.');
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'id-ID';
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-        setIsListening(true);
-      };
-
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0]?.[0]?.transcript;
-        if (transcript) {
-          handleProcessVoiceInput(transcript);
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        if (event.error === 'not-allowed') {
-          setVoiceError('Izin mikrofon ditolak.');
-        } else if (event.error !== 'no-speech') {
-          setVoiceError(`Error mic: ${event.error}`);
-        }
-        setIsListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (err: any) {
-      setVoiceError('Gagal mengakses mikrofon.');
-      setIsListening(false);
-    }
-  };
-
-  const handleProcessVoiceInput = (transcriptText: string) => {
-    const parsed = parseVoiceInput(transcriptText, kitchens, stores, pemasokList);
-
-    if (parsed.namaBarang) {
-      const pastMatch = existingOrders.find(
-        (o) => o.namaBarang.toLowerCase() === parsed.namaBarang.toLowerCase() && (o.hargaBeli > 0 || o.hargaJual > 0)
-      );
-
-      const autoBeli = parsed.hargaBeli || pastMatch?.hargaBeli || 0;
-      const autoJual = parsed.hargaJual || pastMatch?.hargaJual || 0;
-
-      setItemRows((prev) => {
-        const active = prev[activeItemIndex] || prev[0];
-        const updated: ItemRow = {
-          ...active,
-          namaBarang: parsed.namaBarang,
-          qty: parsed.qty || active.qty || 1,
-          satuan: parsed.satuan || active.satuan || 'Kg',
-          hargaBeli: autoBeli > 0 ? autoBeli : active.hargaBeli,
-          hargaJual: autoJual > 0 ? autoJual : active.hargaJual,
-        };
-
-        const copy = [...prev];
-        copy[activeItemIndex] = updated;
-        return copy;
-      });
-    }
-
-    if (parsed.tujuanDapur) setTujuanDapur(parsed.tujuanDapur);
-    if (parsed.toko) setToko(parsed.toko);
-    if (parsed.pemasok) setPemasok(parsed.pemasok);
-
-    setVoiceNotice(`✓ Terdeteksi: ${parsed.namaBarang || 'Pesanan'} (${parsed.qty || 1} ${parsed.satuan || 'Kg'})`);
-    setTimeout(() => setVoiceNotice(null), 4000);
-  };
 
   const handleQuickAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -998,27 +878,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
             {/* Scrollable Form Content */}
             <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
-              {/* Voice Feedback Banner if listening */}
-              {(isListening || voiceNotice || voiceError) && (
-                <div className="text-center py-1">
-                  {isListening ? (
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-[11px] font-bold animate-pulse">
-                      <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping inline-block" />
-                      <span>Mendengarkan ucapan suara...</span>
-                    </div>
-                  ) : voiceNotice ? (
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[10.5px] font-bold">
-                      <span>{voiceNotice}</span>
-                    </div>
-                  ) : voiceError ? (
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-[10.5px] font-bold">
-                      <AlertCircle className="w-3 h-3" />
-                      <span>{voiceError}</span>
-                    </div>
-                  ) : null}
-                </div>
-              )}
-
               {/* CARD 1: DETAIL PESANAN (Tetap Card Pertama, Rapih & Estimasi Margin) */}
               <div className="bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1783,26 +1642,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               >
                 Batal
               </button>
-
-              {/* Tombol Microphone Bundar di Tengah */}
-              <div className="relative">
-                {isListening && (
-                  <span className="absolute -inset-1 rounded-full bg-rose-500/30 animate-ping pointer-events-none" />
-                )}
-                <button
-                  type="button"
-                  id="btn-voice-order"
-                  onClick={toggleVoice}
-                  title={isListening ? 'Klik untuk berhenti bicara' : 'Bicara sekarang (contoh: Ayam 4 kg)'}
-                  className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-all duration-200 cursor-pointer shadow-md ${
-                    isListening
-                      ? 'bg-rose-600 text-white shadow-rose-500/40 ring-4 ring-rose-200 scale-105'
-                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/30 hover:scale-105 active:scale-95'
-                  }`}
-                >
-                  <Mic className="w-5 h-5" />
-                </button>
-              </div>
 
               {/* Tombol Simpan Pesanan */}
               <button

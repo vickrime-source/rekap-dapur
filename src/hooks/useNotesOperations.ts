@@ -168,6 +168,29 @@ export function useNotesOperations({
     }
   }, [notes, setNotes, showToast]);
 
+  const handleDeleteSelectedNotes = useCallback(async (noteIds: string[]) => {
+    const selected = new Set(noteIds);
+    const targets = notes.filter((note) => selected.has(note.id));
+    const deletedIds: string[] = [];
+
+    for (const note of targets) {
+      const result = await deleteNoteFromDb(note.id);
+      if (result.success) deletedIds.push(note.id);
+    }
+
+    if (deletedIds.length > 0) {
+      const deleted = new Set(deletedIds);
+      setNotes((prev) => prev.filter((note) => !deleted.has(note.id)));
+    }
+
+    const failed = targets.length - deletedIds.length;
+    if (failed > 0) {
+      showToast(`${deletedIds.length} Follow Up dihapus, ${failed} gagal. Coba lagi untuk sisanya.`, 'error');
+    } else if (deletedIds.length > 0) {
+      showToast(`${deletedIds.length} Follow Up berhasil dihapus`, 'delete');
+    }
+  }, [notes, setNotes, showToast]);
+
   const handleSaveNote = useCallback(async (noteData: Omit<NoteItem, 'id' | 'createdAt'>) => {
     const newNote: NoteItem = {
       ...noteData,
@@ -191,6 +214,7 @@ export function useNotesOperations({
     handleCompleteFollowUpNote,
     handleToggleNoteStatus,
     handleDeleteNote,
+    handleDeleteSelectedNotes,
     handleSaveNote,
   };
 }

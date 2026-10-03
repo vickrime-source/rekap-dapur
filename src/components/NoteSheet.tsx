@@ -7,12 +7,8 @@ import {
   Tag, 
   FileText, 
   Sparkles, 
-  Mic, 
-  MicOff, 
   Scale, 
-  Volume2, 
   Check, 
-  AlertCircle,
   Store,
   Truck,
   Search,
@@ -22,7 +18,6 @@ import {
 import { Kitchen, NoteItem, FollowUpItemRow, Store as StoreType, MasterToko, MasterPemasok, MasterDapur, MasterSatuan } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { getItemSuggestions } from '../lib/suggestions';
-import { parseVoiceInput } from '../lib/voiceParser';
 import { SatuanAutocomplete } from './SatuanAutocomplete';
 import { PemasokAutocomplete } from './PemasokAutocomplete';
 import { saveMasterSatuanToDb } from '../lib/supabaseDb';
@@ -41,7 +36,6 @@ interface NoteSheetProps {
   onAddMasterSatuan?: (nama: string) => Promise<{ success: boolean; error?: string }>;
   onRefreshMaster?: () => Promise<void> | void;
   existingItemNames?: string[];
-  autoStartVoice?: boolean;
 }
 
 const COMMON_UNITS = ['Kg', 'Gram', 'Pcs', 'Ikat', 'Tray', 'Pack', 'Liter', 'Box', 'Karung', 'Ekor'];
@@ -60,7 +54,6 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
   onAddMasterSatuan,
   onRefreshMaster,
   existingItemNames = [],
-  autoStartVoice = false,
 }) => {
   const [tujuanDapur, setTujuanDapur] = useState<string>('');
   const [toko, setToko] = useState<string>('');
@@ -116,14 +109,7 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
     return pool.filter((p) => p.nama.toLowerCase().includes(q));
   }, [pemasok, masterPemasok, availablePemasok]);
 
-  // Voice Recognition States
-  const [isListening, setIsListening] = useState<boolean>(false);
-  const [voiceTranscript, setVoiceTranscript] = useState<string>('');
-  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
-
   const inputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<any>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -154,26 +140,9 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
       setSuggestions([]);
       setShowSuggestions(false);
       setActiveSuggestionIdx(null);
-      setVoiceTranscript('');
-      setVoiceNotice(null);
-      setVoiceError(null);
-
-      // Auto start voice if requested
-      if (autoStartVoice) {
-        setTimeout(() => {
-          startVoiceRecognition();
-        }, 300);
-      } else {
-        setTimeout(() => inputRef.current?.focus(), 150);
-      }
-    } else {
-      stopVoiceRecognition();
+      setTimeout(() => inputRef.current?.focus(), 150);
     }
-
-    return () => {
-      stopVoiceRecognition();
-    };
-  }, [isOpen, kitchens, autoStartVoice]);
+  }, [isOpen, kitchens]);
 
   const handleAddItemRow = () => {
     setItemRows((prev) => [
@@ -204,122 +173,6 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
       next[index] = { ...next[index], [field]: value };
       return next;
     });
-  };
-
-  // Clean up speech recognition when unmounting
-  const stopVoiceRecognition = () => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.abort();
-      } catch (e) {
-        // ignore
-      }
-      recognitionRef.current = null;
-    }
-    setIsListening(false);
-  };
-
-  // Start voice recognition
-  const startVoiceRecognition = () => {
-    stopVoiceRecognition();
-    setVoiceError(null);
-    setVoiceNotice(null);
-
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      setVoiceError('Browser tidak mendukung Speech Recognition. Gunakan Google Chrome atau Edge.');
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'id-ID';
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        setVoiceNotice('Mendengarkan... Silakan sebutkan nama barang & jumlah (contoh: "Ayam 4 kg")...');
-      };
-
-      recognition.onresult = (event: any) => {
-        const current = event.resultIndex;
-        const transcript = event.results[current][0].transcript;
-        setVoiceTranscript(transcript);
-
-        // If this is final result, parse and fill fields
-        if (event.results[current].isFinal) {
-          handleProcessVoiceTranscript(transcript);
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        console.warn('Speech recognition error:', event.error);
-        if (event.error === 'not-allowed') {
-          setVoiceError('Izin mikrofon ditolak. Mohon izinkan akses mic di browser.');
-        } else if (event.error === 'no-speech') {
-          setVoiceError('Tidak ada suara terdeteksi. Silakan coba lagi.');
-        } else {
-          setVoiceError(`Error suara: ${event.error}`);
-        }
-        setIsListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (err: any) {
-      console.warn('Failed to start speech recognition:', err);
-      setVoiceError('Gagal mengakses mikrofon.');
-      setIsListening(false);
-    }
-  };
-
-  // Parse voice transcript into fields
-  const handleProcessVoiceTranscript = (text: string) => {
-    if (!text.trim()) return;
-
-    const parsed = parseVoiceInput(text, kitchens);
-
-    if (parsed.tujuanDapur) {
-      setTujuanDapur(parsed.tujuanDapur);
-    }
-
-    setItemRows((prev) => {
-      const emptyIdx = prev.findIndex((r) => !r.namaBarang.trim());
-      const next = [...prev];
-      const newRow: FollowUpItemRow = {
-        id: `item-${Date.now()}`,
-        namaBarang: parsed.namaBarang || text,
-        pemasok: pemasok || '',
-        qty: parsed.qty || 1,
-        satuan: parsed.satuan || 'Kg',
-        catatan: parsed.catatan || '',
-      };
-      if (emptyIdx !== -1) {
-        next[emptyIdx] = newRow;
-      } else {
-        next.push(newRow);
-      }
-      return next;
-    });
-
-    setVoiceNotice(`✓ Berhasil: "${parsed.namaBarang}" sebanyak ${parsed.qty} ${parsed.satuan}`);
-  };
-
-  // Toggle voice recognition
-  const toggleVoice = () => {
-    if (isListening) {
-      stopVoiceRecognition();
-    } else {
-      startVoiceRecognition();
-    }
   };
 
   // Update suggestions when user types namaBarang in a row
@@ -876,28 +729,7 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
               />
             </div>
 
-            {/* Voice Feedback Banner (if active) */}
-            {(isListening || voiceNotice || voiceError) && (
-              <div className="text-center py-1">
-                {isListening ? (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-[11px] font-bold animate-pulse">
-                    <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping inline-block" />
-                    <span>Mendengarkan... {voiceTranscript ? `"${voiceTranscript}"` : 'Bicara sekarang...'}</span>
-                  </div>
-                ) : voiceNotice ? (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[10.5px] font-bold">
-                    <span>{voiceNotice}</span>
-                  </div>
-                ) : voiceError ? (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-[10.5px] font-bold">
-                    <AlertCircle className="w-3 h-3" />
-                    <span>{voiceError}</span>
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            {/* Buttons: Batal | Mic Button | Simpan Catatan */}
+            {/* Buttons: Batal | Simpan Catatan */}
             <div className="pt-2 flex items-center gap-2">
               {/* Batal Button */}
               <button
@@ -907,25 +739,6 @@ export const NoteSheet: React.FC<NoteSheetProps> = ({
               >
                 Batal
               </button>
-
-              {/* Circular Mic Button in the middle */}
-              <div className="relative">
-                {isListening && (
-                  <span className="absolute -inset-1 rounded-full bg-rose-500/30 animate-ping pointer-events-none" />
-                )}
-                <button
-                  type="button"
-                  onClick={toggleVoice}
-                  title={isListening ? 'Klik untuk berhenti bicara' : 'Bicara sekarang (contoh: Ayam 4 kg)'}
-                  className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-all duration-200 cursor-pointer shadow-md ${
-                    isListening
-                      ? 'bg-rose-600 text-white shadow-rose-500/40 ring-4 ring-rose-200 scale-105'
-                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/30 hover:scale-105 active:scale-95'
-                  }`}
-                >
-                  <Mic className="w-5 h-5" />
-                </button>
-              </div>
 
               {/* Simpan Follow Up Button */}
               <button

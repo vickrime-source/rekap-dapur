@@ -17,9 +17,6 @@ import {
   createNoteInDb,
   updateNoteInDb,
   deleteNoteFromDb,
-  getAssistantChatMessages,
-  createAssistantChatMessage,
-  clearAssistantChatMessages,
   getPeriodSummaryFromDb,
   getMasterTokoFromDb,
   createMasterTokoInDb,
@@ -35,7 +32,6 @@ import {
   deleteMasterSatuanInDb,
   checkMasterUsageInDb,
 } from './server/supabaseService.js';
-import { parseVoiceOrderWithGemini } from './server/geminiService.js';
 
 const TEMPLATE_URLS: Record<string, string> = {
   "LUWENG BOGA": "https://docs.google.com/document/d/1vCwDWoGEQhmyujqTF0l0VVJU3cH8nyxn/export?format=docx",
@@ -551,42 +547,6 @@ async function startServer() {
   app.delete('/api/notes', handleDeleteNote);
   app.delete('/api/supabase/notes', handleDeleteNote);
 
-  // 4.1 Smart Assistant chat history
-  app.get('/api/assistant-chat', async (req, res) => {
-    try {
-      const sessionId = String(req.query.sessionId || '').trim();
-      if (!sessionId) return res.status(400).json({ success: false, error: 'sessionId wajib diisi.' });
-      const data = await getAssistantChatMessages(sessionId);
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      return res.status(500).json({ success: false, error: error?.message || 'Gagal memuat riwayat assistant.' });
-    }
-  });
-
-  app.post('/api/assistant-chat', async (req, res) => {
-    try {
-      const sessionId = String(req.body?.sessionId || '').trim();
-      const role = req.body?.role === 'user' ? 'user' : 'assistant';
-      const content = String(req.body?.content || '').trim();
-      if (!sessionId || !content) return res.status(400).json({ success: false, error: 'sessionId dan content wajib diisi.' });
-      const data = await createAssistantChatMessage({ sessionId, role, content, metadata: req.body?.metadata });
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      return res.status(500).json({ success: false, error: error?.message || 'Gagal menyimpan riwayat assistant.' });
-    }
-  });
-
-  app.delete('/api/assistant-chat', async (req, res) => {
-    try {
-      const sessionId = String(req.query.sessionId || req.body?.sessionId || '').trim();
-      if (!sessionId) return res.status(400).json({ success: false, error: 'sessionId wajib diisi.' });
-      await clearAssistantChatMessages(sessionId);
-      return res.json({ success: true });
-    } catch (error: any) {
-      return res.status(500).json({ success: false, error: error?.message || 'Gagal menghapus riwayat assistant.' });
-    }
-  });
-
   // ---------------------------------------------------------------------------
   // 5. MASTER DATA (toko, pemasok, dapur) Endpoints
   // ---------------------------------------------------------------------------
@@ -1075,47 +1035,6 @@ async function startServer() {
       res.json({ success: true, message: 'Dihapus dari Supabase' });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err?.message || 'Error' });
-    }
-  });
-
-  // 6. AI GEMINI VOICE ORDER PARSER
-  app.post('/api/parse-voice-order', async (req, res) => {
-    try {
-      const { text, kitchens, stores, pemasokList } = req.body;
-      if (!text || typeof text !== 'string') {
-        return res.status(400).json({
-          success: false,
-          error: 'Parameter "text" teks suara diperlukan.',
-        });
-      }
-
-      const parsed = await parseVoiceOrderWithGemini(
-        text,
-        Array.isArray(kitchens) ? kitchens : [],
-        Array.isArray(stores) ? stores : [],
-        Array.isArray(pemasokList) ? pemasokList : []
-      );
-
-      if (parsed) {
-        return res.json({
-          success: true,
-          source: 'gemini',
-          data: parsed,
-        });
-      }
-
-      // If Gemini is not configured or failed, client falls back to local Indonesian parser
-      return res.json({
-        success: false,
-        source: 'none',
-        message: 'Gemini AI tidak tersedia, gunakan parser lokal.',
-      });
-    } catch (err: any) {
-      console.warn('[Server voice parse error]:', err);
-      res.status(500).json({
-        success: false,
-        error: err?.message || 'Gagal memproses suara dengan Gemini',
-      });
     }
   });
 

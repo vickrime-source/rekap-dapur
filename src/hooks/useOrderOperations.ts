@@ -7,10 +7,6 @@ import {
   MasterToko, 
   MasterPemasok, 
   MasterDapur, 
-  Store as StoreType, 
-  Kitchen,
-  NoteItem,
-  TextParseResult 
 } from '../types';
 import { getTodayWIB, getNowWIBISOString } from '../lib/formatters';
 import { 
@@ -32,16 +28,11 @@ interface UseOrderOperationsProps {
   masterToko: MasterToko[];
   masterPemasok: MasterPemasok[];
   masterDapur: MasterDapur[];
-  stores: StoreType[];
-  kitchens: Kitchen[];
-  pemasokList: string[];
-  selectedDate: string;
   setSelectedDate: (date: string) => void;
   setIsLoadingDb: (loading: boolean) => void;
   setDbError: (error: string | null) => void;
   setConfirmState: Dispatch<SetStateAction<ConfirmDialogState | null>>;
   showToast: (message: string, type?: 'success' | 'delete' | 'edit' | 'info' | 'error') => void;
-  onSaveNote: (note: Omit<NoteItem, 'id' | 'createdAt'>) => void | Promise<void>;
 }
 
 export function useOrderOperations({
@@ -52,16 +43,11 @@ export function useOrderOperations({
   masterToko,
   masterPemasok,
   masterDapur,
-  stores,
-  kitchens,
-  pemasokList,
-  selectedDate,
   setSelectedDate,
   setIsLoadingDb,
   setDbError,
   setConfirmState,
   showToast,
-  onSaveNote,
 }: UseOrderOperationsProps) {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<OrderItem | null>(null);
@@ -666,145 +652,6 @@ export function useOrderOperations({
     setIsOrderModalOpen(true);
   }, []);
 
-  const handleEditOrderVoice = useCallback((params: {
-    targetBarang: string;
-    targetDapur?: string;
-    newQty?: number;
-    newSatuan?: string;
-    newHargaBeli?: number;
-    newHargaJual?: number;
-  }): boolean => {
-    const lowerTarget = params.targetBarang.toLowerCase().trim();
-    if (!lowerTarget) return false;
-
-    const found = orders.find((o) => {
-      const oName = o.namaBarang.toLowerCase();
-      const matchBarang = oName.includes(lowerTarget) || lowerTarget.includes(oName);
-      if (!matchBarang) return false;
-      if (params.targetDapur) {
-        return o.tujuanDapur.toLowerCase().includes(params.targetDapur.toLowerCase());
-      }
-      return true;
-    });
-
-    if (!found) return false;
-
-    const updated: OrderItem = {
-      ...found,
-      qty: params.newQty !== undefined ? params.newQty : found.qty,
-      satuan: params.newSatuan || found.satuan,
-      hargaBeli: params.newHargaBeli !== undefined ? params.newHargaBeli : found.hargaBeli,
-      hargaJual: params.newHargaJual !== undefined ? params.newHargaJual : found.hargaJual,
-    };
-
-    handleSaveOrder(updated, found.id);
-    showToast(`Pesanan "${found.namaBarang}" berhasil diperbarui`, 'success');
-    return true;
-  }, [orders, handleSaveOrder, showToast]);
-
-  const handleImportParsedItems = useCallback(async (parsedResults: TextParseResult[], targetDate: string) => {
-    const validParsed = parsedResults.filter((r) => r.namaBarang && r.namaBarang.trim() !== '');
-    if (validParsed.length === 0) {
-      showToast('Tidak ada item valid untuk diimport', 'error');
-      return;
-    }
-
-    const incompleteParsed = validParsed.filter((res) =>
-      !(Number(res.qty) > 0)
-      || !(Number(res.hargaBeli) > 0)
-      || !(Number(res.hargaJual) > 0)
-      || !String(res.toko || '').trim()
-      || !String(res.pemasok || '').trim()
-      || !String(res.tujuanDapur || '').trim()
-    );
-    const completeParsed = validParsed.filter((res) => !incompleteParsed.includes(res));
-    const batchId = `bulk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const importCreatedAt = new Date().toISOString();
-    const notaByContext = new Map<string, string>();
-
-    for (const res of incompleteParsed) {
-      await onSaveNote({
-        catatan: `Draft bulk: ${res.namaBarang.trim()} • Belum lengkap: ${[
-          !(Number(res.hargaBeli) > 0) ? 'harga beli' : '',
-          !(Number(res.hargaJual) > 0) ? 'harga jual' : '',
-          !String(res.toko || '').trim() ? 'toko' : '',
-          !String(res.pemasok || '').trim() ? 'pemasok' : '',
-          !String(res.tujuanDapur || '').trim() ? 'dapur tujuan' : '',
-        ].filter(Boolean).join(', ')}`,
-        tujuanDapur: res.tujuanDapur || '',
-        namaBarang: res.namaBarang.trim(),
-        qty: Number(res.qty) > 0 ? Number(res.qty) : undefined,
-        satuan: res.satuan || 'Kg',
-        toko: res.toko || undefined,
-        pemasok: res.pemasok || undefined,
-        tanggal: res.tanggal || targetDate || selectedDate,
-        isDone: false,
-        batchId,
-      });
-    }
-
-    const newOrdersAdded: OrderItem[] = completeParsed.map((res, index) => {
-      const tanggal = res.tanggal || targetDate || selectedDate;
-      const toko = res.toko || '';
-      const dapur = res.tujuanDapur || '';
-      const pemasok = res.pemasok || '';
-      const contextKey = `${tanggal}||${dapur.trim().toLowerCase()}||${toko.trim().toLowerCase()}||${pemasok.trim().toLowerCase()}`;
-      const notaId = notaByContext.get(contextKey) || `nota-${batchId}-${notaByContext.size + 1}`;
-      notaByContext.set(contextKey, notaId);
-
-      return {
-        id: `ord-imp-${Date.now()}-${index}`,
-        namaBarang: res.namaBarang.trim(),
-        item: res.namaBarang.trim(),
-        qty: Number(res.qty) > 0 ? Number(res.qty) : 1,
-        qtyBeli: Number(res.qtyBeli) > 0 ? Number(res.qtyBeli) : undefined,
-        qty_beli: Number(res.qtyBeli) > 0 ? Number(res.qtyBeli) : undefined,
-        notaId,
-        nota_id: notaId,
-        satuan: res.satuan || 'Kg',
-        hargaBeli: Number(res.hargaBeli) || 0,
-        hargaJual: Number(res.hargaJual) || 0,
-        toko,
-        tujuanDapur: dapur,
-        dapur,
-        pemasok,
-        status: 'pending',
-        tanggal,
-        createdAt: importCreatedAt,
-      };
-    });
-
-    if (newOrdersAdded.length === 0) {
-      showToast(`${incompleteParsed.length} item bulk masuk Follow Up karena belum lengkap`, 'info');
-      return;
-    }
-
-    setOrders((prev) => [...newOrdersAdded, ...prev]);
-
-    setIsLoadingDb(true);
-    let successCount = 0;
-    let lastError = '';
-
-    for (let index = 0; index < newOrdersAdded.length; index++) {
-      const newOrderItem = newOrdersAdded[index];
-      const saveRes = await saveOrderToDb(newOrderItem);
-
-      if (saveRes.success) {
-        successCount++;
-      } else {
-        lastError = saveRes.error || 'Gagal menyimpan pesanan';
-      }
-    }
-
-    setIsLoadingDb(false);
-
-    if (successCount === newOrdersAdded.length) {
-      showToast(`${successCount} item tersimpan${incompleteParsed.length ? `, ${incompleteParsed.length} item masuk Follow Up` : ''}`, 'success');
-    } else {
-      setDbError(lastError);
-      showToast(`${newOrdersAdded.length} item import tersimpan di HP. Error sync: ${lastError}`, 'info');
-    }
-  }, [stores, kitchens, pemasokList, selectedDate, setOrders, setIsLoadingDb, showToast, setDbError, onSaveNote]);
 
   return {
     isOrderModalOpen,
@@ -826,7 +673,5 @@ export function useOrderOperations({
     handleDeleteKitchenOrders,
     handleOpenEditOrder,
     handleOpenAddModal,
-    handleEditOrderVoice,
-    handleImportParsedItems,
   };
 }

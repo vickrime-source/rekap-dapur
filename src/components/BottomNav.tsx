@@ -1,20 +1,23 @@
 import React from 'react';
-import { LayoutDashboard, BarChart3, TableProperties } from 'lucide-react';
+import { LayoutDashboard, BarChart3, TableProperties, Plus } from 'lucide-react';
 
 export type TabType = 'dashboard' | 'rekap' | 'transaksi';
 
 interface BottomNavProps {
   activeTab: TabType;
   onChangeTab: (tab: TabType) => void;
+  onOpenManual: () => void;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
   activeTab,
   onChangeTab,
+  onOpenManual,
 }) => {
   return (
     <div className="fixed bottom-3 sm:bottom-4 md:bottom-5 left-0 right-0 z-30 px-3 sm:px-4 max-w-lg md:max-w-xl mx-auto no-print pointer-events-none">
-      <nav className="clay-card bg-white dark:bg-slate-900 h-[72px] rounded-3xl flex items-center justify-between px-4 sm:px-6 md:px-8 border border-slate-200/80 dark:border-slate-800 shadow-lg pointer-events-auto transition-colors duration-200">
+      <nav className="clay-card relative bg-white dark:bg-slate-900 h-[72px] rounded-3xl flex items-center justify-between px-4 sm:px-6 md:px-8 border border-slate-200/80 dark:border-slate-800 shadow-lg pointer-events-auto transition-colors duration-200">
+        <div className="flex items-center gap-3 sm:gap-7">
         {/* 1. Dashboard */}
         <button
           onClick={() => onChangeTab('dashboard')}
@@ -43,6 +46,21 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <BarChart3 className="w-5 h-5" />
           </div>
           <span className="text-[10px] uppercase tracking-wider">Rekap</span>
+        </button>
+
+        </div>
+
+        <button
+          type="button"
+          onClick={onOpenManual}
+          aria-label="Input pesanan manual"
+          title="Input pesanan manual"
+          className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5 text-indigo-600 dark:text-indigo-300"
+        >
+          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-500/30 transition-transform hover:scale-105 active:scale-95">
+            <Plus className="h-6 w-6 stroke-[2.8]" />
+          </span>
+          <span className="text-[9px] font-black uppercase tracking-wide">Input</span>
         </button>
 
         {/* 3. Transaksi */}

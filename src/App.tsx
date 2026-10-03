@@ -16,17 +16,12 @@ import {
 } from './constants/initialData';
 import { HeaderBanner } from './components/HeaderBanner';
 import { BottomNav, TabType } from './components/BottomNav';
-import { FloatingAddMenu } from './components/FloatingAddMenu';
-import { SmartAssistantChatModal } from './components/SmartAssistantChatModal';
-import { SmartVoiceOrderOverlay } from './components/SmartVoiceOrderOverlay';
 import { DashboardView } from './components/DashboardView';
 import { RekapView } from './components/RekapView';
 import { TransactionsView } from './components/TransactionsView';
 import { ConfirmModal } from './components/ConfirmModal';
 import { Toast, ToastMessage, ToastType } from './components/Toast';
 import { getTodayWIB, isOrderToday, isOrderThisWeek, getWeekRange } from './lib/formatters';
-import { sendNewOrderNotification } from './lib/notificationManager';
-import { parseWhatsAppText } from './lib/parserWA';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Lazy-loaded modal components to significantly reduce initial bundle size and tablet memory usage
@@ -70,9 +65,6 @@ export default function App() {
 
   // Modal Visibility States
   const [isNoteSheetOpen, setIsNoteSheetOpen] = useState(false);
-  const [autoStartVoiceNote, setAutoStartVoiceNote] = useState(false);
-  const [isSmartVoiceActive, setIsSmartVoiceActive] = useState(false);
-  const [isSmartAssistantChatOpen, setIsSmartAssistantChatOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'kelola_data' | 'dapur' | 'toko' | 'pemasok' | 'template' | 'notifikasi' | 'install' | 'danger'>('kelola_data');
@@ -143,6 +135,7 @@ export default function App() {
     handleCompleteFollowUpNote,
     handleToggleNoteStatus,
     handleDeleteNote,
+    handleDeleteSelectedNotes,
     handleSaveNote,
   } = useNotesOperations({
     notes,
@@ -219,8 +212,6 @@ export default function App() {
     handleDeleteKitchenOrders,
     handleOpenEditOrder,
     handleOpenAddModal,
-    handleEditOrderVoice,
-    handleImportParsedItems,
   } = useOrderOperations({
     orders,
     setOrders,
@@ -229,62 +220,30 @@ export default function App() {
     masterToko,
     masterPemasok,
     masterDapur,
-    stores,
-    kitchens,
-    pemasokList,
-    selectedDate,
     setSelectedDate,
     setIsLoadingDb,
     setDbError,
     setConfirmState,
     showToast,
-    onSaveNote: handleSaveNote,
   });
 
-  // Guardrail for assistant input: incomplete data is always a Follow Up,
-  // never a transaction or archive entry, even if an AI response is malformed.
-  const handleSmartOrderCreated = useCallback((newOrder: Omit<OrderItem, 'id' | 'createdAt'>) => {
-    const incomplete = !String(newOrder.namaBarang || '').trim()
-      || !(Number(newOrder.qty) > 0)
-      || !String(newOrder.tujuanDapur || '').trim()
-      || !String(newOrder.toko || '').trim()
-      || !(Number(newOrder.hargaBeli) > 0)
-      || !(Number(newOrder.hargaJual) > 0)
-      || !String(newOrder.pemasok || '').trim();
-
-    if (incomplete) {
-      void handleSaveNote({
-        catatan: `Draft pesanan: ${newOrder.namaBarang || 'Pesanan baru'} • Belum lengkap, silakan lengkapi sebelum masuk transaksi.`,
-        tujuanDapur: newOrder.tujuanDapur || '',
-        namaBarang: newOrder.namaBarang,
-        qty: Number(newOrder.qty) > 0 ? newOrder.qty : undefined,
-        satuan: newOrder.satuan,
-        pemasok: newOrder.pemasok,
-        toko: newOrder.toko,
-        isDone: false,
-      });
-      return;
-    }
-
-    handleSaveOrder(newOrder);
-    sendNewOrderNotification(newOrder.namaBarang, newOrder.qty, newOrder.satuan, newOrder.tujuanDapur);
-  }, [handleSaveNote, handleSaveOrder]);
-
-  const handleBulkImport = useCallback((rawText: string) => {
-    const parsedItems = parseWhatsAppText(
-      rawText,
-      '',
-      '',
-      '',
-      stores.map((store) => store.nama),
-      kitchens.map((kitchen) => kitchen.nama),
-    );
-    if (parsedItems.length === 0) {
-      showToast('Tidak ada item yang terbaca dari pesan bulk', 'error');
-      return;
-    }
-    void handleImportParsedItems(parsedItems, selectedDate);
-  }, [handleImportParsedItems, kitchens, selectedDate, showToast, stores]);
+  const confirmDeleteSelectedNotes = useCallback((noteIds: string[]) => {
+    if (noteIds.length === 0) return;
+    setConfirmState({
+      isOpen: true,
+      title: 'Hapus Follow Up terpilih?',
+      message: `${noteIds.length} Follow Up akan dihapus. Pesanan dan transaksi tidak ikut dihapus.`,
+      isLoading: false,
+      onConfirm: async () => {
+        setConfirmState((previous) => previous ? { ...previous, isLoading: true } : previous);
+        try {
+          await handleDeleteSelectedNotes(noteIds);
+        } finally {
+          setConfirmState(null);
+        }
+      },
+    });
+  }, [handleDeleteSelectedNotes, setConfirmState]);
 
   // Purge legacy cached orders and old dummy master data
   useEffect(() => {
@@ -388,10 +347,8 @@ export default function App() {
           onPeriodChange={setDashboardPeriod}
           onToggleNoteStatus={handleToggleNoteStatus}
           onFollowUpNote={handleOpenFollowUpNote}
-          onOpenNewNoteSheet={(startVoice) => {
-            setAutoStartVoiceNote(!!startVoice);
-            setIsNoteSheetOpen(true);
-          }}
+          onOpenNewNoteSheet={() => setIsNoteSheetOpen(true)}
+          onDeleteSelectedNotes={confirmDeleteSelectedNotes}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenExportHistory={() => setIsExportHistoryOpen(true)}
           isSyncingGas={isLoadingDb}
@@ -399,9 +356,6 @@ export default function App() {
           exportHistoryCount={exportHistory.length}
           pendingSyncCount={0}
           isOnline={isOnline}
-          onStartVoiceHold={() => setIsSmartVoiceActive(true)}
-          onStopVoiceHold={() => {}}
-          isVoiceActive={isSmartVoiceActive}
         />
       )}
 
@@ -520,85 +474,10 @@ export default function App() {
       </main>
 
       {/* Bottom Navigation Bar */}
-      <AnimatePresence>
-        {!isSmartVoiceActive && (
-          <motion.div
-            key="bottom-nav-bar"
-            initial={{ opacity: 0, y: 25 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 40 }}
-            transition={{ duration: 0.2 }}
-          >
-            <BottomNav
-              activeTab={activeTab}
-              onChangeTab={setActiveTab}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {!isSmartVoiceActive && (
-        <FloatingAddMenu
-          onVoice={() => setIsSmartVoiceActive(true)}
-          onManual={() => handleOpenAddModal()}
-          onAssistant={() => setIsSmartAssistantChatOpen(true)}
-        />
-      )}
+      <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} onOpenManual={() => handleOpenAddModal()} />
 
       {/* Lazy Suspense Boundary for All Modals to prevent massive upfront bundle loading */}
       <React.Suspense fallback={null}>
-        <SmartAssistantChatModal
-          isOpen={isSmartAssistantChatOpen}
-          onClose={() => setIsSmartAssistantChatOpen(false)}
-          onBulkImport={handleBulkImport}
-          onOrderCreated={handleSmartOrderCreated}
-          onNoteCreated={(note) => {
-            handleSaveNote({
-              catatan: note.text,
-              tujuanDapur: note.dapur || '',
-              tanggal: note.tanggal,
-              namaBarang: note.namaBarang,
-              qty: note.qty,
-              satuan: note.satuan,
-              pemasok: note.pemasok,
-              toko: note.toko,
-              isDone: false,
-            });
-          }}
-          kitchens={kitchens}
-          stores={stores}
-          pemasokList={pemasokList}
-          notes={notes}
-          selectedDate={selectedDate}
-        />
-
-        {/* Smart Live Voice Order Assistant */}
-        {isSmartVoiceActive && (
-          <SmartVoiceOrderOverlay
-            isActive={isSmartVoiceActive}
-            onClose={() => setIsSmartVoiceActive(false)}
-            onOrderCreated={handleSmartOrderCreated}
-            onNoteCreated={(note) => {
-              handleSaveNote({
-                catatan: note.text,
-                tujuanDapur: note.dapur || '',
-                tanggal: note.tanggal,
-                namaBarang: note.namaBarang,
-                qty: note.qty,
-                satuan: note.satuan,
-                pemasok: note.pemasok,
-                toko: note.toko,
-                isDone: false,
-              });
-            }}
-            onEditOrderVoice={handleEditOrderVoice}
-            kitchens={kitchens}
-            stores={stores}
-            pemasokList={pemasokList}
-            selectedDate={selectedDate}
-          />
-        )}
-
       {/* Toast Notification */}
       <Toast toast={toast} onClose={() => setToast(null)} />
 
@@ -623,7 +502,6 @@ export default function App() {
         isOpen={isNoteSheetOpen}
         onClose={() => {
           setIsNoteSheetOpen(false);
-          setAutoStartVoiceNote(false);
         }}
         onSave={handleSaveNote}
         kitchens={kitchens}
@@ -636,7 +514,6 @@ export default function App() {
         onAddMasterSatuan={handleAddMasterSatuan}
         onRefreshMaster={refreshMasterData}
         existingItemNames={existingItemNames}
-        autoStartVoice={autoStartVoiceNote}
       />
 
       {/* 0.1 Follow Up Note Modal */}
