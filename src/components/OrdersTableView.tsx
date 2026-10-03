@@ -9,7 +9,8 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
-  Truck
+  Truck,
+  FileText
 } from 'lucide-react';
 import { OrderItem, PaymentStatus, DeliveryStatus, InvoicePriceVariant } from '../types';
 import { formatRupiah, formatTanggalDisatuin, getTokoBadgeStyle, parseIndonesianNumber, formatJam } from '../lib/formatters';
@@ -44,6 +45,15 @@ interface OrderRowProps {
   onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string, variant?: InvoicePriceVariant) => void;
   onViewInvoice?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
 }
+
+const getKeKoperasi = (item: OrderItem): number => {
+  const rawQty = parseIndonesianNumber(item.qty) || 0;
+  const returQty = Math.min(rawQty, Math.max(0, Number(item.retur) || 0));
+  const finalQty = Math.max(0, rawQty - returQty);
+  const hargaJual = parseIndonesianNumber(item.hargaJual) || 0;
+  const cashback = parseIndonesianNumber(item.cashback) || 0;
+  return cashback > 0 ? (hargaJual - cashback) * finalQty : 0;
+};
 
 const OrderRow: React.FC<OrderRowProps> = React.memo(({
   item,
@@ -102,26 +112,36 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
       {isFirst && (
         <td
           rowSpan={rowSpan}
-          className="py-2.5 px-2 text-center whitespace-nowrap align-middle border-r border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40"
+          className="py-2.5 px-1 text-center align-middle border-r border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40"
         >
-          <span className="inline-block bg-indigo-50 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-300 font-extrabold px-2 py-0.5 rounded text-[11px] border border-indigo-200 dark:border-indigo-800 shadow-2xs">
+          <span className="inline-block max-w-full break-words bg-indigo-50 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-300 font-extrabold px-1.5 py-0.5 rounded text-[10px] leading-tight border border-indigo-200 dark:border-indigo-800 shadow-2xs">
             {group.tujuanDapur}
           </span>
         </td>
       )}
 
       {/* 3. ITEM (PER ROW ITEM) */}
-      <td className="py-2.5 px-3 align-middle">
-        <div className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-[13px] leading-snug">
+      <td className="py-2.5 px-2 align-middle min-w-0">
+        <div className="font-bold break-words text-slate-900 dark:text-slate-100 text-xs leading-snug">
           {item.namaBarang}
         </div>
+        {getKeKoperasi(item) > 0 && (
+          <div className="mt-1 text-[9px] leading-tight font-bold text-amber-700 dark:text-amber-300" title="Nilai ke koperasi setelah cashback">
+            Koperasi +{formatRupiah(getKeKoperasi(item))}
+          </div>
+        )}
+        {item.catatan?.trim() && (
+          <span className="mt-1 inline-flex max-w-full items-center gap-0.5 text-[9px] text-slate-500 dark:text-slate-400" title={item.catatan.trim()}>
+            <FileText className="h-3 w-3 shrink-0" /> <span className="truncate">{item.catatan.trim()}</span>
+          </span>
+        )}
       </td>
 
       {/* 3.5. PEMASOK (PER ROW ITEM - Mengikuti masing-masing barang) */}
-      <td className="py-2.5 px-2.5 text-center whitespace-nowrap align-middle border-r border-slate-100 dark:border-slate-800">
-        <span className="inline-flex items-center gap-1 font-extrabold text-[10px] sm:text-[10.5px] px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shadow-2xs">
+      <td className="py-2.5 px-1 text-center align-middle border-r border-slate-100 dark:border-slate-800">
+        <span className="inline-flex max-w-full items-center gap-0.5 font-extrabold text-[10px] px-1.5 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shadow-2xs" title={item.pemasok || 'Pemasok belum ada'}>
           <Truck className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
-          <span>{item.pemasok || '-'}</span>
+          <span className="min-w-0 truncate">{item.pemasok || '-'}</span>
         </span>
       </td>
 
@@ -129,10 +149,10 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
       {isFirst && (
         <td
           rowSpan={rowSpan}
-          className="py-2.5 px-2 text-center whitespace-nowrap align-middle border-r border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40"
+          className="py-2.5 px-1 text-center align-middle border-r border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40"
         >
           <div className="flex flex-col items-center justify-center gap-0.5 leading-none">
-            <span className="font-bold text-slate-800 dark:text-slate-200 text-[11px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200/80 dark:border-slate-700">
+            <span className="max-w-full whitespace-normal break-words font-bold text-slate-800 dark:text-slate-200 text-[10px] leading-tight bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-200/80 dark:border-slate-700" title={formatTanggalDisatuin(group.tanggal)}>
               {formatTanggalDisatuin(group.tanggal)}
             </span>
             {(group.createdAt || group.items[0]?.createdAt) && formatJam(group.createdAt || group.items[0]?.createdAt) ? (
@@ -170,7 +190,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
       {isFirst && (
         <td
           rowSpan={rowSpan}
-          className="py-2.5 px-2 text-center whitespace-nowrap align-middle border-r border-slate-100 dark:border-slate-800"
+          className="py-2.5 px-1 text-center align-middle border-r border-slate-100 dark:border-slate-800"
         >
           {(() => {
             const STORE_MAP: Record<string, string> = {
@@ -181,7 +201,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
             };
             const tokoName = STORE_MAP[group.toko] || group.toko;
             return (
-              <span className={`inline-block px-2 py-0.5 rounded text-[10.5px] font-bold border ${getTokoBadgeStyle(tokoName)}`}>
+              <span className={`inline-block max-w-full break-words px-1.5 py-0.5 rounded text-[10px] leading-tight font-bold border ${getTokoBadgeStyle(tokoName)}`}>
                 {tokoName}
               </span>
             );
@@ -246,7 +266,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
         const totalJual = finalQty * hjNum;
 
         return (
-          <td className="py-2.5 px-3 text-right whitespace-nowrap align-middle">
+          <td className="py-2.5 px-1.5 text-right whitespace-nowrap align-middle">
             <div className="font-bold text-slate-900 dark:text-slate-100 font-nominal text-xs sm:text-[12.5px]">
               {formatRupiah(totalJual)}
             </div>
@@ -269,7 +289,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
         const totalBeli = qtyBeliEfektif * hbNum;
 
         return (
-          <td className="py-2.5 px-3 text-right whitespace-nowrap align-middle">
+          <td className="py-2.5 px-1.5 text-right whitespace-nowrap align-middle">
             <div className="font-semibold text-slate-600 dark:text-slate-300 font-nominal text-xs sm:text-[12.5px]">
               {formatRupiah(totalBeli)}
             </div>
@@ -280,49 +300,13 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
         );
       })()}
 
-      {/* 11. CASHBACK / KE KOPERASI (PER ROW ITEM) */}
-      {(() => {
-        const rawQty = parseIndonesianNumber(item.qty) || 0;
-        const returQty = Math.min(rawQty, Math.max(0, Number(item.retur) || 0));
-        const finalQty = Math.max(0, rawQty - returQty);
-        const hjNum = parseIndonesianNumber(item.hargaJual) || 0;
-        const cbNum = parseIndonesianNumber(item.cashback) || 0;
-        const keKoperasi = cbNum > 0 ? (hjNum - cbNum) * finalQty : 0;
-
-        return (
-          <td className="py-2.5 px-2 text-right whitespace-nowrap align-middle">
-            {keKoperasi > 0 ? (
-              <span className="inline-block font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800 text-[10px] font-nominal shadow-2xs">
-                +{formatRupiah(keKoperasi)}
-              </span>
-            ) : (
-              <span className="text-slate-400 dark:text-slate-500 font-medium text-xs block text-center">-</span>
-            )}
-          </td>
-        );
-      })()}
-
-      {/* 12. CATATAN (PER ROW ITEM) */}
-      <td className="py-2.5 px-2 text-left align-middle max-w-[120px] sm:max-w-[150px]">
-        {item.catatan && item.catatan.trim() ? (
-          <span
-            className="inline-block text-[10px] sm:text-[11px] text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 px-2 py-0.5 rounded border border-slate-200/90 dark:border-slate-700 font-medium truncate max-w-full align-middle cursor-help transition-colors"
-            title={item.catatan.trim()}
-          >
-            {item.catatan.trim()}
-          </span>
-        ) : (
-          <span className="text-slate-300 dark:text-slate-600 font-medium text-xs block text-center select-none">-</span>
-        )}
-      </td>
-
       {/* 13. AKSI (MERGED PER GROUP) */}
       {isFirst && (
         <td
           rowSpan={rowSpan}
-          className="py-2.5 px-2 text-center whitespace-nowrap relative align-middle border-l border-slate-100 dark:border-slate-800"
+          className="py-2.5 px-1 text-center relative align-middle border-l border-slate-100 dark:border-slate-800"
         >
-          <div className="flex items-center justify-center space-x-1.5">
+          <div className="flex items-center justify-center gap-0.5">
             {/* Tombol Lihat/Preview Invoice A4 View-Only (Screenshot Bukti) */}
             <button
               type="button"
@@ -333,7 +317,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
                   onOpenInvoiceModal(group.items, group.tujuanDapur, group.toko);
                 }
               }}
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-sky-50 dark:bg-sky-950/50 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 font-extrabold shadow-2xs transition-all active:scale-95 border border-sky-200 dark:border-sky-800 cursor-pointer"
+              className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg bg-sky-50 dark:bg-sky-950/50 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 font-extrabold shadow-2xs transition-all active:scale-95 border border-sky-200 dark:border-sky-800 cursor-pointer"
               title={`Lihat Bukti Invoice Dapur ${group.tujuanDapur}`}
             >
               <Eye className="w-4 h-4 stroke-[2.2]" />
@@ -343,7 +327,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
             <button
               type="button"
               onClick={handlePrintClick}
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold shadow-2xs transition-all active:scale-95 border border-amber-500/80 cursor-pointer"
+              className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold shadow-2xs transition-all active:scale-95 border border-amber-500/80 cursor-pointer"
               title={hasCashback ? `Pilih Varian Invoice Dapur ${group.tujuanDapur} (Ada Cashback)` : `Cetak Invoice PDF Dapur ${group.tujuanDapur}`}
             >
               <Printer className="w-4 h-4 stroke-[2.2]" />
@@ -356,7 +340,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
                 const rect = e.currentTarget.getBoundingClientRect();
                 onToggleActiveMenu(group.id, rect, group);
               }}
-              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all cursor-pointer ${
+              className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-lg transition-all cursor-pointer ${
                 isActiveMenu
                   ? 'bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 ring-2 ring-indigo-500/20 shadow-2xs'
                   : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent active:scale-95'
@@ -601,13 +585,17 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
       {/* 
         ========================================================================
         TABEL TRANSAKSI PESANAN
-        Struktur kolom:
-        NO -> DAPUR -> ITEM -> DATE -> QTY -> TOKO -> PAYMENT -> DILEVERY -> H. JUAL -> H. BELI -> CASHBACK -> CATATAN -> AKSI
+        Struktur kolom inti; nilai koperasi dan penanda catatan ada di sel item.
         ========================================================================
       */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden font-sans">
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-left border-collapse text-xs relative">
+          <table className="w-full min-w-[1200px] xl:min-w-0 table-fixed text-left border-collapse text-xs relative">
+            <colgroup>
+              {[3, 7, 12, 9, 10, 5, 10, 8, 8, 10, 10, 8].map((width, index) => (
+                <col key={index} style={{ width: `${width}%` }} />
+              ))}
+            </colgroup>
             <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-2xs">
               <tr className="text-[10px] sm:text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 {/* 1. NO */}
@@ -619,11 +607,11 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
                   DAPUR
                 </th>
                 {/* 3. ITEM */}
-                <th className="py-3 px-3 bg-slate-100 dark:bg-slate-800 sticky top-0 min-w-[130px]">
+                <th className="py-3 px-2 bg-slate-100 dark:bg-slate-800 sticky top-0">
                   ITEM
                 </th>
                 {/* 3.5. PEMASOK */}
-                <th className="py-3 px-2.5 text-center whitespace-nowrap bg-slate-100 dark:bg-slate-800 sticky top-0 min-w-[105px]">
+                <th className="py-3 px-1 text-center bg-slate-100 dark:bg-slate-800 sticky top-0">
                   PEMASOK
                 </th>
                 {/* 4. DATE */}
@@ -647,23 +635,15 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
                   DILEVERY
                 </th>
                 {/* 9. H. JUAL */}
-                <th className="py-3 px-3 text-right whitespace-nowrap bg-slate-100 dark:bg-slate-800 sticky top-0">
+                <th className="py-3 px-1.5 text-right whitespace-nowrap bg-slate-100 dark:bg-slate-800 sticky top-0">
                   H. JUAL
                 </th>
                 {/* 10. H. BELI */}
-                <th className="py-3 px-3 text-right whitespace-nowrap bg-slate-100 dark:bg-slate-800 sticky top-0">
+                <th className="py-3 px-1.5 text-right whitespace-nowrap bg-slate-100 dark:bg-slate-800 sticky top-0">
                   H. BELI
                 </th>
-                {/* 11. CASHBACK */}
-                <th className="py-3 px-2 text-right whitespace-nowrap bg-slate-100 dark:bg-slate-800 sticky top-0">
-                  CASHBACK
-                </th>
-                {/* 12. CATATAN */}
-                <th className="py-3 px-2.5 text-left whitespace-nowrap bg-slate-100 dark:bg-slate-800 sticky top-0 text-slate-700 dark:text-slate-300 min-w-[85px] max-w-[150px]">
-                  CATATAN
-                </th>
                 {/* 13. AKSI */}
-                <th className="py-3 px-2 text-center whitespace-nowrap min-w-[95px] bg-slate-100 dark:bg-slate-800 sticky top-0">
+                <th className="py-3 px-1 text-center whitespace-nowrap bg-slate-100 dark:bg-slate-800 sticky top-0">
                   AKSI
                 </th>
               </tr>

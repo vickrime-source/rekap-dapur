@@ -172,6 +172,9 @@ describe('Invoice Store Styling & Layout Configuration', () => {
       expect(html).toContain('is-sisa');
       expect(html).toContain('SISA');
       expect(html).toContain('#be123c');
+      expect(html).toMatch(/>BAYAR<\/td>\s*<td[^>]*>0<\/td>/);
+      expect(html).toMatch(/>SISA<\/td>\s*<td[^>]*><\/td>/);
+      expect(html).toContain('111.000');
     });
 
     it('renders retur format "70 - 20 = 50" with red 20 in BANYAKNYA and red Retur label in NAMA ITEM', () => {

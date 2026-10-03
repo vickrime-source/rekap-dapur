@@ -213,10 +213,12 @@ export function useTransactionData({
   // Group raw orders & invoices into distinct transaction batches
   const transactionBatches = useMemo<TransactionBatch[]>(() => {
     const groups: Record<string, OrderItem[]> = {};
+    const orderIds = new Set(orders.map((order) => order.id).filter(Boolean));
+    const orderNotaIds = new Set(orders.map((order) => order.notaId || order.nota_id).filter(Boolean));
 
     orders.forEach((o) => {
       const tanggal = o.tanggal || o.createdAt?.split('T')[0] || '';
-      const dapur = o.tujuanDapur || 'Siliragung';
+      const dapur = o.tujuanDapur || '-';
       const toko = o.toko || '';
       const pemasok = o.pemasok || '-';
       const key = o.notaId || o.nota_id || `${tanggal}||${dapur}||${toko}||${pemasok}`;
@@ -229,7 +231,11 @@ export function useTransactionData({
 
     let idx = 1;
     const batches: TransactionBatch[] = Object.entries(groups).map(([key, items]) => {
-      const [tanggal, tujuanDapur, toko, pemasok] = key.split('||');
+      const firstItem = items[0];
+      const tanggal = firstItem?.tanggal || firstItem?.createdAt?.split('T')[0] || '';
+      const tujuanDapur = firstItem?.tujuanDapur || '-';
+      const toko = firstItem?.toko || '';
+      const pemasok = firstItem?.pemasok || '-';
       const allPaid = items.every((i) => (i.paymentStatus || '').toUpperCase() === 'PAID');
       const allDelivered = items.every((i) => (i.deliveryStatus || '').toUpperCase() === 'DONE');
       const isBatchCancelled = items.length > 0 && items.every((i) => i.status === 'CANCELLED');
@@ -307,13 +313,21 @@ export function useTransactionData({
       };
     });
 
-    // Invoices integration (if any stand-alone invoices exist)
+    // Transaksi adalah snapshot/log invoice. Jika itemnya sudah ada di pesanan,
+    // gunakan pesanan sebagai satu-satunya baris dan sumber angka rekap.
     if (invoices && invoices.length > 0) {
       invoices.forEach((inv) => {
+        const invoiceItems: OrderItem[] = Array.isArray(inv.items) ? inv.items : [];
+        const alreadyInOrders = invoiceItems.some((item) =>
+          (item.id && orderIds.has(item.id)) ||
+          ((item.notaId || item.nota_id) && orderNotaIds.has(item.notaId || item.nota_id))
+        );
+        if (alreadyInOrders) return;
+
         const invDate = inv.tanggalPrint || inv.tanggal || inv.createdAt?.split('T')[0] || '';
-        const invDapur = inv.tujuanDapur || inv.items?.[0]?.tujuanDapur || 'Siliragung';
-        const invToko = inv.toko || inv.items?.[0]?.toko || '';
-        const invPemasok = inv.pemasok || inv.PEMASOK || inv.items?.[0]?.pemasok || '-';
+        const invDapur = inv.tujuanDapur || invoiceItems[0]?.tujuanDapur || '-';
+        const invToko = inv.toko || invoiceItems[0]?.toko || '';
+        const invPemasok = inv.pemasok || inv.PEMASOK || invoiceItems[0]?.pemasok || '-';
         const key = `${invDate}||${invDapur}||${invToko}||${invPemasok}`;
 
         const existing = batches.find((b) => b.id === key || b.id === inv.id);
@@ -323,7 +337,7 @@ export function useTransactionData({
             (inv.status || inv.STATUS || '').toUpperCase() === 'LUNAS' ||
             (inv.status || inv.STATUS || '').toUpperCase() === 'DONE';
           const payStatus: PaymentStatus = isPaid ? 'PAID' : 'UNPAID';
-          const items: OrderItem[] = inv.items && inv.items.length > 0 ? inv.items : [];
+          const items: OrderItem[] = invoiceItems;
           const totalQty =
             items.reduce((sum, i) => {
               const rq = Number(i.qty) || 0;

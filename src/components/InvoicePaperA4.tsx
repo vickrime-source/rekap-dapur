@@ -27,8 +27,6 @@ export const InvoicePaperA4 = React.forwardRef<HTMLDivElement, InvoicePaperA4Pro
   invoiceDate,
   recipientName,
   totalJual,
-  bayar,
-  sisa,
   scale = 1,
   id = 'invoice-paper-a4',
   priceVariant = 'ori',
@@ -169,12 +167,12 @@ export const InvoicePaperA4 = React.forwardRef<HTMLDivElement, InvoicePaperA4Pro
           <tr className="font-bold text-[11px]">
             <td colSpan={3} className="border border-slate-900 bg-white" style={{ verticalAlign: 'middle' }}></td>
             <td className="border border-slate-900 px-3 py-2 text-center align-middle bg-slate-50 font-medium tracking-wider" style={{ verticalAlign: 'middle', textAlign: 'center' }}>BAYAR</td>
-            <td className="border border-slate-900 px-3 py-2 text-center align-middle font-medium tabular-nums whitespace-nowrap" style={{ verticalAlign: 'middle', textAlign: 'center' }}>{formatRupiah(bayar)}</td>
+            <td className="border border-slate-900 px-3 py-2 text-center align-middle font-medium tabular-nums whitespace-nowrap" style={{ verticalAlign: 'middle', textAlign: 'center' }}>0</td>
           </tr>
           <tr className="font-bold text-[11px]">
             <td colSpan={3} className="border border-slate-900 bg-white" style={{ verticalAlign: 'middle' }}></td>
             <td className="border border-slate-900 px-3 py-2 text-center align-middle bg-slate-50 font-extrabold text-rose-700 tracking-wider" style={{ verticalAlign: 'middle', textAlign: 'center' }}>SISA</td>
-            <td className="border border-slate-900 px-3 py-2 text-center align-middle font-black text-rose-700 tabular-nums whitespace-nowrap" style={{ verticalAlign: 'middle', textAlign: 'center' }}>{formatRupiah(sisa)}</td>
+            <td className="border border-slate-900 px-3 py-2 text-center align-middle font-black text-rose-700 tabular-nums whitespace-nowrap" style={{ verticalAlign: 'middle', textAlign: 'center' }}></td>
           </tr>
         </tfoot>
       </table>

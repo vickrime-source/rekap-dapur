@@ -243,11 +243,12 @@ export function prepareScopedInvoiceData(options: ExportInvoiceOptions) {
     total: formatRupiah(grandTotal),
     TOTAL: formatRupiah(grandTotal),
 
-    bayar: formatRupiah(parsedBayar),
-    BAYAR: formatRupiah(parsedBayar),
+    // Tampilan invoice tetap 0/kosong; nilai pembayaran operasional tidak diubah.
+    bayar: '0',
+    BAYAR: '0',
 
-    sisa: formatRupiah(sisa),
-    SISA: formatRupiah(sisa),
+    sisa: '',
+    SISA: '',
 
     // Array of items
     items: itemsFormatted,

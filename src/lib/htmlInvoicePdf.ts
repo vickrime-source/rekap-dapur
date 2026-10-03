@@ -45,8 +45,6 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
   });
 
   const totalJual = calculatedItems.reduce((sum, ci) => sum + ci.subtotal, 0);
-  const bayar = options.bayar !== undefined ? parseIndonesianNumber(options.bayar) : totalJual;
-  const sisa = Math.max(0, totalJual - bayar);
 
   const recipientName = resolveRecipientSppgName(options.customNama, options.kitchenName, items);
   const invoiceDate = formatTanggalInvoice(options.customTanggal || items[0]?.tanggal || new Date());
@@ -307,12 +305,12 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
           <tr>
             <td colspan="3" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-weight: normal; background: #ffffff;"></td>
             <td class="col-price is-normal" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-size: 10pt; font-weight: normal; text-align: center; letter-spacing: 0.5px; font-family: ${styleConfig.fontFamily}; color: #000000; background: #f8fafc;">BAYAR</td>
-            <td class="col-total is-normal" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-size: 10pt; font-weight: normal; text-align: center; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">${formatRupiah(bayar)}</td>
+            <td class="col-total is-normal" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-size: 10pt; font-weight: normal; text-align: center; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #000000;">0</td>
           </tr>
           <tr>
             <td colspan="3" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-weight: normal; background: #ffffff;"></td>
             <td class="col-price is-sisa" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; text-align: center; letter-spacing: 0.5px; font-family: ${styleConfig.fontFamily}; color: #be123c; background: #f8fafc;">SISA</td>
-            <td class="col-total is-sisa" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; text-align: center; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #be123c;">${formatRupiah(sisa)}</td>
+            <td class="col-total is-sisa" style="border: 1px solid #000000; padding: 7px 12px; vertical-align: middle; font-size: 10pt; font-weight: bold; text-align: center; white-space: nowrap; font-family: ${styleConfig.fontFamily}; color: #be123c;"></td>
           </tr>
         </tfoot>
       </table>
