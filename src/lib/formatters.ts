@@ -285,6 +285,32 @@ export function getTodayWIB(): string {
 }
 
 /**
+ * Mendapatkan tanggal kemarin dalam format YYYY-MM-DD sesuai Waktu Indonesia Barat (WIB)
+ */
+export function getYesterdayWIB(): string {
+  try {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(d);
+  } catch {
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const wib = new Date(utc + (7 * 3600000));
+    wib.setDate(wib.getDate() - 1);
+    const y = wib.getFullYear();
+    const m = String(wib.getMonth() + 1).padStart(2, '0');
+    const d = String(wib.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+}
+
+/**
  * Mendapatkan jam sekarang dalam format HH:mm:ss sesuai Waktu Indonesia Barat (WIB / Asia/Jakarta: UTC+7)
  */
 export function getNowWIBTime(): string {

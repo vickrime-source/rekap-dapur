@@ -21,6 +21,9 @@ import {
   Truck,
   Calendar,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  X,
   Trash2,
   ListChecks,
   Square,
@@ -35,7 +38,9 @@ import {
   isOrderThisMonth,
   isOrderThisWeek,
   getWeekRange,
-  formatTanggalWeb
+  formatTanggalWeb,
+  formatTanggalSimple,
+  getTodayWIB
 } from '../lib/formatters';
 import { AnimatedCounter } from './AnimatedCounter';
 import { ThemeToggle } from './ThemeToggle';
@@ -43,6 +48,7 @@ import { ThemeToggle } from './ThemeToggle';
 interface HeaderBannerProps {
   orders: OrderItem[];
   selectedDate: string;
+  onDateChange?: (date: string) => void;
   notes: NoteItem[];
   kitchens: Kitchen[];
   period?: DashboardPeriod;
@@ -65,6 +71,7 @@ interface HeaderBannerProps {
 export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
   orders = [],
   selectedDate,
+  onDateChange,
   notes = [],
   kitchens = [],
   period: periodProp,
@@ -92,6 +99,52 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
     } else {
       setInternalPeriod(newP);
     }
+  };
+
+  const [customRange, setCustomRange] = useState<{ startDate: string; endDate: string }>({
+    startDate: '',
+    endDate: '',
+  });
+
+  const handlePrevDay = () => {
+    const d = new Date(`${selectedDate || getTodayWIB()}T00:00:00`);
+    d.setDate(d.getDate() - 1);
+    onDateChange?.(d.toISOString().slice(0, 10));
+  };
+
+  const handleNextDay = () => {
+    const d = new Date(`${selectedDate || getTodayWIB()}T00:00:00`);
+    d.setDate(d.getDate() + 1);
+    onDateChange?.(d.toISOString().slice(0, 10));
+  };
+
+  const handleToday = () => {
+    const today = getTodayWIB();
+    onDateChange?.(today);
+  };
+
+  const handlePrevWeek = () => {
+    const d = new Date(`${selectedDate || getTodayWIB()}T00:00:00`);
+    d.setDate(d.getDate() - 7);
+    onDateChange?.(d.toISOString().slice(0, 10));
+  };
+
+  const handleNextWeek = () => {
+    const d = new Date(`${selectedDate || getTodayWIB()}T00:00:00`);
+    d.setDate(d.getDate() + 7);
+    onDateChange?.(d.toISOString().slice(0, 10));
+  };
+
+  const handlePrevMonth = () => {
+    const d = new Date(`${selectedDate || getTodayWIB()}T00:00:00`);
+    d.setMonth(d.getMonth() - 1);
+    onDateChange?.(d.toISOString().slice(0, 10));
+  };
+
+  const handleNextMonth = () => {
+    const d = new Date(`${selectedDate || getTodayWIB()}T00:00:00`);
+    d.setMonth(d.getMonth() + 1);
+    onDateChange?.(d.toISOString().slice(0, 10));
   };
 
   // Data konversi lama tetap tersimpan untuk audit, tetapi bukan lagi antrean Follow Up.
@@ -179,6 +232,19 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
       return nonCancelled;
     }
 
+    if (activePeriod === 'custom') {
+      if (customRange.startDate || customRange.endDate) {
+        return nonCancelled.filter((o) => {
+          const itemDate = o.tanggal || (o.createdAt ? o.createdAt.split('T')[0] : '');
+          if (!itemDate) return false;
+          if (customRange.startDate && itemDate < customRange.startDate) return false;
+          if (customRange.endDate && itemDate > customRange.endDate) return false;
+          return true;
+        });
+      }
+      return nonCancelled;
+    }
+
     if (activePeriod === 'hari_ini') {
       return nonCancelled.filter((o) => isOrderToday(o, selectedDate));
     } else if (activePeriod === 'mingguan') {
@@ -188,11 +254,44 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
     }
 
     return nonCancelled;
-  }, [orders, activePeriod, selectedDate, weekRange]);
+  }, [orders, activePeriod, selectedDate, weekRange, customRange]);
 
-  // Dynamic memoized calculations for operational metrics: Estimasi Laba, Pesanan (Trx), & Pending (Trx)
-  const { totalBatches, pendingBatches, totalLabaBersih } = useMemo(() => {
+  const activePeriodDescription = useMemo(() => {
+    if (activePeriod === 'all_time') {
+      return 'Semua Data (All Time)';
+    }
+    if (activePeriod === 'custom') {
+      if (customRange.startDate && customRange.endDate) {
+        if (customRange.startDate === customRange.endDate) {
+          return formatTanggalSimple(customRange.startDate);
+        }
+        return `${formatTanggalSimple(customRange.startDate)} s/d ${formatTanggalSimple(customRange.endDate)}`;
+      }
+      if (customRange.startDate) return `Dari ${formatTanggalSimple(customRange.startDate)}`;
+      if (customRange.endDate) return `Sampai ${formatTanggalSimple(customRange.endDate)}`;
+      return 'Pilih Rentang Tanggal';
+    }
+    if (activePeriod === 'hari_ini') {
+      return formatTanggalWeb(selectedDate);
+    }
+    if (activePeriod === 'mingguan') {
+      return `Minggu: ${formatTanggalSimple(weekRange.start)} - ${formatTanggalSimple(weekRange.end)}`;
+    }
+    if (activePeriod === 'bulan_ini') {
+      try {
+        const d = new Date(`${selectedDate}T00:00:00`);
+        return d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+      } catch {
+        return selectedDate.slice(0, 7);
+      }
+    }
+    return '';
+  }, [activePeriod, selectedDate, weekRange, customRange]);
+
+  // Dynamic memoized calculations for operational metrics: Estimasi Laba, Pengeluaran (Beli), Pesanan (Trx), & Pending (Trx)
+  const { totalBatches, pendingBatches, totalLabaBersih, totalPengeluaran } = useMemo(() => {
     let labaBersih = 0;
+    let pengeluaran = 0;
     const batchMap = new Map<string, { allPaid: boolean; allDone: boolean }>();
 
     for (let i = 0; i < filteredOrders.length; i++) {
@@ -225,10 +324,11 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
       const beli = parseIndonesianNumber(item.hargaBeli);
       const jual = parseIndonesianNumber(item.hargaJual);
       const cb = parseIndonesianNumber(item.cashback);
-      const modalItem = qtyBeliEfektif * beli;
+      const modalItem = qtyBeliEfektif * beli; // Harga beli ke pemasok
       const omzetItem = qtyFinal * jual;
       const labaItem = cb > 0 ? ((cb - beli) * qtyFinal) : (omzetItem - modalItem);
       labaBersih += labaItem;
+      pengeluaran += modalItem;
     }
 
     let pendingCount = 0;
@@ -243,6 +343,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
       totalBatches: batchMap.size,
       pendingBatches: pendingCount,
       totalLabaBersih: labaBersih,
+      totalPengeluaran: pengeluaran,
     };
   }, [filteredOrders]);
 
@@ -312,6 +413,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
                 { id: 'mingguan' as const, label: 'Mingguan' },
                 { id: 'bulan_ini' as const, label: 'Bulanan' },
                 { id: 'all_time' as const, label: 'All Time' },
+                { id: 'custom' as const, label: 'Kustom' },
               ].map((opt) => {
                 const isActive = activePeriod === opt.id;
                 return (
@@ -374,12 +476,214 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
           </div>
         </div>
 
+        {/* Sub-Header: Filter Tanggal & Periode Aktif */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-2xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/90 dark:border-slate-700/80">
+          {/* Label Periode Aktif */}
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded-lg bg-indigo-500/10 dark:bg-indigo-400/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+              <Calendar className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0 flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                Filter Tanggal:
+              </span>
+              <span className="text-xs font-black text-indigo-700 dark:text-indigo-300">
+                {activePeriodDescription}
+              </span>
+            </div>
+          </div>
+
+          {/* Controls: Input Tanggal / Rentang & Navigasi Cepat */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {activePeriod === 'custom' ? (
+              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                <span className="text-[10px] font-bold text-slate-400 select-none">Mulai:</span>
+                <input
+                  type="date"
+                  value={customRange.startDate}
+                  onChange={(e) => setCustomRange((prev) => ({ ...prev, startDate: e.target.value }))}
+                  className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
+                  title="Tanggal Mulai"
+                  aria-label="Tanggal Mulai"
+                />
+                <span className="text-[10px] font-bold text-slate-400 select-none">s/d</span>
+                <span className="text-[10px] font-bold text-slate-400 select-none">Berakhir:</span>
+                <input
+                  type="date"
+                  value={customRange.endDate}
+                  min={customRange.startDate || undefined}
+                  onChange={(e) => setCustomRange((prev) => ({ ...prev, endDate: e.target.value }))}
+                  className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
+                  title="Tanggal Berakhir"
+                  aria-label="Tanggal Berakhir"
+                />
+                {(customRange.startDate || customRange.endDate) && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomRange({ startDate: '', endDate: '' })}
+                    className="p-0.5 rounded-full text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 cursor-pointer"
+                    title="Reset Rentang"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ) : activePeriod === 'bulan_ini' ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                  title="Bulan Sebelumnya"
+                  aria-label="Bulan Sebelumnya"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <input
+                    type="month"
+                    value={selectedDate.slice(0, 7)}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        onDateChange?.(`${e.target.value}-01`);
+                      }
+                    }}
+                    className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
+                    title="Pilih Bulan"
+                    aria-label="Pilih Bulan"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                  title="Bulan Berikutnya"
+                  aria-label="Bulan Berikutnya"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleToday}
+                  className="px-2 py-1 rounded-xl text-[10px] font-bold bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 hover:border-indigo-400 cursor-pointer"
+                >
+                  Bulan Ini
+                </button>
+              </div>
+            ) : activePeriod === 'mingguan' ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handlePrevWeek}
+                  className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                  title="Minggu Sebelumnya"
+                  aria-label="Minggu Sebelumnya"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        onDateChange?.(e.target.value);
+                      }
+                    }}
+                    className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
+                    title="Pilih Tanggal Acuan Minggu"
+                    aria-label="Pilih Tanggal Acuan Minggu"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleNextWeek}
+                  className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                  title="Minggu Berikutnya"
+                  aria-label="Minggu Berikutnya"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleToday}
+                  className="px-2 py-1 rounded-xl text-[10px] font-bold bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 hover:border-indigo-400 cursor-pointer"
+                >
+                  Minggu Ini
+                </button>
+              </div>
+            ) : activePeriod === 'hari_ini' ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handlePrevDay}
+                  className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                  title="Hari Sebelumnya"
+                  aria-label="Hari Sebelumnya"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        onDateChange?.(e.target.value);
+                      }
+                    }}
+                    className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
+                    title="Pilih Tanggal"
+                    aria-label="Pilih Tanggal"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleNextDay}
+                  className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                  title="Hari Berikutnya"
+                  aria-label="Hari Berikutnya"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleToday}
+                  className="px-2 py-1 rounded-xl text-[10px] font-bold bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 hover:border-indigo-400 cursor-pointer"
+                >
+                  Hari Ini
+                </button>
+              </div>
+            ) : (
+              /* All Time */
+              <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] font-bold text-slate-400 select-none">Pilih Tanggal:</span>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        onDateChange?.(e.target.value);
+                        handleSetPeriod('hari_ini');
+                      }
+                    }}
+                    className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
+                    title="Pilih tanggal untuk melihat data hari tersebut"
+                    aria-label="Pilih Tanggal"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* SUB-ROW: Status Operasional & Follow Up Notes */}
         <div className="grid grid-cols-1 gap-2.5">
-          {/* Left: Status Operasional (Estimasi Laba, Pesanan & Pending) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {/* 1. Box Estimasi Laba (Teratas) */}
-            <button type="button" onClick={onOpenRekap} aria-label="Buka Rekap dari Laba Bersih" title="Buka Rekap" className="order-2 w-full bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/90 dark:border-emerald-800/60 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between text-left shadow-2xs transition-colors duration-200 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 cursor-pointer">
+          {/* Left: Status Operasional (Estimasi Laba, Pengeluaran Beli, Pesanan & Pending) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {/* 1. Box Estimasi Laba */}
+            <button type="button" onClick={onOpenRekap} aria-label="Buka Rekap dari Laba Bersih" title="Buka Rekap" className="w-full bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/90 dark:border-emerald-800/60 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between text-left shadow-2xs transition-colors duration-200 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 cursor-pointer">
               <div className="flex items-center gap-2 min-w-0">
                 <div className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center border border-emerald-600 shadow-xs flex-shrink-0">
                   <CheckCircle2 className="w-3.5 h-3.5" />
@@ -395,8 +699,25 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
               </div>
             </button>
 
-            {/* 2. Box Pesanan (Tengah - Per Keberangkatan) */}
-            <div className="order-1 bg-white dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between shadow-2xs transition-colors duration-200">
+            {/* 2. Box Pengeluaran PO (Harga Beli ke Pemasok) */}
+            <div className="bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-800/60 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between shadow-2xs transition-colors duration-200">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-xl bg-amber-600 text-white flex items-center justify-center border border-amber-600 shadow-xs flex-shrink-0">
+                  <Receipt className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 block">
+                    Pengeluaran (Beli)
+                  </span>
+                  <span className="text-xs sm:text-sm font-black font-nominal text-amber-950 dark:text-amber-100 leading-none truncate block">
+                    <AnimatedCounter value={totalPengeluaran} format="rupiah" />
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Box Pesanan (Per Keberangkatan) */}
+            <div className="bg-white dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between shadow-2xs transition-colors duration-200">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 flex items-center justify-center border border-indigo-100 dark:border-indigo-800/80 flex-shrink-0">
                   <ShoppingBag className="w-3.5 h-3.5" />
@@ -412,8 +733,8 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
               </div>
             </div>
 
-            {/* 3. Box Pending (Bawah - Per Keberangkatan) */}
-            <div className={`order-3 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between border shadow-2xs transition-colors duration-200 ${
+            {/* 4. Box Pending (Per Keberangkatan) */}
+            <div className={`rounded-2xl p-2 sm:p-2.5 flex items-center justify-between border shadow-2xs transition-colors duration-200 ${
               pendingBatches > 0
                 ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-200/90 dark:border-rose-800/60'
                 : 'bg-white dark:bg-slate-800/90 border-slate-200/90 dark:border-slate-700/80'

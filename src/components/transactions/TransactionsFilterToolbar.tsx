@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Store as StoreIcon, ChevronDown, Filter, Activity, X } from 'lucide-react';
+import { DateFilterPill, DateFilterValue } from '../DateFilterPill';
 
 interface TransactionsFilterToolbarProps {
   selectedStoreFilter: string;
@@ -12,6 +13,8 @@ interface TransactionsFilterToolbarProps {
   onSelectDapurFilter: (dapur: string) => void;
   selectedStatusFilter: 'all' | 'PAID' | 'UNPAID';
   onSelectStatusFilter: (status: 'all' | 'PAID' | 'UNPAID') => void;
+  dateFilter: DateFilterValue;
+  onDateFilterChange: (val: DateFilterValue) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
 }
@@ -27,6 +30,8 @@ export const TransactionsFilterToolbar: React.FC<TransactionsFilterToolbarProps>
   onSelectDapurFilter,
   selectedStatusFilter,
   onSelectStatusFilter,
+  dateFilter,
+  onDateFilterChange,
   searchQuery,
   onSearchChange,
 }) => {
@@ -184,6 +189,12 @@ export const TransactionsFilterToolbar: React.FC<TransactionsFilterToolbarProps>
             <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="PAID">PAID (Lunas)</option>
           </select>
         </div>
+
+        {/* Pill 4: Filter Tanggal (All Time, Hari Ini, Kemarin, Pilih Tanggal, Minggu, Bulan, Rentang) */}
+        <DateFilterPill
+          value={dateFilter}
+          onChange={onDateFilterChange}
+        />
       </div>
 
       {/* Search Input with Debounced Trigger */}

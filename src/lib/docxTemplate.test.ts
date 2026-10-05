@@ -276,9 +276,9 @@ describe('Invoice Processing & Template TDD Tests', () => {
       // 1. Static store details
       expect(html).toContain('UD PROHE WANGI');
       expect(html).toContain('Dusun Glowong, RT 5 RW 1 Desa Wringinagung');
-      expect(html).toContain('082229394425');
+      expect(html).toContain('085792083866');
       expect(html).toContain('Bank : <strong>BNI</strong>');
-      expect(html).toContain('2095806527');
+      expect(html).toContain('2098103145');
       expect(html).toContain('Prima Dana Nirwana');
 
       // 2. Single combined stamp and signature image

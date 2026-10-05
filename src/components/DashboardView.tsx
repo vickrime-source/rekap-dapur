@@ -1,9 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Search, 
   Store as StoreIcon, 
   Utensils, 
-  Calendar as CalendarIcon, 
   ChevronDown, 
   X 
 } from 'lucide-react';
@@ -22,8 +21,13 @@ import {
   isOrderToday,
   isOrderThisWeek,
   isOrderThisMonth,
-  getWeekRange
+  getWeekRange,
+  getTodayWIB,
+  getYesterdayWIB,
+  normalizeDateSimple,
+  formatTanggalSimple
 } from '../lib/formatters';
+import { DateFilterPill, DateFilterValue, getThisWeekRange, getThisMonthRange } from './DateFilterPill';
 
 export type TimeFilterOption = 'all_time' | 'hari_ini' | 'mingguan' | 'bulan_ini';
 
@@ -80,34 +84,66 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('all');
   const [selectedKitchenFilter, setSelectedKitchenFilter] = useState<string>('all');
-  const [timeFilter, setTimeFilter] = useState<TimeFilterOption>(() => {
-    if (period === 'mingguan' || period === 'hari_ini' || period === 'bulan_ini' || period === 'all_time') {
-      return period;
+
+  const todayStr = useMemo(() => getTodayWIB(), []);
+  const yesterdayStr = useMemo(() => getYesterdayWIB(), []);
+
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>(() => {
+    if (period === 'hari_ini') {
+      const today = getTodayWIB();
+      return { startDate: today, endDate: today };
     }
-    return 'all_time';
+    return { startDate: '', endDate: '' };
   });
 
-  // Sinkronisasi otomatis saat period dari HeaderBanner / App berubah
+  // Sinkronisasi otomatis hanya jika period dari HeaderBanner / App benar-benar berubah secara eksternal
+  const prevPeriodRef = useRef(period);
   useEffect(() => {
-    if (period && (period === 'mingguan' || period === 'hari_ini' || period === 'bulan_ini' || period === 'all_time')) {
-      setTimeFilter(period);
+    if (prevPeriodRef.current !== period) {
+      prevPeriodRef.current = period;
+      if (period === 'all_time') {
+        setDateFilter({ startDate: '', endDate: '' });
+      } else if (period === 'hari_ini') {
+        const today = getTodayWIB();
+        setDateFilter({ startDate: today, endDate: today });
+      } else if (period === 'mingguan') {
+        const { start, end } = getThisWeekRange();
+        setDateFilter({ startDate: start, endDate: end });
+      } else if (period === 'bulan_ini') {
+        const { start, end } = getThisMonthRange();
+        setDateFilter({ startDate: start, endDate: end });
+      }
     }
   }, [period]);
 
   const weekRange = useMemo(() => getWeekRange(selectedDate), [selectedDate]);
 
-  // Filter orders according to timeFilter, store, kitchen, and search
+  // Handler saat filter tanggal berubah
+  const handleDateFilterChange = (val: DateFilterValue) => {
+    setDateFilter(val);
+    if (val.startDate && onDateChange) {
+      onDateChange(val.startDate);
+    }
+    if (onPeriodChange) {
+      if (!val.startDate && !val.endDate) {
+        onPeriodChange('all_time');
+      }
+    }
+  };
+
+  // Filter orders according to dateFilter, store, kitchen, and search
   const filteredOrders = useMemo(() => {
     return orders.filter((item) => {
-      // 1. Time Filter (Dropdown: All Time, Hari Ini, Minggu Ini, Bulan Ini - Default: All Time)
-      if (timeFilter === 'hari_ini') {
-        if (!isOrderToday(item, selectedDate)) return false;
-      } else if (timeFilter === 'mingguan') {
-        if (!isOrderThisWeek(item, weekRange)) return false;
-      } else if (timeFilter === 'bulan_ini') {
-        if (!isOrderThisMonth(item, selectedDate)) return false;
+      // 1. Filter Rentang Tanggal Langsung (Default: Kosong = All Time)
+      if (dateFilter.startDate || dateFilter.endDate) {
+        const itemDate = item.tanggal
+          ? normalizeDateSimple(item.tanggal)
+          : (item.createdAt ? normalizeDateSimple(item.createdAt) : null);
+        if (!itemDate) return false;
+        if (dateFilter.startDate && itemDate < dateFilter.startDate) return false;
+        if (dateFilter.endDate && itemDate > dateFilter.endDate) return false;
       }
-      // 'all_time' -> lolos semua tanggal
+      // Kosong -> lolos semua tanggal (ALL TIME)
 
       // 2. Search query
       const q = searchQuery.toLowerCase().trim();
@@ -135,13 +171,31 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
     });
   }, [
     orders,
-    timeFilter,
-    selectedDate,
-    weekRange,
+    dateFilter,
     searchQuery,
     selectedStoreFilter,
     selectedKitchenFilter,
   ]);
+
+  // Label filter aktif untuk tampilan state kosong
+  const currentFilterLabel = useMemo(() => {
+    const parts: string[] = [];
+    if (selectedStoreFilter !== 'all') parts.push(`Toko ${selectedStoreFilter}`);
+    if (selectedKitchenFilter !== 'all') parts.push(`Dapur ${selectedKitchenFilter}`);
+    if (dateFilter.startDate && dateFilter.endDate) {
+      if (dateFilter.startDate === dateFilter.endDate) {
+        parts.push(`Tanggal: ${formatTanggalSimple(dateFilter.startDate)}`);
+      } else {
+        parts.push(`${formatTanggalSimple(dateFilter.startDate)} - ${formatTanggalSimple(dateFilter.endDate)}`);
+      }
+    } else if (dateFilter.startDate) {
+      parts.push(`Mulai: ${formatTanggalSimple(dateFilter.startDate)}`);
+    } else if (dateFilter.endDate) {
+      parts.push(`Sampai: ${formatTanggalSimple(dateFilter.endDate)}`);
+    }
+    if (searchQuery) parts.push(`"${searchQuery}"`);
+    return parts.length > 0 ? parts.join(', ') : 'All Time';
+  }, [selectedStoreFilter, selectedKitchenFilter, dateFilter, searchQuery]);
 
   return (
     <div className="space-y-3 pt-1 pb-36 sm:pb-24 font-sans text-slate-800 dark:text-slate-200 transition-colors duration-200">
@@ -205,43 +259,11 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
             </select>
           </div>
 
-          {/* Pill 3: Dropdown Filter Waktu Sederhana (All Time, Hari Ini, Minggu Ini, Bulan Ini) */}
-          <div className="relative inline-flex items-center">
-            <div className={`rounded-full px-3.5 py-2 border shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer min-h-[44px] ${
-              timeFilter !== 'all_time'
-                ? 'bg-indigo-50 dark:bg-indigo-950/80 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 font-bold ring-1 ring-indigo-300 dark:ring-indigo-700'
-                : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-indigo-300 dark:hover:border-indigo-600'
-            }`}>
-              <CalendarIcon className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
-              <span className="text-xs font-bold whitespace-nowrap">
-                {timeFilter === 'hari_ini'
-                  ? 'Hari Ini'
-                  : timeFilter === 'mingguan'
-                  ? 'Minggu Ini'
-                  : timeFilter === 'bulan_ini'
-                  ? 'Bulan Ini'
-                  : 'All Time'}
-              </span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
-            </div>
-            <select
-              value={timeFilter}
-              onChange={(e) => {
-                const val = e.target.value as TimeFilterOption;
-                setTimeFilter(val);
-                if (onPeriodChange && (val === 'mingguan' || val === 'hari_ini' || val === 'bulan_ini' || val === 'all_time')) {
-                  onPeriodChange(val);
-                }
-              }}
-              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-              aria-label="Filter Waktu Pesanan"
-            >
-              <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="all_time">All Time</option>
-              <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="hari_ini">Hari Ini</option>
-              <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="mingguan">Minggu Ini</option>
-              <option className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100" value="bulan_ini">Bulan Ini</option>
-            </select>
-          </div>
+          {/* Pill 3: Filter Tanggal Dinamis (All Time, Hari Ini, Kemarin, Pilih Tanggal, Minggu, Bulan, Rentang) */}
+          <DateFilterPill
+            value={dateFilter}
+            onChange={handleDateFilterChange}
+          />
 
           {/* Reset active store filter if clicked from breakdown */}
           {selectedStoreFilter !== 'all' && (
@@ -282,17 +304,12 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
       <OrdersTableView
         orders={filteredOrders}
         totalUnfilteredOrders={orders.length}
-        currentFilterLabel={
-          timeFilter === 'hari_ini'
-            ? 'Hari Ini'
-            : timeFilter === 'mingguan'
-            ? 'Minggu Ini'
-            : timeFilter === 'bulan_ini'
-            ? 'Bulan Ini'
-            : 'All Time'
-        }
+        currentFilterLabel={currentFilterLabel}
         onResetFilter={() => {
-          setTimeFilter('all_time');
+          setDateFilter({ type: 'all_time' });
+          setSelectedStoreFilter('all');
+          setSelectedKitchenFilter('all');
+          setSearchQuery('');
           if (onPeriodChange) {
             onPeriodChange('all_time');
           }

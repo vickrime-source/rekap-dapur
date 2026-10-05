@@ -87,11 +87,9 @@ export const InvoicePaperA4 = React.forwardRef<HTMLDivElement, InvoicePaperA4Pro
       {/* TABLE SECTION */}
       <table className="w-full border-collapse border border-slate-900 text-xs mb-5" style={{ tableLayout: 'fixed' }}>
         <colgroup>
-          <col style={{ width: '45px' }} />
-          <col style={{ width: '115px' }} />
-          <col style={{ width: 'auto' }} />
-          <col style={{ width: '125px' }} />
-          <col style={{ width: '135px' }} />
+          {['45px', '115px', 'auto', '125px', '135px'].map((w, idx) => (
+            <col key={idx} style={{ width: w }} />
+          ))}
         </colgroup>
         <thead>
           <tr

@@ -64,10 +64,10 @@ const LUMBUNG_ADIFRUTA_PROFILE: StoreProfile = {
 const PROHE_PROFILE: StoreProfile = {
   "name": "UD PROHE WANGI",
   "address": "Dusun Glowong, RT 5 RW 1 Desa Wringinagung\nKec. Gambiran, Kab. Banyuwangi",
-  "contact": "Tlp. 082229394425",
+  "contact": "Tlp. 085792083866",
   "bankName": "BNI",
-  "accountNumber": "2095806527",
-  "bankAccountNumber": "2095806527",
+  "accountNumber": "2098103145",
+  "bankAccountNumber": "2098103145",
   "accountHolder": "Prima Dana Nirwana",
   "bankAccountName": "Prima Dana Nirwana",
   "signerName": "Prima Dana Nirwana",

@@ -1,7 +1,7 @@
 export type OrderStatus = "pending" | "selesai" | "CANCELLED";
 export type PaymentStatus = "PAID" | "UNPAID";
 export type DeliveryStatus = "DONE" | "PENDING" | "SHIPPED";
-export type DashboardPeriod = "hari_ini" | "mingguan" | "bulan_ini" | "all_time";
+export type DashboardPeriod = "hari_ini" | "mingguan" | "bulan_ini" | "all_time" | "custom";
 
 export interface StoreExpenseBreakdown {
   toko: string;

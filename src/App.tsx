@@ -341,6 +341,7 @@ export default function App() {
         <HeaderBanner
           orders={orders}
           selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
           notes={notes}
           kitchens={kitchens}
           period={dashboardPeriod}

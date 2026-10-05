@@ -81,19 +81,9 @@ export const TransactionsTable: React.FC<TransactionsTableProps> = React.memo(({
           <div className="w-full overflow-x-auto lg:overflow-x-hidden">
             <table className="w-full text-left border-collapse text-xs relative table-fixed min-w-[980px] lg:min-w-0">
               <colgroup>
-                <col style={{ width: '3%' }} />   {/* 1. NO */}
-                <col style={{ width: '8%' }} />   {/* 2. TANGGAL */}
-                <col style={{ width: '13%' }} />  {/* 3. DAPUR & PEMASOK */}
-                <col style={{ width: '18.5%' }} />{/* 4. BARANG */}
-                <col style={{ width: '7.5%' }} /> {/* 5. TOKO */}
-                <col style={{ width: '4.5%' }} /> {/* 6. QTY */}
-                <col style={{ width: '8.5%' }} /> {/* 7. H. BELI */}
-                <col style={{ width: '9.5%' }} /> {/* 8. TOTAL (JUAL) */}
-                <col style={{ width: '6.5%' }} /> {/* 9. CASHBACK */}
-                <col style={{ width: '6.5%' }} /> {/* 10. CATATAN */}
-                <col style={{ width: '8.5%' }} /> {/* 11. LABA BERSIH */}
-                <col style={{ width: '6%' }} />   {/* 12. STATUS */}
-                <col style={{ width: '5.5%' }} /> {/* 13. AKSI */}
+                {['3%', '8%', '13%', '18.5%', '7.5%', '4.5%', '8.5%', '9.5%', '6.5%', '6.5%', '8.5%', '6%', '5.5%'].map((w, idx) => (
+                  <col key={idx} style={{ width: w }} />
+                ))}
               </colgroup>
               <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-xs">
                 <tr className="text-[10px] xl:text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">

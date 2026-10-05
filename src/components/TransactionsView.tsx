@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { 
   OrderItem, 
   Kitchen, 
@@ -13,6 +13,8 @@ import { useTransactionData } from './transactions/useTransactionData';
 import { TransactionsFilterToolbar } from './transactions/TransactionsFilterToolbar';
 import { TransactionsTable } from './transactions/TransactionsTable';
 import { TransactionsMobileList } from './transactions/TransactionsMobileList';
+import { DateFilterValue } from './DateFilterPill';
+import { getTodayWIB, getYesterdayWIB } from '../lib/formatters';
 
 export type { TransactionBatch } from './transactions/types';
 
@@ -73,6 +75,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'PAID' | 'UNPAID'>('all');
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('all');
   const [selectedDapurFilter, setSelectedDapurFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({
+    startDate: '',
+    endDate: '',
+  });
 
   // Active 3-dots action menu tracking (Rendered via ActionMenuPortal)
   const [activeMenu, setActiveMenu] = useState<ActiveActionMenu | null>(null);
@@ -92,6 +98,24 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     });
   };
 
+  // Compute activePeriod and customRange for useTransactionData based on dateFilter (Default: ALL TIME)
+  const transactionPeriod = useMemo<{
+    activePeriod: 'all_time' | 'hari_ini' | 'mingguan' | 'bulan_ini';
+    customRange: { startDate: string; endDate: string } | null;
+  }>(() => {
+    if (dateFilter.startDate || dateFilter.endDate) {
+      return {
+        activePeriod: 'all_time',
+        customRange: {
+          startDate: dateFilter.startDate || '1970-01-01',
+          endDate: dateFilter.endDate || '2099-12-31',
+        },
+      };
+    }
+    // Default Kosong: Tampilkan seluruh transaksi (ALL TIME)
+    return { activePeriod: 'all_time', customRange: null };
+  }, [dateFilter]);
+
   // Hook for transaction batches, filtered data, pagination, and totals
   const {
     pemasokList,
@@ -106,10 +130,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     orders,
     invoices,
     stores,
-    selectedDate,
+    selectedDate: dateFilter.specificDate || selectedDate,
     selectedMonth: selectedDate?.slice(0, 7) || '',
-    activePeriod: 'all_time',
-    customRange: null,
+    activePeriod: transactionPeriod.activePeriod,
+    customRange: transactionPeriod.customRange,
     selectedStoreFilter,
     selectedPemasok,
     selectedDapurFilter,
@@ -154,6 +178,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         onSelectDapurFilter={setSelectedDapurFilter}
         selectedStatusFilter={selectedStatusFilter}
         onSelectStatusFilter={setSelectedStatusFilter}
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
       />
