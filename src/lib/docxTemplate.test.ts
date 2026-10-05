@@ -275,7 +275,7 @@ describe('Invoice Processing & Template TDD Tests', () => {
 
       // 1. Static store details
       expect(html).toContain('UD PROHE WANGI');
-      expect(html).toContain('Dusun Glowong, RT 5 RW 1 Desa Wringinagung');
+      expect(html).toContain('Dusun Glowong Rt 2 Rw 1 Desa Wringinagung');
       expect(html).toContain('085792083866');
       expect(html).toContain('Bank : <strong>BNI</strong>');
       expect(html).toContain('2098103145');

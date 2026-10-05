@@ -9,6 +9,8 @@ export interface StoreProfile {
   bankAccountName?: string;
   signerName: string;
   signerContact?: string;
+  businessType?: string;
+  jenisUsaha?: string;
   logoBase64?: string;
   signatureBase64?: string;
   stampBase64?: string;
@@ -18,7 +20,7 @@ export interface StoreProfile {
 
 const HTG_PROFILE: StoreProfile = {
   "name": "CV. HANDAI TOLAN GROUP",
-  "address": "Jl. Krasak, RT.5/RW.1, Glowong, Wringin Agung\\nKec. Gambiran, Kab. Banyuwangi",
+  "address": "Jl. Krasak, RT.5/RW.1, Glowong, Wringin Agung\nKec. Gambiran, Kab. Banyuwangi",
   "contact": "Tlp. 0822 2939 4425 | E. cvhandaitolangroup@gmail.com",
   "bankName": "BNI",
   "accountNumber": "2026372715",
@@ -26,6 +28,8 @@ const HTG_PROFILE: StoreProfile = {
   "accountHolder": "Vica Indah Narsisus",
   "bankAccountName": "Vica Indah Narsisus",
   "signerName": "Vica Indah Narsisus",
+  "businessType": "General Supplier, Pengadaan Bahan Makanan & Sembako",
+  "jenisUsaha": "General Supplier, Pengadaan Bahan Makanan & Sembako",
   "logoBase64": "/store-profile-assets/htg_logo.png",
   "signatureBase64": "/store-profile-assets/htg_signature.png",
   "stampBase64": "/store-profile-assets/htg_stamp.png"
@@ -33,7 +37,7 @@ const HTG_PROFILE: StoreProfile = {
 
 const LUWENG_BOGA_PROFILE: StoreProfile = {
   "name": "UD LUWENG BOGA",
-  "address": "Dusun Glowong, Rt 5 Rw 1 Desa Wringinagung\\nKec Gambiran Kab Banyuwangi",
+  "address": "Dusun Glowong, Rt 5 Rw 1 Desa Wringinagung\nKec Gambiran Kab Banyuwangi",
   "contact": "Tlp. +6281235227185",
   "bankName": "BNI",
   "accountNumber": "2095791745",
@@ -41,6 +45,8 @@ const LUWENG_BOGA_PROFILE: StoreProfile = {
   "accountHolder": "Khoiriyah Yusuf",
   "bankAccountName": "Khoiriyah Yusuf",
   "signerName": "Khoiriyah Yusuf",
+  "businessType": "Sembako, Produk UMKM/home industri, Produk Kemasan/pabrikan, bumbu dapur",
+  "jenisUsaha": "Sembako, Produk UMKM/home industri, Produk Kemasan/pabrikan, bumbu dapur",
   "logoBase64": "/store-profile-assets/luweng_boga_logo.png",
   "signatureBase64": "/store-profile-assets/luweng_boga_signature.png",
   "stampBase64": "/store-profile-assets/luweng_boga_stamp.png"
@@ -48,7 +54,7 @@ const LUWENG_BOGA_PROFILE: StoreProfile = {
 
 const LUMBUNG_ADIFRUTA_PROFILE: StoreProfile = {
   "name": "UD LUMBUNG ADIFRUTA",
-  "address": "Dusun Glowong, Rt 5 Rw 1 Desa Wringinagung\\nKec. Gambiran, Kab. Banyuwangi",
+  "address": "Dusun Glowong, Rt 5 Rw 1 Desa Wringinagung\nKec. Gambiran, Kab. Banyuwangi",
   "contact": "Tlp. 082229394425",
   "bankName": "BNI",
   "accountNumber": "2095806527",
@@ -56,6 +62,8 @@ const LUMBUNG_ADIFRUTA_PROFILE: StoreProfile = {
   "accountHolder": "Adi Suprapto",
   "bankAccountName": "Adi Suprapto",
   "signerName": "Adi Suprapto",
+  "businessType": "Segala jenis buah impor dan lokal dan sayur sayuran",
+  "jenisUsaha": "Segala jenis buah impor dan lokal dan sayur sayuran",
   "logoBase64": "/store-profile-assets/lumbung_adifruta_logo.png",
   "signatureBase64": "/store-profile-assets/lumbung_adifruta_signature.png",
   "stampBase64": "/store-profile-assets/lumbung_adifruta_stamp.png"
@@ -63,7 +71,7 @@ const LUMBUNG_ADIFRUTA_PROFILE: StoreProfile = {
 
 const PROHE_PROFILE: StoreProfile = {
   "name": "UD PROHE WANGI",
-  "address": "Dusun Glowong, RT 5 RW 1 Desa Wringinagung\nKec. Gambiran, Kab. Banyuwangi",
+  "address": "Dusun Glowong Rt 2 Rw 1 Desa Wringinagung, Kec Gambiran Kab Banyuwangi",
   "contact": "Tlp. 085792083866",
   "bankName": "BNI",
   "accountNumber": "2098103145",
@@ -71,6 +79,8 @@ const PROHE_PROFILE: StoreProfile = {
   "accountHolder": "Prima Dana Nirwana",
   "bankAccountName": "Prima Dana Nirwana",
   "signerName": "Prima Dana Nirwana",
+  "businessType": "Segala jenis produk hewani (ikan laut, ikan tawar, seafood, daging sapi, ayam)",
+  "jenisUsaha": "Segala jenis produk hewani (ikan laut, ikan tawar, seafood, daging sapi, ayam)",
   "logoBase64": "/store-profile-assets/prohe_logo.png",
   "signatureBase64": "",
   "stampBase64": "",
