@@ -8,6 +8,7 @@ interface PaginationProps {
   totalItems?: number;
   pageSize?: number;
   onPageSizeChange?: (pageSize: number) => void;
+  pageSizeOptions?: number[];
 }
 
 export const Pagination: React.FC<PaginationProps> = ({
@@ -17,6 +18,7 @@ export const Pagination: React.FC<PaginationProps> = ({
   totalItems,
   pageSize,
   onPageSizeChange,
+  pageSizeOptions,
 }) => {
   const safeTotalPages = Math.max(1, totalPages || 1);
   const safeCurrentPage = Math.min(Math.max(1, currentPage || 1), safeTotalPages);
@@ -78,10 +80,11 @@ export const Pagination: React.FC<PaginationProps> = ({
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
               className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
             >
-              <option value={10}>10 baris</option>
-              <option value={15}>15 baris</option>
-              <option value={25}>25 baris</option>
-              <option value={50}>50 baris</option>
+              {(pageSizeOptions && pageSizeOptions.length > 0 ? pageSizeOptions : [10, 15, 25, 50]).map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt} baris
+                </option>
+              ))}
             </select>
           </div>
         )}

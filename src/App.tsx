@@ -19,6 +19,7 @@ import { BottomNav, TabType } from './components/BottomNav';
 import { DashboardView } from './components/DashboardView';
 import { RekapView } from './components/RekapView';
 import { TransactionsView } from './components/TransactionsView';
+import { SupplierMonitoringView } from './components/SupplierMonitoringView';
 import { ConfirmModal } from './components/ConfirmModal';
 import { Toast, ToastMessage, ToastType } from './components/Toast';
 import { getTodayWIB, isOrderToday, isOrderThisWeek, getWeekRange } from './lib/formatters';
@@ -424,7 +425,7 @@ export default function App() {
                   isOnline={isOnline}
                 />
               </motion.div>
-            ) : (
+            ) : activeTab === 'transaksi' ? (
               <motion.div
                 key="transaksi"
                 initial={{ opacity: 0, x: 10 }}
@@ -460,6 +461,22 @@ export default function App() {
                   isExportingActive={isExportingActive}
                   exportHistoryCount={exportHistory.length}
                   isOnline={isOnline}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="monitoring_pemasok"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <SupplierMonitoringView
+                  orders={orders}
+                  stores={stores}
+                  pemasokList={pemasokList}
+                  onUpdatePaymentStatus={handleUpdatePaymentStatus}
+                  onUpdateGroupPaymentStatus={handleUpdateGroupPaymentStatus}
                 />
               </motion.div>
             )}

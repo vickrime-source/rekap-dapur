@@ -4,7 +4,10 @@ import {
   Store as StoreIcon, 
   Utensils, 
   ChevronDown, 
-  X 
+  X,
+  ShoppingBag,
+  Truck,
+  Clock
 } from 'lucide-react';
 import { 
   OrderItem, 
@@ -28,6 +31,11 @@ import {
   formatTanggalSimple
 } from '../lib/formatters';
 import { DateFilterPill, DateFilterValue, getThisWeekRange, getThisMonthRange } from './DateFilterPill';
+import { 
+  filterOrdersByStatus, 
+  computeAndValidateDashboardSummary, 
+  DashboardStatusFilter 
+} from '../lib/orderValidation';
 
 export type TimeFilterOption = 'all_time' | 'hari_ini' | 'mingguan' | 'bulan_ini';
 
@@ -84,6 +92,7 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('all');
   const [selectedKitchenFilter, setSelectedKitchenFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<DashboardStatusFilter>('all');
 
   const todayStr = useMemo(() => getTodayWIB(), []);
   const yesterdayStr = useMemo(() => getYesterdayWIB(), []);
@@ -131,8 +140,8 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
     }
   };
 
-  // Filter orders according to dateFilter, store, kitchen, and search
-  const filteredOrders = useMemo(() => {
+  // Filter orders according to dateFilter, store, kitchen, and search (Base Filtered)
+  const baseFilteredOrders = useMemo(() => {
     return orders.filter((item) => {
       // 1. Filter Rentang Tanggal Langsung (Default: Kosong = All Time)
       if (dateFilter.startDate || dateFilter.endDate) {
@@ -181,7 +190,12 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
     selectedKitchenFilter,
   ]);
 
-  // Label filter aktif untuk tampilan state kosong
+  // Orders filtered additionally by active status filter (Strict Data Validation Check)
+  const displayedOrders = useMemo(() => {
+    return filterOrdersByStatus(baseFilteredOrders, statusFilter);
+  }, [baseFilteredOrders, statusFilter]);
+
+  // Label filter aktif untuk tampilan state kosong dan header panel
   const currentFilterLabel = useMemo(() => {
     const parts: string[] = [];
     if (selectedStoreFilter !== 'all') parts.push(`Toko ${selectedStoreFilter}`);
@@ -198,8 +212,17 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
       parts.push(`Sampai: ${formatTanggalSimple(dateFilter.endDate)}`);
     }
     if (searchQuery) parts.push(`"${searchQuery}"`);
+    if (statusFilter === 'delivered') parts.push('Status: Delivery Selesai');
+    if (statusFilter === 'pending') parts.push('Status: Pending');
     return parts.length > 0 ? parts.join(', ') : 'All Time';
-  }, [selectedStoreFilter, selectedKitchenFilter, dateFilter, searchQuery]);
+  }, [selectedStoreFilter, selectedKitchenFilter, dateFilter, searchQuery, statusFilter]);
+
+  // Status Pemesanan Metrics (Satu Blok: Total Pesanan, Delivery Hijau, Pending Merah)
+  // Menjalankan validasi ketat sehingga delivered + pending strictly menjumlah ke total pesanan,
+  // dan setiap pesanan yang ditampilkan di summary secara presisi cocok dengan status pemesanan.
+  const dashboardMetrics = useMemo(() => {
+    return computeAndValidateDashboardSummary(baseFilteredOrders, displayedOrders, statusFilter);
+  }, [baseFilteredOrders, displayedOrders, statusFilter]);
 
   return (
     <div className="space-y-3 pt-1 pb-36 sm:pb-24 font-sans text-slate-800 dark:text-slate-200 transition-colors duration-200">
@@ -304,9 +327,100 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
         </div>
       </div>
 
+      {/* Panel Status Pemesanan Terpadu (Satu Blok: Total Pesanan, Delivery Hijau, Pending Merah) */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-2.5 sm:p-3 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-colors">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-800 shrink-0">
+            <ShoppingBag className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5 truncate">
+              <span>Status Pemesanan ({currentFilterLabel})</span>
+              {statusFilter !== 'all' && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800">
+                  Filter: {statusFilter === 'delivered' ? 'Delivery' : 'Pending'}
+                </span>
+              )}
+            </div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400">
+              {statusFilter === 'all'
+                ? `${dashboardMetrics.totalItems} barang dalam ${dashboardMetrics.totalTrx} nota keberangkatan`
+                : statusFilter === 'delivered'
+                ? `Menampilkan ${dashboardMetrics.displayedItems} barang dalam ${dashboardMetrics.displayedTrx} nota delivery selesai (dari ${dashboardMetrics.totalTrx} total)`
+                : `Menampilkan ${dashboardMetrics.displayedItems} barang dalam ${dashboardMetrics.displayedTrx} nota pending (dari ${dashboardMetrics.totalTrx} total)`}
+            </div>
+          </div>
+        </div>
+
+        {/* 3 Informasi: Total, Delivery Selesai (Hijau), Pending (Merah) - Interaktif & Tervalidasi */}
+        <div className="flex items-center gap-1.5 sm:gap-2 self-start sm:self-auto overflow-x-auto w-full sm:w-auto">
+          {/* 1. Total Pesanan */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter('all')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border shrink-0 transition-all cursor-pointer min-h-[38px] ${
+              statusFilter === 'all'
+                ? 'bg-slate-200 dark:bg-slate-700 border-indigo-500 dark:border-indigo-400 ring-2 ring-indigo-500/30 text-slate-900 dark:text-white shadow-2xs font-bold'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-750'
+            }`}
+            title="Klik untuk melihat semua status pesanan"
+          >
+            <span className="text-[10px] font-bold uppercase tracking-tight">Total:</span>
+            <span className="text-xs font-black font-nominal text-slate-900 dark:text-slate-100">{dashboardMetrics.totalTrx}</span>
+          </button>
+
+          {/* 2. Delivery Hijau */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter((prev) => (prev === 'delivered' ? 'all' : 'delivered'))}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border shrink-0 transition-all cursor-pointer min-h-[38px] ${
+              statusFilter === 'delivered'
+                ? 'bg-emerald-100 dark:bg-emerald-900/80 border-emerald-500 dark:border-emerald-400 ring-2 ring-emerald-500/40 text-emerald-900 dark:text-emerald-100 shadow-2xs font-bold'
+                : 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700/80 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/50 shadow-2xs'
+            }`}
+            title="Klik untuk filter hanya pesanan Delivery Selesai (Hijau)"
+          >
+            <Truck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-[10px] font-black uppercase tracking-tight">Delivery:</span>
+            <span className="text-xs font-black font-nominal">{dashboardMetrics.deliveredTrx}</span>
+          </button>
+
+          {/* 3. Pending Merah */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter((prev) => (prev === 'pending' ? 'all' : 'pending'))}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border shrink-0 transition-all cursor-pointer min-h-[38px] ${
+              statusFilter === 'pending'
+                ? 'bg-rose-100 dark:bg-rose-900/80 border-rose-500 dark:border-rose-400 ring-2 ring-rose-500/40 text-rose-900 dark:text-rose-100 shadow-2xs font-bold'
+                : dashboardMetrics.pendingTrx > 0
+                ? 'bg-rose-50 dark:bg-rose-950/50 border-rose-300 dark:border-rose-700/80 text-rose-800 dark:text-rose-200 hover:bg-rose-100/70 dark:hover:bg-rose-900/50 shadow-2xs'
+                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-750'
+            }`}
+            title="Klik untuk filter hanya pesanan Pending (Merah)"
+          >
+            <Clock className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+            <span className="text-[10px] font-black uppercase tracking-tight">Pending:</span>
+            <span className="text-xs font-black font-nominal">{dashboardMetrics.pendingTrx}</span>
+          </button>
+
+          {/* Reset Status Filter Button jika sedang aktif */}
+          {statusFilter !== 'all' && (
+            <button
+              type="button"
+              onClick={() => setStatusFilter('all')}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer shrink-0 min-h-[38px]"
+              title="Reset filter status pesanan"
+            >
+              <span>Reset</span>
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Orders Table View */}
       <OrdersTableView
-        orders={filteredOrders}
+        orders={displayedOrders}
         totalUnfilteredOrders={orders.length}
         currentFilterLabel={currentFilterLabel}
         onResetFilter={() => {
@@ -314,6 +428,7 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
           setSelectedStoreFilter('all');
           setSelectedKitchenFilter('all');
           setSearchQuery('');
+          setStatusFilter('all');
           if (onPeriodChange) {
             onPeriodChange('all_time');
           }

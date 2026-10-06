@@ -27,7 +27,8 @@ import {
   Trash2,
   ListChecks,
   Square,
-  CheckSquare2
+  CheckSquare2,
+  Clock
 } from 'lucide-react';
 import { OrderItem, NoteItem, Kitchen, DashboardPeriod } from '../types';
 import { 
@@ -288,8 +289,8 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
     return '';
   }, [activePeriod, selectedDate, weekRange, customRange]);
 
-  // Dynamic memoized calculations for operational metrics: Estimasi Laba, Pengeluaran (Beli), Pesanan (Trx), & Pending (Trx)
-  const { totalBatches, pendingBatches, totalLabaBersih, totalPengeluaran } = useMemo(() => {
+  // Dynamic memoized calculations for operational metrics: Estimasi Laba, Pengeluaran (Beli), Total Pesanan, Delivery (Selesai), & Pending
+  const { totalBatches, deliveredBatches, pendingBatches, paidBatches, unpaidBatches, totalLabaBersih, totalPengeluaran } = useMemo(() => {
     let labaBersih = 0;
     let pengeluaran = 0;
     const batchMap = new Map<string, { allPaid: boolean; allDone: boolean }>();
@@ -298,11 +299,17 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
       const item = filteredOrders[i];
 
       // Acuan status pembayaran dan pengiriman
-      const isPaid = item.paymentStatus === 'PAID' || (item.status === 'selesai' && !item.paymentStatus);
-      const isDone = item.deliveryStatus === 'DONE' || (item.status === 'selesai' && !item.deliveryStatus);
+      const isPaid =
+        item.paymentStatus === 'PAID' ||
+        item.status_pembayaran?.toUpperCase() === 'PAID' ||
+        (item.status === 'selesai' && !item.paymentStatus);
+      const isDone =
+        item.deliveryStatus === 'DONE' ||
+        item.status_pengiriman?.toUpperCase() === 'DONE' ||
+        (item.status === 'selesai' && !item.deliveryStatus);
 
-      // Group per keberangkatan (trx) sesuai acuan tabel pesanan (tanggal + tujuan dapur + toko)
-      const batchKey = item.notaId || item.nota_id || `${item.tanggal}||${item.tujuanDapur}||${item.toko}||${item.createdAt || ''}`;
+      // Group per keberangkatan (trx) sesuai acuan tabel pesanan (nota_id atau tanggal + tujuan dapur + toko)
+      const batchKey = item.notaId || item.nota_id || `${item.tanggal}||${item.tujuanDapur}||${item.toko}`;
 
       if (!batchMap.has(batchKey)) {
         batchMap.set(batchKey, { allPaid: isPaid, allDone: isDone });
@@ -331,17 +338,35 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
       pengeluaran += modalItem;
     }
 
+    let deliveredCount = 0;
     let pendingCount = 0;
+    let paidCount = 0;
+    let unpaidCount = 0;
+
     batchMap.forEach((batch) => {
-      // Acuan keberangkatan pending: delivery belum DONE atau payment belum PAID (unpaid)
-      if (!batch.allPaid || !batch.allDone) {
+      // Status pengiriman pesanan:
+      // Delivery (Hijau) = allDone (sudah sampai/selesai kirim)
+      // Pending (Merah) = belum selesai kirim
+      if (batch.allDone) {
+        deliveredCount++;
+      } else {
         pendingCount++;
+      }
+
+      // Status pembayaran pesanan:
+      if (batch.allPaid) {
+        paidCount++;
+      } else {
+        unpaidCount++;
       }
     });
 
     return {
       totalBatches: batchMap.size,
+      deliveredBatches: deliveredCount,
       pendingBatches: pendingCount,
+      paidBatches: paidCount,
+      unpaidBatches: unpaidCount,
       totalLabaBersih: labaBersih,
       totalPengeluaran: pengeluaran,
     };
@@ -716,48 +741,66 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = React.memo(({
               </div>
             </div>
 
-            {/* 3. Box Pesanan (Per Keberangkatan) */}
-            <div className="bg-white dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-2 sm:p-2.5 flex items-center justify-between shadow-2xs transition-colors duration-200">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 flex items-center justify-center border border-indigo-100 dark:border-indigo-800/80 flex-shrink-0">
-                  <ShoppingBag className="w-3.5 h-3.5" />
+            {/* 3 & 4. Satu Blok Status Pemesanan Terpadu (3 Informasi: Total Pesanan, Delivery Hijau, Pending Merah) */}
+            <div className="col-span-2 bg-white dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-2 sm:p-2.5 shadow-2xs transition-colors duration-200 flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-1.5 pb-1 border-b border-slate-100 dark:border-slate-700/60">
+                <div className="flex items-center gap-1.5">
+                  <ShoppingBag className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Status Pemesanan
+                  </span>
                 </div>
-                <div>
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Pesanan
-                  </span>
-                  <span className="text-xs sm:text-sm font-black font-nominal text-slate-800 dark:text-slate-100 leading-none">
-                    <AnimatedCounter value={totalBatches} format="number" /> <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">trx</span>
-                  </span>
+                <div className="flex items-center gap-2 text-[9.5px] font-semibold text-slate-400 dark:text-slate-500">
+                  <span>Lunas: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{paidBatches}</strong></span>
+                  <span>•</span>
+                  <span>Belum: <strong className="text-amber-600 dark:text-amber-400 font-bold">{unpaidBatches}</strong></span>
                 </div>
               </div>
-            </div>
 
-            {/* 4. Box Pending (Per Keberangkatan) */}
-            <div className={`rounded-2xl p-2 sm:p-2.5 flex items-center justify-between border shadow-2xs transition-colors duration-200 ${
-              pendingBatches > 0
-                ? 'bg-rose-50/80 dark:bg-rose-950/40 border-rose-200/90 dark:border-rose-800/60'
-                : 'bg-white dark:bg-slate-800/90 border-slate-200/90 dark:border-slate-700/80'
-            }`}>
-              <div className="flex items-center gap-2">
-                <div className={`w-7 h-7 rounded-xl flex items-center justify-center border flex-shrink-0 ${
-                  pendingBatches > 0
-                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-                    : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-600'
-                }`}>
-                  <AlertCircle className="w-3.5 h-3.5" />
+              {/* 3 Informasi Utama: Total, Delivery Selesai (Hijau), Pending (Merah) */}
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-center">
+                {/* Info 1: Total Pesanan */}
+                <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl py-1 px-1.5 border border-slate-200/70 dark:border-slate-700/60 flex flex-col justify-center">
+                  <span className="text-[8.5px] sm:text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight block">
+                    Total
+                  </span>
+                  <div className="text-xs sm:text-sm font-black font-nominal text-slate-900 dark:text-slate-100 leading-tight">
+                    <AnimatedCounter value={totalBatches} format="number" /> <span className="text-[9px] font-medium text-slate-400 dark:text-slate-500">trx</span>
+                  </div>
                 </div>
-                <div>
-                  <span className={`text-[9px] font-bold uppercase tracking-wider block ${
-                    pendingBatches > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'
+
+                {/* Info 2: Delivery Selesai (Hijau) */}
+                <div className="bg-emerald-50/90 dark:bg-emerald-950/50 rounded-xl py-1 px-1.5 border border-emerald-300 dark:border-emerald-700/80 flex flex-col justify-center shadow-2xs">
+                  <div className="flex items-center justify-center gap-0.5 text-emerald-700 dark:text-emerald-400">
+                    <Truck className="w-2.5 h-2.5 shrink-0" />
+                    <span className="text-[8.5px] sm:text-[9px] font-black uppercase tracking-tight">
+                      Delivery
+                    </span>
+                  </div>
+                  <div className="text-xs sm:text-sm font-black font-nominal text-emerald-800 dark:text-emerald-200 leading-tight">
+                    <AnimatedCounter value={deliveredBatches} format="number" /> <span className="text-[9px] font-medium opacity-80">trx</span>
+                  </div>
+                </div>
+
+                {/* Info 3: Pending (Merah) */}
+                <div className={`rounded-xl py-1 px-1.5 border flex flex-col justify-center transition-colors ${
+                  pendingBatches > 0
+                    ? 'bg-rose-50/90 dark:bg-rose-950/50 border-rose-300 dark:border-rose-700/80 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200/70 dark:border-slate-800'
+                }`}>
+                  <div className={`flex items-center justify-center gap-0.5 ${
+                    pendingBatches > 0 ? 'text-rose-700 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'
                   }`}>
-                    Pending
-                  </span>
-                  <span className={`text-xs sm:text-sm font-black font-nominal leading-none ${
-                    pendingBatches > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-700 dark:text-slate-200'
+                    <Clock className="w-2.5 h-2.5 shrink-0" />
+                    <span className="text-[8.5px] sm:text-[9px] font-black uppercase tracking-tight">
+                      Pending
+                    </span>
+                  </div>
+                  <div className={`text-xs sm:text-sm font-black font-nominal leading-tight ${
+                    pendingBatches > 0 ? 'text-rose-800 dark:text-rose-200' : 'text-slate-700 dark:text-slate-300'
                   }`}>
-                    <AnimatedCounter value={pendingBatches} format="number" /> <span className="text-[10px] font-medium opacity-80">trx</span>
-                  </span>
+                    <AnimatedCounter value={pendingBatches} format="number" /> <span className="text-[9px] font-medium opacity-80">trx</span>
+                  </div>
                 </div>
               </div>
             </div>
