@@ -467,7 +467,11 @@ export function useTransactionData({
           batch.tujuanDapur.toLowerCase().includes(q) ||
           batch.toko.toLowerCase().includes(q) ||
           batch.pemasok.toLowerCase().includes(q) ||
-          batch.items.some((i) => i.namaBarang.toLowerCase().includes(q));
+          batch.items.some((i) =>
+            i.namaBarang.toLowerCase().includes(q) ||
+            ((i.invoiceNumber || (i as any).invoice_number || '') as string).toLowerCase().includes(q) ||
+            ((i.notaId || (i as any).nota_id || '') as string).toLowerCase().includes(q)
+          );
         if (!matchesSearch) return false;
       }
 

@@ -117,6 +117,11 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
           <span className="inline-block max-w-full break-words bg-indigo-50 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-300 font-extrabold px-1.5 py-0.5 rounded text-[10px] leading-tight border border-indigo-200 dark:border-indigo-800 shadow-2xs">
             {group.tujuanDapur}
           </span>
+          {(group.items[0]?.invoiceNumber || (group.items[0] as any)?.invoice_number) && (
+            <div className="mt-1 font-mono text-[9.5px] font-bold text-slate-500 dark:text-slate-400 select-all tracking-tight" title="Nomor Invoice">
+              {group.items[0]?.invoiceNumber || (group.items[0] as any)?.invoice_number}
+            </div>
+          )}
         </td>
       )}
 

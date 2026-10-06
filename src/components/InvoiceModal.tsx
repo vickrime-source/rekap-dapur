@@ -114,6 +114,19 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   const finalRecipientName = resolveRecipientSppgName(recipientName, mainKitchen, displayItems);
   const invoiceDate = formatTanggalInvoice(displayItems[0]?.tanggal || new Date());
 
+  const firstItem = displayItems[0];
+  const rawNumber =
+    invoiceNumber ||
+    firstItem?.invoiceNumber ||
+    (firstItem as any)?.invoice_number ||
+    '';
+  const displayInvoiceNumber = rawNumber && rawNumber !== '-' ? rawNumber : '-';
+  const targetNotaId = firstItem?.notaId || firstItem?.nota_id;
+
+  if (displayInvoiceNumber === '-') {
+    console.warn('[InvoiceModal] Nota belum punya nomor invoice:', targetNotaId || 'unknown_nota_id');
+  }
+
   const handleStartPdfExport = () => {
     if (onSaveInvoiceRecord) {
       onSaveInvoiceRecord();
@@ -123,7 +136,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         storeName: mainStore,
         kitchenName: mainKitchen,
         items: displayItems,
-        invoiceNumber,
+        invoiceNumber: displayInvoiceNumber,
         bayar,
         customNama: finalRecipientName,
         customAlamat: recipientAddress || '-',
@@ -148,7 +161,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
         storeName: mainStore,
         kitchenName: mainKitchen,
         items: displayItems,
-        invoiceNumber,
+        invoiceNumber: displayInvoiceNumber,
         bayar,
         customNama: finalRecipientName,
         customAlamat: recipientAddress || '-',
@@ -199,9 +212,11 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 leading-tight">
-                    {invoiceNumber}
-                  </h3>
+                  {displayInvoiceNumber !== '-' && (
+                    <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 leading-tight font-mono">
+                      {displayInvoiceNumber}
+                    </h3>
+                  )}
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[11px] font-black uppercase border border-emerald-200 dark:border-emerald-800 tracking-wide">
                     {profile.name}
                   </span>
@@ -267,7 +282,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                     profile={profile}
                     styleConfig={styleConfig}
                     items={displayItems}
-                    invoiceNumber={invoiceNumber}
+                    invoiceNumber={displayInvoiceNumber}
                     invoiceDate={invoiceDate}
                     recipientName={finalRecipientName}
                     totalJual={totalJual}
@@ -362,7 +377,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                     profile={profile}
                     styleConfig={styleConfig}
                     items={displayItems}
-                    invoiceNumber={invoiceNumber}
+                    invoiceNumber={displayInvoiceNumber}
                     invoiceDate={invoiceDate}
                     recipientName={finalRecipientName}
                     totalJual={totalJual}

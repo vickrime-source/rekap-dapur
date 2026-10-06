@@ -31,6 +31,14 @@ export const InvoicePaperA4 = React.forwardRef<HTMLDivElement, InvoicePaperA4Pro
   id = 'invoice-paper-a4',
   priceVariant = 'ori',
 }, ref) => {
+  const rawNumber = invoiceNumber || (items?.[0] as any)?.invoiceNumber || (items?.[0] as any)?.invoice_number || '';
+  const displayInvoiceNumber = rawNumber && rawNumber !== '-' ? rawNumber : '-';
+  const targetNotaId = (items?.[0] as any)?.notaId || (items?.[0] as any)?.nota_id;
+
+  if (displayInvoiceNumber === '-') {
+    console.warn('[InvoicePaperA4] Nota belum punya nomor invoice:', targetNotaId || 'unknown_nota_id');
+  }
+
   return (
     <div
       ref={ref}
@@ -72,7 +80,14 @@ export const InvoicePaperA4 = React.forwardRef<HTMLDivElement, InvoicePaperA4Pro
 
           {/* Date & Recipient */}
           <div className="w-1/2 text-left pl-6">
+            {/* No. Invoice (Tepat di atas Tanggal) */}
+            <div className="text-[11px] text-slate-900 mb-1 font-bold">
+              <span className="text-slate-500 font-semibold text-[10px] mr-1 uppercase">No. Invoice :</span>
+              <span className="tracking-wide font-mono font-bold">{displayInvoiceNumber}</span>
+            </div>
+            {/* Tanggal */}
             <div className="text-[11px] text-slate-900 mb-2 font-bold pb-1 border-b border-slate-200">
+              <span className="text-slate-500 font-semibold text-[10px] mr-1 uppercase">Tanggal :</span>
               <span>{invoiceDate}</span>
             </div>
             <div className="text-[11px] text-slate-800 space-y-0.5">

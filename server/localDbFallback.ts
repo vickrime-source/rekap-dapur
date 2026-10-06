@@ -4,6 +4,7 @@ import path from 'path';
 export interface FallbackMasterToko {
   id: string;
   nama: string;
+  kode_invoice?: string;
   created_at: string;
   updated_at?: string;
 }
@@ -54,6 +55,7 @@ export interface FallbackOrder {
   harga_beli: number;
   cashback?: number;
   retur?: number;
+  invoice_number?: string;
   catatan: string;
   created_at: string;
   updated_at: string;
@@ -97,7 +99,7 @@ export interface FallbackNote {
   updated_at: string;
 }
 
-interface LocalDatabase {
+export interface LocalDatabase {
   pesanan: FallbackOrder[];
   transaksi: FallbackTransaction[];
   notes: FallbackNote[];
@@ -105,6 +107,9 @@ interface LocalDatabase {
   pemasok: FallbackMasterPemasok[];
   dapur: FallbackMasterDapur[];
   satuan: FallbackMasterSatuan[];
+  invoice_counters?: Record<string, number>;
+  invoice_numbers?: any[];
+  invoice_number_log?: any[];
 }
 
 const INITIAL_SATUAN_SEED: FallbackMasterSatuan[] = [
@@ -196,7 +201,7 @@ const DB_FILE = path.join(DATA_DIR, 'local_db.json');
 
 let inMemoryDb: LocalDatabase | null = null;
 
-function loadDb(): LocalDatabase {
+export function loadDb(): LocalDatabase {
   if (inMemoryDb) return inMemoryDb;
 
   try {
@@ -232,7 +237,7 @@ function loadDb(): LocalDatabase {
   return inMemoryDb;
 }
 
-function saveDb() {
+export function saveDb() {
   if (!inMemoryDb) return;
   try {
     if (!fs.existsSync(DATA_DIR)) {
@@ -297,6 +302,113 @@ export function getLocalOrders(filters: any = {}): FallbackOrder[] {
   return list;
 }
 
+export function generateOrGetLocalInvoiceNumber(
+  notaId: string,
+  tokoId: string,
+  tanggal: string,
+  userInfo = 'system'
+): { nomor: string; seq: number; tahun: number; is_new: boolean } {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Database produksi Supabase tidak terhubung. Pembuatan nomor invoice resmi tidak diizinkan di penyimpanan lokal fallback.');
+  }
+  const db = loadDb();
+  if (!db.invoice_counters) db.invoice_counters = {};
+  if (!db.invoice_numbers) db.invoice_numbers = [];
+  if (!db.invoice_number_log) db.invoice_number_log = [];
+
+  // 1. Resolve store code dari master toko berdasarkan toko_id (bukan pencocokan teks bebas)
+  const tokoStr = String(tokoId || '').trim();
+  const matchedToko = (db.toko || []).find((t: any) =>
+    String(t.id) === tokoStr ||
+    (tokoStr === '1' && String(t.id).includes('lb')) ||
+    (tokoStr === '2' && String(t.id).includes('htg')) ||
+    (tokoStr === '3' && String(t.id).includes('la')) ||
+    (tokoStr === '4' && String(t.id).includes('pw'))
+  );
+  
+  const prefix = matchedToko?.kode_invoice;
+  if (!prefix || !['LA', 'LB', 'PH', 'HTG'].includes(prefix)) {
+    throw new Error(`Toko tidak valid atau kode_invoice belum diatur untuk toko_id: ${tokoId}`);
+  }
+
+  let tahun: number;
+  let bulan: number;
+  if (typeof tanggal === 'string' && /^\d{4}-\d{2}/.test(tanggal)) {
+    tahun = parseInt(tanggal.slice(0, 4), 10);
+    bulan = parseInt(tanggal.slice(5, 7), 10);
+  } else {
+    const d = new Date(tanggal);
+    tahun = !isNaN(d.getFullYear()) ? d.getFullYear() : new Date().getFullYear();
+    bulan = !isNaN(d.getMonth()) ? d.getMonth() + 1 : 1;
+  }
+  const ROMAN_ARR = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+  const romawi = ROMAN_ARR[Math.max(0, Math.min(11, bulan - 1))] || 'I';
+
+  const existingIndex = db.invoice_numbers.findIndex((inv: any) => inv.nota_id === notaId);
+  if (existingIndex !== -1) {
+    const existing = db.invoice_numbers[existingIndex];
+    if (existing.tahun_seq === tahun) {
+      const nomorBaru = `${prefix}/${existing.seq}/${romawi}/${tahun}`;
+      if (existing.nomor !== nomorBaru) {
+        db.invoice_number_log.push({
+          id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          waktu: new Date().toISOString(),
+          user_info: userInfo,
+          nota_id: notaId,
+          nomor_lama: existing.nomor,
+          nomor_baru: nomorBaru,
+        });
+        existing.toko_id = tokoId;
+        existing.nomor = nomorBaru;
+        existing.diubah_pada = new Date().toISOString();
+        saveDb();
+      }
+      return { nomor: nomorBaru, seq: existing.seq, tahun, is_new: false };
+    } else {
+      // Tahun berubah: SEQ baru dari urutan tahun baru, SEQ lama hangus
+      const currentYearSeq = (db.invoice_counters[String(tahun)] || 0) + 1;
+      db.invoice_counters[String(tahun)] = currentYearSeq;
+      const nomorBaru = `${prefix}/${currentYearSeq}/${romawi}/${tahun}`;
+
+      db.invoice_number_log.push({
+        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        waktu: new Date().toISOString(),
+        user_info: userInfo,
+        nota_id: notaId,
+        nomor_lama: existing.nomor,
+        nomor_baru: nomorBaru,
+      });
+
+      existing.tahun_seq = tahun;
+      existing.seq = currentYearSeq;
+      existing.toko_id = tokoId;
+      existing.nomor = nomorBaru;
+      existing.diubah_pada = new Date().toISOString();
+      saveDb();
+
+      return { nomor: nomorBaru, seq: currentYearSeq, tahun, is_new: true };
+    }
+  }
+
+  // Pesanan Baru: Ambil SEQ baru dari counter tahun
+  const currentYearSeq = (db.invoice_counters[String(tahun)] || 0) + 1;
+  db.invoice_counters[String(tahun)] = currentYearSeq;
+  const nomorBaru = `${prefix}/${currentYearSeq}/${romawi}/${tahun}`;
+
+  db.invoice_numbers.push({
+    nota_id: notaId,
+    tahun_seq: tahun,
+    seq: currentYearSeq,
+    toko_id: tokoId,
+    nomor: nomorBaru,
+    dibuat_pada: new Date().toISOString(),
+    diubah_pada: new Date().toISOString(),
+  });
+  saveDb();
+
+  return { nomor: nomorBaru, seq: currentYearSeq, tahun, is_new: true };
+}
+
 export function createLocalOrders(records: any[]): FallbackOrder[] {
   const db = loadDb();
   const created: FallbackOrder[] = [];
@@ -329,10 +441,34 @@ export function createLocalOrders(records: any[]): FallbackOrder[] {
     }
   }
 
-  for (const item of list) {
+  const validEntries = list.filter((item) => {
     const rawDapur = (item.dapur || item.tujuanDapur || item.tujuan_dapur || '').toString().trim();
     const rawItem = (item.item || item.namaBarang || item.nama_barang || '').toString().trim();
-    if (!rawItem || !rawDapur) continue;
+    return rawItem.length > 0 && rawDapur.length > 0;
+  });
+
+  if (validEntries.length === 0) return [];
+
+  const sharedNotaId =
+    validEntries.find((i: any) => i.nota_id || i.notaId)?.nota_id ||
+    validEntries.find((i: any) => i.nota_id || i.notaId)?.notaId ||
+    `nota-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+  const firstValid = validEntries[0];
+  const targetToko = firstValid.toko_id || firstValid.tokoId || firstValid.toko || '2';
+  const targetTanggal = firstValid.tanggal || new Date().toISOString().split('T')[0];
+
+  let assignedInvoiceNumber = '';
+  try {
+    const invRes = generateOrGetLocalInvoiceNumber(sharedNotaId, String(targetToko), targetTanggal);
+    assignedInvoiceNumber = invRes.nomor;
+  } catch (err) {
+    console.warn('[createLocalOrders] Error generate invoice number:', err);
+  }
+
+  for (const item of validEntries) {
+    const rawDapur = (item.dapur || item.tujuanDapur || item.tujuan_dapur || '').toString().trim();
+    const rawItem = (item.item || item.namaBarang || item.nama_barang || '').toString().trim();
 
     const id = item.id ? String(item.id) : `ord_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const rawQty = Number(item.qty) || 0;
@@ -341,13 +477,16 @@ export function createLocalOrders(records: any[]): FallbackOrder[] {
       id,
       dapur: rawDapur,
       item: rawItem,
-      tanggal: item.tanggal || new Date().toISOString().split('T')[0],
+      tanggal: item.tanggal || targetTanggal,
       qty: rawQty,
       qty_beli: rawQtyBeli,
-      nota_id: item.nota_id || item.notaId || null,
+      nota_id: item.nota_id || item.notaId || sharedNotaId,
       satuan: item.satuan || 'Kg',
       toko: item.toko || '',
+      toko_id: item.toko_id !== undefined ? String(item.toko_id) : undefined,
       pemasok: item.pemasok || '',
+      pemasok_id: item.pemasok_id !== undefined ? String(item.pemasok_id) : undefined,
+      dapur_id: item.dapur_id !== undefined ? String(item.dapur_id) : undefined,
       status_pembayaran: item.status_pembayaran || item.paymentStatus || 'UNPAID',
       status_pengiriman: item.status_pengiriman || item.deliveryStatus || 'PENDING',
       status: item.status || 'pending',
@@ -355,6 +494,7 @@ export function createLocalOrders(records: any[]): FallbackOrder[] {
       harga_beli: Number(item.harga_beli !== undefined ? item.harga_beli : item.hargaBeli) || 0,
       cashback: Number(item.cashback) || 0,
       retur: Math.max(0, Number(item.retur) || 0),
+      invoice_number: item.invoice_number || assignedInvoiceNumber,
       catatan: item.catatan || '',
       created_at: item.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -373,13 +513,65 @@ export function updateLocalOrder(id: string, updates: any): FallbackOrder | null
   if (index === -1) return null;
 
   const current = db.pesanan[index];
+  const targetNotaId = current.nota_id;
+  const isDateOrStoreChanged =
+    (updates.tanggal && updates.tanggal !== current.tanggal) ||
+    (updates.toko && updates.toko !== current.toko) ||
+    (updates.toko_id !== undefined && updates.toko_id !== current.toko_id);
+
+  let newInvoiceNumber = current.invoice_number;
+  if (targetNotaId && isDateOrStoreChanged) {
+    const newTanggal = updates.tanggal || current.tanggal;
+    const newTokoId = updates.toko_id !== undefined ? String(updates.toko_id) : (updates.toko || current.toko_id || current.toko);
+    try {
+      const invRes = generateOrGetLocalInvoiceNumber(targetNotaId, String(newTokoId), newTanggal);
+      newInvoiceNumber = invRes.nomor;
+    } catch (err) {
+      console.warn('[updateLocalOrder] Error updating invoice number:', err);
+    }
+  }
+
   const updated: FallbackOrder = {
     ...current,
     ...updates,
+    invoice_number: newInvoiceNumber,
     updated_at: new Date().toISOString(),
   };
 
   db.pesanan[index] = updated;
+
+  // Propagasi tanggal, toko, toko_id, invoice_number ke semua item dalam satu nota_id jika tanggal/toko diubah
+  if (targetNotaId && isDateOrStoreChanged) {
+    db.pesanan = db.pesanan.map((o) => {
+      if (o.nota_id === targetNotaId && o.id !== id) {
+        return {
+          ...o,
+          tanggal: updates.tanggal || o.tanggal,
+          toko: updates.toko || o.toko,
+          toko_id: updates.toko_id !== undefined ? String(updates.toko_id) : o.toko_id,
+          invoice_number: newInvoiceNumber,
+          updated_at: new Date().toISOString(),
+        };
+      }
+      return o;
+    });
+
+    // Update juga rekap transaksi terkait
+    db.transaksi = db.transaksi.map((tx: any) => {
+      if (tx.items?.some((it: any) => it.nota_id === targetNotaId || it.id === id)) {
+        return {
+          ...tx,
+          invoice_number: newInvoiceNumber,
+          tanggal: updates.tanggal || tx.tanggal,
+          toko: updates.toko || tx.toko,
+          toko_id: updates.toko_id !== undefined ? String(updates.toko_id) : tx.toko_id,
+          updated_at: new Date().toISOString(),
+        };
+      }
+      return tx;
+    });
+  }
+
   saveDb();
   return updated;
 }
@@ -439,9 +631,17 @@ export function getLocalTransactions(limit: number = 500): FallbackTransaction[]
 export function createLocalTransaction(tx: any): FallbackTransaction {
   const db = loadDb();
   const id = tx.id ? String(tx.id) : `trx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const firstItem = Array.isArray(tx.items) && tx.items.length > 0 ? tx.items[0] : null;
+  const resolvedInvoiceNumber =
+    tx.invoice_number ||
+    tx.invoiceNumber ||
+    firstItem?.invoice_number ||
+    firstItem?.invoiceNumber ||
+    '';
+
   const record: FallbackTransaction = {
     id,
-    invoice_number: tx.invoice_number || tx.invoiceNumber || `INV-${Date.now()}`,
+    invoice_number: resolvedInvoiceNumber,
     tanggal: tx.tanggal || new Date().toISOString().split('T')[0],
     tanggal_print: tx.tanggal_print || tx.tanggalPrint || new Date().toLocaleDateString('id-ID'),
     pemasok: tx.pemasok || '',

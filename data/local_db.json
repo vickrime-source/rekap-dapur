@@ -229,6 +229,51 @@
       "items": [],
       "created_at": "2026-09-26T00:43:36.634Z",
       "updated_at": "2026-09-26T00:43:36.834Z"
+    },
+    {
+      "id": "inv-rec-1791262108605",
+      "invoice_number": "",
+      "tanggal": "2026-10-06",
+      "tanggal_print": "6 Oktober 2026",
+      "pemasok": "",
+      "barang": "Nila Utuh (20)",
+      "toko": "PW / Prohe",
+      "dapur": "Pak Cip",
+      "qty": 20,
+      "harga_beli": 540000,
+      "total": 600000,
+      "total_profit": 60000,
+      "status_pembayaran": "PAID",
+      "items": [
+        {
+          "id": "ord-1791103884165-0-456",
+          "namaBarang": "Nila Utuh",
+          "qty": 20,
+          "qtyBeli": 20,
+          "qty_beli": 20,
+          "notaId": "nota-1791103884161-vqsr9",
+          "nota_id": "nota-1791103884161-vqsr9",
+          "satuan": "Kg",
+          "hargaBeli": 27000,
+          "hargaJual": 30000,
+          "toko": "PW / Prohe",
+          "toko_id": 4,
+          "tujuanDapur": "Pak Cip",
+          "dapur_id": 64,
+          "pemasok": "Nur patin",
+          "pemasok_id": 32,
+          "status": "pending",
+          "paymentStatus": "UNPAID",
+          "deliveryStatus": "PENDING",
+          "tanggal": "2026-10-08",
+          "createdAt": "2026-10-04T08:51:25.611+00:00",
+          "catatan": "",
+          "cashback": 0,
+          "retur": 0
+        }
+      ],
+      "created_at": "2026-10-06T04:48:28.829Z",
+      "updated_at": "2026-10-06T04:48:28.999Z"
     }
   ],
   "notes": [],
@@ -236,22 +281,26 @@
     {
       "id": "toko-lb",
       "nama": "LB / Luweng Boga",
-      "created_at": "2026-09-25T23:30:25.604Z"
+      "created_at": "2026-09-25T23:30:25.604Z",
+      "kode_invoice": "LB"
     },
     {
       "id": "toko-htg",
       "nama": "HTG",
-      "created_at": "2026-09-25T23:30:25.604Z"
+      "created_at": "2026-09-25T23:30:25.604Z",
+      "kode_invoice": "HTG"
     },
     {
       "id": "toko-la",
       "nama": "LA / Lumbung Adifruta",
-      "created_at": "2026-09-25T23:30:25.604Z"
+      "created_at": "2026-09-25T23:30:25.604Z",
+      "kode_invoice": "LA"
     },
     {
       "id": "toko-pw",
       "nama": "PW / Prohe",
-      "created_at": "2026-09-25T23:30:25.604Z"
+      "created_at": "2026-09-25T23:30:25.604Z",
+      "kode_invoice": "PH"
     }
   ],
   "pemasok": [
@@ -619,6 +668,49 @@
       "id": "satuan-bungkus",
       "nama": "Bungkus",
       "created_at": "2026-09-25T23:30:25.604Z"
+    }
+  ],
+  "invoice_counters": {
+    "2026": 3,
+    "2027": 1
+  },
+  "invoice_numbers": [
+    {
+      "nota_id": "nota-A",
+      "tahun_seq": 2027,
+      "seq": 1,
+      "toko_id": "toko-htg",
+      "nomor": "HTG/1/I/2027",
+      "dibuat_pada": "2026-10-06T05:21:35.632Z",
+      "diubah_pada": "2026-10-06T05:21:35.632Z"
+    },
+    {
+      "nota_id": "nota-B",
+      "tahun_seq": 2026,
+      "seq": 2,
+      "toko_id": "toko-htg",
+      "nomor": "HTG/2/X/2026",
+      "dibuat_pada": "2026-10-06T05:21:35.632Z",
+      "diubah_pada": "2026-10-06T05:21:35.632Z"
+    },
+    {
+      "nota_id": "nota-C",
+      "tahun_seq": 2026,
+      "seq": 3,
+      "toko_id": "toko-htg",
+      "nomor": "HTG/3/X/2026",
+      "dibuat_pada": "2026-10-06T05:21:35.632Z",
+      "diubah_pada": "2026-10-06T05:21:35.632Z"
+    }
+  ],
+  "invoice_number_log": [
+    {
+      "id": "log-1791264095632-w703a",
+      "waktu": "2026-10-06T05:21:35.632Z",
+      "user_info": "system",
+      "nota_id": "nota-A",
+      "nomor_lama": "HTG/1/X/2026",
+      "nomor_baru": "HTG/1/I/2027"
     }
   ]
 }

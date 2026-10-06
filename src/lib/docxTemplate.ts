@@ -8,7 +8,6 @@ import {
   formatTanggalInvoice,
   resolveRecipientSppgName,
   parseIndonesianNumber,
-  generateInvoiceNumber,
 } from './formatters';
 import { exportHtmlInvoicePdf } from './htmlInvoicePdf';
 
@@ -144,11 +143,18 @@ export function prepareScopedInvoiceData(options: ExportInvoiceOptions) {
   const validItems = filteredItems.length > 0 ? filteredItems : items;
 
   // 2. Invoice Number Auto Generation
-  const autoInvoiceNo =
+  const rawInvoiceNo =
     options.invoiceNumber ||
+    validItems[0]?.invoiceNumber ||
+    validItems[0]?.invoice_number ||
     (validItems[0] as any)?.noInvoice ||
     (validItems[0] as any)?.nomorInvoice ||
-    generateInvoiceNumber(kitchenName);
+    '';
+  const autoInvoiceNo = rawInvoiceNo && rawInvoiceNo !== '-' ? rawInvoiceNo : '-';
+
+  if (autoInvoiceNo === '-') {
+    console.warn('[docxTemplate] Nota belum punya nomor invoice:', validItems[0]?.notaId || validItems[0]?.nota_id);
+  }
 
   const formattedDate = targetDate ? formatTanggalInvoice(targetDate) : formatTanggalInvoice(new Date());
   const rawDate = targetDate || new Date().toISOString().split('T')[0];
@@ -307,7 +313,7 @@ export async function exportInvoicePdf(
       storeName,
       kitchenName,
       items: validItems,
-      invoiceNumber: invoiceNumber || `INV-${Date.now()}`,
+      invoiceNumber: invoiceNumber || validItems[0]?.invoiceNumber || validItems[0]?.invoice_number || '',
       bayar: bayar || 0,
       customNama,
       customAlamat,
@@ -357,7 +363,8 @@ export async function exportInvoiceDocxOnly(
     throw new Error(errorDetails);
   }
 
-  const fileName = `Invoice_${storeName.replace(/\s+/g, '_')}_${kitchenName.replace(/\s+/g, '_')}_${rawDate}.docx`;
+  const safeNumber = (dataContext.invoiceNumber || '').replace(/\//g, '-').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const fileName = safeNumber ? `Invoice_${safeNumber}.docx` : `Invoice_${storeName.replace(/\s+/g, '_')}_${kitchenName.replace(/\s+/g, '_')}_${rawDate}.docx`;
   saveAs(docxBlob, fileName);
   onProgress?.('File DOCX Berhasil Diunduh!');
   return { docxBlob, fileName };

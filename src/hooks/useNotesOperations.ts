@@ -69,8 +69,11 @@ export function useNotesOperations({
     const fPemasokId = masterPemasok.find((p) => p.nama.toLowerCase() === data.pemasok.trim().toLowerCase())?.id || '';
     const fDapurId = masterDapur.find((d) => d.nama.toLowerCase() === data.tujuanDapur.trim().toLowerCase() || d.nama.toLowerCase() === cleanD)?.id || '';
 
+    const newNotaId = `nota-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const newOrderFromNote: OrderItem = {
       id: `ord-from-note-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      notaId: newNotaId,
+      nota_id: newNotaId,
       namaBarang: data.namaBarang,
       qty: data.qty,
       satuan: data.satuan,

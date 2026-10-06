@@ -572,6 +572,7 @@ export default function App() {
         onRefreshMaster={refreshMasterData}
         selectedDate={selectedDate}
         existingOrders={orders}
+        exportHistory={exportHistory}
       />
 
       {/* 2. Invoice Form (Step 1 Confirmation Bottom Sheet) */}

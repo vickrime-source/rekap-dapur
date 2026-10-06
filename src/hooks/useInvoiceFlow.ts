@@ -1,6 +1,6 @@
 import { useState, useCallback, Dispatch, SetStateAction } from 'react';
 import { OrderItem, InvoiceRecord, ExportHistoryItem, InvoicePriceVariant } from '../types';
-import { generateInvoiceNumber, parseIndonesianNumber } from '../lib/formatters';
+import { parseIndonesianNumber } from '../lib/formatters';
 import { exportHtmlInvoicePdf } from '../lib/htmlInvoicePdf';
 import { downloadDocxInvoice } from '../lib/docxTemplate';
 import { 
@@ -70,7 +70,7 @@ export function useInvoiceFlow({
     setIsExportingActive(true);
     const targetKitchen = kitchenName || items[0]?.tujuanDapur || 'Siliragung';
     const targetStore = storeName || items[0]?.toko || 'HTG';
-    const invNum = generateInvoiceNumber(targetKitchen);
+    const invNum = items[0]?.invoiceNumber || items[0]?.invoice_number || '';
 
     // Calculate totalAmount according to variant
     const totalAmount = items.reduce(
@@ -219,7 +219,7 @@ export function useInvoiceFlow({
     setInvoiceRecipientPhone(data.phone);
     setInvoiceBayar(data.bayar);
 
-    const invNum = generateInvoiceNumber(data.kitchenName);
+    const invNum = data.items[0]?.invoiceNumber || data.items[0]?.invoice_number || '';
 
     setInvoiceItems(data.items);
     setInvoiceNumber(invNum);
@@ -242,7 +242,7 @@ export function useInvoiceFlow({
 
     const targetKitchen = kitchenName || items[0]?.tujuanDapur || 'Siliragung';
     const targetStore = storeName || items[0]?.toko || 'HTG';
-    const invNum = generateInvoiceNumber(targetKitchen);
+    const invNum = items[0]?.invoiceNumber || items[0]?.invoice_number || '';
 
     const totalAmount = items.reduce(
       (sum, item) => {
@@ -267,7 +267,8 @@ export function useInvoiceFlow({
   }, [showToast]);
 
   const handleSaveInvoiceRecord = useCallback(async () => {
-    if (invoices.some((inv) => inv.invoiceNumber === invoiceNumber)) return;
+    const targetNotaId = invoiceItems[0]?.notaId || invoiceItems[0]?.nota_id;
+    if (targetNotaId && invoices.some((inv) => inv.items?.some((it) => (it.notaId || it.nota_id) === targetNotaId))) return;
 
     const totalBeli = invoiceItems.reduce((s, i) => {
       const rawQJ = Number(i.qty || 0);
@@ -402,7 +403,7 @@ export function useInvoiceFlow({
           itemCount: options.items.length,
           tanggal: new Date().toISOString().split('T')[0],
           createdAt: new Date().toISOString(),
-          fileName: `Invoice_${options.invoiceNumber}.docx`,
+          fileName: `Invoice_${(options.invoiceNumber || '').replace(/\//g, '-')}.docx`,
           type: 'docx',
           fileType: 'docx',
         };

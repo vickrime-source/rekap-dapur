@@ -60,6 +60,7 @@ interface OrderModalProps {
   onRefreshMaster?: () => Promise<void>;
   selectedDate: string;
   existingOrders?: OrderItem[];
+  exportHistory?: any[];
 }
 
 interface ItemRow {
@@ -95,6 +96,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   onRefreshMaster,
   selectedDate,
   existingOrders = [],
+  exportHistory = [],
 }) => {
   const [itemRows, setItemRows] = useState<ItemRow[]>([]);
   const [activeItemIndex, setActiveItemIndex] = useState<number>(0);
@@ -108,6 +110,56 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatus>('PENDING');
   const [tanggal, setTanggal] = useState(selectedDate || getTodayWIB());
   const [catatan, setCatatan] = useState('');
+
+  // Deteksi perubahan nomor invoice saat edit pesanan jika tanggal/toko diubah (Aturan 12)
+  const invoiceChangeWarning = useMemo(() => {
+    if (!initialData) return null;
+    const currentInv = initialData.invoiceNumber || (initialData as any).invoice_number;
+    if (!currentInv || typeof currentInv !== 'string') return null;
+
+    const initialDate = initialData.tanggal || '';
+    const initialToko = initialData.toko || '';
+    const isDateChanged = tanggal && tanggal !== initialDate;
+    const isTokoChanged = (toko && toko !== initialToko) || (tokoId && tokoId !== (initialData.toko_id || initialData.tokoId));
+
+    if (!isDateChanged && !isTokoChanged) return null;
+
+    // Parse format PREFIX/SEQ/ROMAWI/TAHUN
+    const parts = currentInv.split('/');
+    if (parts.length !== 4) return null;
+    const [, seq, , oldYearStr] = parts;
+
+    // Ambil kode_invoice dari toko yang dipilih
+    const matchedToko = masterToko.find((t) => String(t.id) === String(tokoId) || t.nama.toLowerCase() === (toko || '').toLowerCase());
+    let newPrefix = matchedToko?.kode_invoice;
+    if (!newPrefix) {
+      const tLow = (toko || '').toLowerCase();
+      if (tLow.includes('luweng') || tLow.includes('lb')) newPrefix = 'LB';
+      else if (tLow.includes('htg')) newPrefix = 'HTG';
+      else if (tLow.includes('adifru') || tLow.includes('la') || tLow.includes('lumbung')) newPrefix = 'LA';
+      else if (tLow.includes('prohe') || tLow.includes('pw') || tLow.includes('ph')) newPrefix = 'PH';
+      else newPrefix = parts[0];
+    }
+
+    const newYear = parseInt(tanggal.slice(0, 4), 10) || parseInt(oldYearStr, 10);
+    const newMonth = parseInt(tanggal.slice(5, 7), 10) || 1;
+    const ROMAN_ARR = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+    const newRomawi = ROMAN_ARR[newMonth - 1] || 'I';
+
+    let previewNomor = '';
+    if (newYear === parseInt(oldYearStr, 10)) {
+      previewNomor = `${newPrefix}/${seq}/${newRomawi}/${newYear}`;
+    } else {
+      previewNomor = `${newPrefix}/[SEQ Baru]/${newRomawi}/${newYear}`;
+    }
+
+    if (previewNomor === currentInv) return null;
+
+    return {
+      oldNumber: currentInv,
+      newNumber: previewNomor,
+    };
+  }, [initialData, tanggal, toko, tokoId, masterToko]);
 
   // Tracking open/data switch to prevent form resets on master data updates
   const prevIsOpenRef = useRef(false);
@@ -717,6 +769,31 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         return;
       }
 
+      const isDateChanged = initialData.tanggal && initialData.tanggal !== tanggal;
+      const isStoreChanged = (initialData.toko && initialData.toko !== finalTokoName) || (initialData.toko_id && String(initialData.toko_id) !== String(finalTokoId));
+      if (isDateChanged || isStoreChanged) {
+        const matchedTokoObj = masterToko.find((t) => String(t.id) === String(finalTokoId) || t.nama.toLowerCase() === finalTokoName.toLowerCase());
+        const prefix = matchedTokoObj?.kode_invoice || (finalTokoName.includes('LB') ? 'LB' : finalTokoName.includes('LA') ? 'LA' : finalTokoName.includes('PROHE') || finalTokoName.includes('PW') ? 'PH' : 'HTG');
+        const dObj = new Date(tanggal);
+        const y = !isNaN(dObj.getFullYear()) ? dObj.getFullYear() : parseInt(tanggal.slice(0, 4), 10) || new Date().getFullYear();
+        const m = !isNaN(dObj.getMonth()) ? dObj.getMonth() + 1 : parseInt(tanggal.slice(5, 7), 10) || 1;
+        const romawi = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'][m - 1] || 'I';
+        const oldInvParts = (initialData.invoiceNumber || initialData.invoice_number || '').split('/');
+        const oldSeq = oldInvParts.length >= 2 ? oldInvParts[1] : '?';
+        const predictedNum = `${prefix}/${oldSeq}/${romawi}/${y}`;
+
+        try {
+          const exportHistStr = localStorage.getItem('htg_export_history') || '';
+          const hasExported = (initialData.notaId && exportHistStr.includes(initialData.notaId)) ||
+                              (initialData.nota_id && exportHistStr.includes(initialData.nota_id)) ||
+                              (initialData.invoiceNumber && exportHistStr.includes(initialData.invoiceNumber)) ||
+                              (initialData.invoice_number && exportHistStr.includes(initialData.invoice_number));
+          if (hasExported) {
+            alert(`Nomor invoice akan berubah menjadi ${predictedNum}. Cetak ulang PDF-nya.`);
+          }
+        } catch (_) {}
+      }
+
       onSave(singleItemPayload, initialData.id);
     } else {
       if (!finalDapurName.trim()) {
@@ -878,6 +955,25 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
             {/* Scrollable Form Content */}
             <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+              {/* Peringatan Perubahan Nomor Invoice (Aturan 12) */}
+              {invoiceChangeWarning && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700/80 rounded-2xl text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5 shadow-2xs">
+                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <p className="font-extrabold text-amber-950 dark:text-amber-100">
+                      Peringatan Perubahan Nomor Invoice:
+                    </p>
+                    <p className="mt-0.5">
+                      Nomor invoice akan berubah menjadi{' '}
+                      <span className="font-mono font-bold bg-amber-200/80 dark:bg-amber-900/80 px-1.5 py-0.5 rounded text-amber-950 dark:text-amber-100 border border-amber-300 dark:border-amber-700">
+                        {invoiceChangeWarning.newNumber}
+                      </span>
+                      . Cetak ulang PDF-nya.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* CARD 1: DETAIL PESANAN (Tetap Card Pertama, Rapih & Estimasi Margin) */}
               <div className="bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between">

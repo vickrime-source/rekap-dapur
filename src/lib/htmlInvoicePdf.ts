@@ -49,6 +49,14 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
   const recipientName = resolveRecipientSppgName(options.customNama, options.kitchenName, items);
   const invoiceDate = formatTanggalInvoice(options.customTanggal || items[0]?.tanggal || new Date());
 
+  const rawNumber = options.invoiceNumber || (items?.[0] as any)?.invoiceNumber || (items?.[0] as any)?.invoice_number || '';
+  const displayInvoiceNumber = rawNumber && rawNumber !== '-' ? rawNumber : '-';
+  const targetNotaId = (items?.[0] as any)?.notaId || (items?.[0] as any)?.nota_id;
+
+  if (displayInvoiceNumber === '-') {
+    console.warn('[htmlInvoicePdf] Nota belum punya nomor invoice:', targetNotaId || 'unknown_nota_id');
+  }
+
   const rowsHtml = calculatedItems
     .map(({ rawQ, retQ, q, p, subtotal, item }, idx) => {
       const qtyCell = retQ > 0 ? `
@@ -256,6 +264,9 @@ export function generateInvoiceHtmlString(options: HtmlInvoiceOptions): string {
 
           <!-- Date & Recipient Info (Right Column, Aligned with Company Text on Left) -->
           <td style="vertical-align: top; width: 45%; text-align: left; padding-left: 20px;">
+            <div style="font-size: 10pt; margin-bottom: 5px; font-family: ${styleConfig.fontFamily}; font-weight: normal;">
+              <strong style="font-weight: bold;">No. Invoice :</strong> <span style="font-family: monospace; font-weight: bold; letter-spacing: 0.3px;">${displayInvoiceNumber}</span>
+            </div>
             <div style="font-size: 10pt; margin-bottom: 10px; font-family: ${styleConfig.fontFamily}; font-weight: normal;">
               <strong style="font-weight: bold;">Tanggal :</strong> ${invoiceDate}
             </div>
@@ -459,9 +470,11 @@ export async function exportHtmlInvoicePdf(
       });
     });
 
-    const cleanNumber = options.invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const safeStore = options.storeName.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const fileName = `Invoice_${safeStore}_${cleanNumber}.pdf`;
+    const rawNumber = options.invoiceNumber || (options.items?.[0] as any)?.invoiceNumber || (options.items?.[0] as any)?.invoice_number || '';
+    const cleanNumber = rawNumber && rawNumber !== '-'
+      ? rawNumber.replace(/\//g, '-').replace(/[^a-zA-Z0-9_-]/g, '_')
+      : `${options.storeName.replace(/\s+/g, '_')}_${options.kitchenName.replace(/\s+/g, '_')}`;
+    const fileName = `Invoice_${cleanNumber}.pdf`;
 
     const imgData = canvas.toDataURL('image/jpeg', 0.98);
     const pdf = new jsPDF({
@@ -634,9 +647,11 @@ export async function exportHtmlInvoicePng(
 ): Promise<{ pngBlob: Blob; pngUrl: string; fileName: string }> {
   onProgress?.('Mempersiapkan gambar invoice...');
 
-  const cleanNumber = options.invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const safeStore = options.storeName.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const fileName = `Invoice_${safeStore}_${cleanNumber}.png`;
+  const rawNumber = options.invoiceNumber || (options.items?.[0] as any)?.invoiceNumber || (options.items?.[0] as any)?.invoice_number || '';
+  const cleanNumber = rawNumber && rawNumber !== '-'
+    ? rawNumber.replace(/\//g, '-').replace(/[^a-zA-Z0-9_-]/g, '_')
+    : `${options.storeName.replace(/\s+/g, '_')}_${options.kitchenName.replace(/\s+/g, '_')}`;
+  const fileName = `Invoice_${cleanNumber}.png`;
 
   const html2canvasModule = await import('html2canvas');
   const html2canvas = (html2canvasModule.default || html2canvasModule) as any;

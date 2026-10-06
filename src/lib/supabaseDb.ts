@@ -108,6 +108,8 @@ export function mapRawOrder(row: any): OrderItem {
     catatan: row.catatan || '',
     cashback: row.cashback !== undefined && row.cashback !== null ? Number(row.cashback) : 0,
     retur: row.retur !== undefined && row.retur !== null ? Math.max(0, Number(row.retur) || 0) : 0,
+    invoiceNumber: row.invoice_number || row.invoiceNumber || undefined,
+    invoice_number: row.invoice_number || row.invoiceNumber || undefined,
   };
 }
 
@@ -169,6 +171,9 @@ export function buildPesananPayload(item: Partial<OrderItem>) {
   if (notaId) {
     payload.nota_id = notaId;
   }
+  if (item.invoiceNumber || item.invoice_number) {
+    payload.invoice_number = item.invoiceNumber || item.invoice_number;
+  }
 
   console.log('SUBMIT ITEM', item);
   console.log('PESANAN PAYLOAD', payload);
@@ -218,7 +223,7 @@ export function buildTransaksiPayload(record: Partial<InvoiceRecord>) {
   const itemsCatatan = (record.items || []).map((i) => i.catatan).filter(Boolean).join('; ');
   return {
     ...(record.id ? { id: record.id } : {}),
-    invoice_number: record.invoiceNumber || `INV-${Date.now()}`,
+    invoice_number: record.invoiceNumber || (record as any).invoice_number || '',
     tanggal: record.createdAt ? record.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
     tanggal_print: record.tanggalPrint || new Date().toLocaleDateString('id-ID'),
     pemasok_id: cleanId(record.pemasok_id || (record as any).pemasokId),
@@ -420,9 +425,9 @@ export async function saveOrderToDb(order: OrderItem): Promise<{ success: boolea
   }
 }
 
-export async function saveOrdersBatchToDb(orders: OrderItem[]): Promise<{ success: boolean; error?: string; count?: number }> {
+export async function saveOrdersBatchToDb(orders: OrderItem[]): Promise<{ success: boolean; error?: string; count?: number; data?: OrderItem[] }> {
   try {
-    if (!orders || orders.length === 0) return { success: true, count: 0 };
+    if (!orders || orders.length === 0) return { success: true, count: 0, data: [] };
 
     // WAJIB: Filter / buang placeholder item kosong sebelum submit ke Supabase
     const validItems = orders.filter((o) => {
@@ -452,7 +457,8 @@ export async function saveOrdersBatchToDb(orders: OrderItem[]): Promise<{ succes
     }
     invalidateCache('pesanan');
     invalidateCache('summary');
-    return { success: true, count: json.count || validItems.length };
+    const returnedData = json.data ? (Array.isArray(json.data) ? json.data.map(mapRawOrder) : [mapRawOrder(json.data)]) : undefined;
+    return { success: true, count: json.count || validItems.length, data: returnedData };
   } catch (err: any) {
     console.error('[saveOrdersBatchToDb Exception]:', err);
     return { success: false, error: err?.message || 'Error saat menyimpan batch pesanan' };

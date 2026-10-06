@@ -564,15 +564,15 @@ export function formatTanggalRealtime(customDate?: string | Date): string {
   });
 }
 
-export function generateInvoiceNumber(suffix?: string): string {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const randomNum = Math.floor(1000 + Math.random() * 9000);
-  
-  const cleanSuffix = suffix ? `/${suffix.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4)}` : '';
-  return `INV/${year}${month}${day}${cleanSuffix}/${randomNum}`;
+export const ROMAN_MONTHS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'] as const;
+
+export function getRomanMonth(monthIndex1to12: number): string {
+  const idx = Math.max(1, Math.min(12, Math.floor(monthIndex1to12))) - 1;
+  return ROMAN_MONTHS[idx] || 'I';
+}
+
+export function formatInvoiceNumber(prefix: string, seq: number, romanMonth: string, year: number): string {
+  return `${prefix}/${seq}/${romanMonth}/${year}`;
 }
 
 export function getTokoBadgeStyle(tokoName: string): string {

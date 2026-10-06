@@ -9,7 +9,8 @@ import {
 } from './docxTemplate';
 import { compressDocxImagesClient } from './clientDocxCompressor';
 import {
-  generateInvoiceNumber,
+  formatInvoiceNumber,
+  getRomanMonth,
   formatRupiah,
   parseIndonesianNumber,
   formatTanggalInvoice,
@@ -185,11 +186,12 @@ describe('Invoice Processing & Template TDD Tests', () => {
     });
   });
 
-  describe('Invoice Number Auto Generation (generateInvoiceNumber)', () => {
-    it('should generate valid invoice number format with date stamp', () => {
-      const invNo = generateInvoiceNumber('Cluring');
-      expect(invNo).toMatch(/^INV\//);
-      expect(invNo).toContain('CLUR');
+  describe('Invoice Number Auto Generation (formatInvoiceNumber)', () => {
+    it('should format invoice number according to specification PREFIX/SEQ/ROMAWI/TAHUN', () => {
+      const invNo = formatInvoiceNumber('PH', 1, getRomanMonth(10), 2026);
+      expect(invNo).toBe('PH/1/X/2026');
+      expect(formatInvoiceNumber('LA', 2, getRomanMonth(10), 2026)).toBe('LA/2/X/2026');
+      expect(formatInvoiceNumber('LB', 20, getRomanMonth(11), 2026)).toBe('LB/20/XI/2026');
     });
   });
 

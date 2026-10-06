@@ -107,6 +107,13 @@ export const DapurTransactionCard: React.FC<DapurTransactionCardProps> = React.m
             <span>TOKO : {storeName}</span>
           </div>
 
+          {/* Invoice Number Badge Pill */}
+          {(items[0]?.invoiceNumber || (items[0] as any)?.invoice_number) && (
+            <div className="flex items-center gap-1 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/80 text-indigo-900 dark:text-indigo-300 px-2 py-1 rounded-xl font-mono font-bold text-[11px] shadow-2xs select-all" title="Nomor Invoice Resmi">
+              <span>INV: {items[0]?.invoiceNumber || (items[0] as any)?.invoice_number}</span>
+            </div>
+          )}
+
           {/* Status Badge Pill */}
           <button
             onClick={handleToggleCardStatus}

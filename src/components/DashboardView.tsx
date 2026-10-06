@@ -148,11 +148,15 @@ export const DashboardView: React.FC<DashboardViewProps> = React.memo(({
       // 2. Search query
       const q = searchQuery.toLowerCase().trim();
       if (q) {
+        const invNum = ((item.invoiceNumber || (item as any).invoice_number || '') as string).toLowerCase();
+        const notaId = ((item.notaId || (item as any).nota_id || '') as string).toLowerCase();
         const matchesSearch =
           item.namaBarang.toLowerCase().includes(q) ||
           item.pemasok.toLowerCase().includes(q) ||
           item.toko.toLowerCase().includes(q) ||
           item.tujuanDapur.toLowerCase().includes(q) ||
+          invNum.includes(q) ||
+          notaId.includes(q) ||
           (item.catatan && item.catatan.toLowerCase().includes(q));
         if (!matchesSearch) return false;
       }

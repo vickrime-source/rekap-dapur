@@ -62,11 +62,14 @@ export interface OrderItem {
   cashback?: number;   // Nilai cashback per barang (opsional: hargaBeli <= cashback <= hargaJual)
   retur?: number;      // Retur barang per item (qty_final = qty_jual - retur)
   rowIndex?: number;    // Baris indeks aktual di Google Sheets (sheet "pesanan")
+  invoiceNumber?: string; // Nomor invoice resmi (PREFIX/SEQ/ROMAWI/TAHUN)
+  invoice_number?: string;
 }
 
 export interface MasterToko {
   id: number | string;
   nama: string;
+  kode_invoice?: string; // LA, LB, PH, HTG
   created_at?: string;
   createdAt?: string;
 }

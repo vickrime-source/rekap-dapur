@@ -26,6 +26,7 @@ import {
   createMasterSatuan as createLocalMasterSatuan,
   deleteMasterSatuan as deleteLocalMasterSatuan,
   checkMasterUsage as checkLocalMasterUsage,
+  generateOrGetLocalInvoiceNumber,
 } from './localDbFallback.js';
 
 let supabaseClient: SupabaseClient | null = null;
@@ -253,13 +254,13 @@ export function getDateRangeForPeriod(period: string, refDateStr?: string): { st
 // =============================================================================
 
 // DEFINISI KOLOM SPESIFIK: Menghemat Egress/Bandwidth (Jangan select *)
-export const ORDER_COLUMNS = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at,cashback,retur,qty_beli,nota_id,toko_id,pemasok_id,dapur_id';
-export const ORDER_COLUMNS_LEGACY = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at,cashback,retur';
+export const ORDER_COLUMNS = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at,cashback,retur,qty_beli,nota_id,toko_id,pemasok_id,dapur_id,invoice_number';
+export const ORDER_COLUMNS_LEGACY = 'id,dapur,item,tanggal,qty,satuan,toko,status_pembayaran,status_pengiriman,status,harga_jual,harga_beli,pemasok,catatan,created_at,cashback,retur,invoice_number';
 export const TRANSACTION_COLUMNS = 'id,invoice_number,tanggal,tanggal_print,pemasok,barang,toko,dapur,qty,harga_beli,total,total_profit,status_pembayaran,items,catatan,created_at';
 export const TRANSACTION_COLUMNS_LEGACY = 'id,invoice_number,tanggal,tanggal_print,pemasok,barang,toko,dapur,qty,harga_beli,total,total_profit,status_pembayaran,items,created_at';
 export const NOTE_COLUMNS = 'id,dapur,item,qty,satuan,catatan,status,is_done,order_id,tanggal,batch_id,created_at,items';
 export const NOTE_COLUMNS_LEGACY = 'id,dapur,item,qty,satuan,catatan,status,is_done,order_id,created_at';
-export const TOKO_COLUMNS = 'id,nama,created_at';
+export const TOKO_COLUMNS = 'id,nama,kode_invoice,created_at';
 export const PEMASOK_COLUMNS = 'id,nama,created_at';
 export const DAPUR_COLUMNS = 'id,nama,alamat,created_at';
 export const SATUAN_COLUMNS = 'id,nama,created_at,updated_at';
@@ -383,6 +384,41 @@ export async function getOrdersFromDb(filters: OrderFilterOptions = {}) {
   } catch (err: any) {
     if (isTableMissingError(err)) {
       return getLocalOrders(filters);
+    }
+    throw err;
+  }
+}
+
+export async function generateOrGetInvoiceNumber(
+  notaId: string,
+  tokoId: string,
+  tanggal: string,
+  userInfo = 'system'
+): Promise<{ nomor: string; seq: number; tahun: number; is_new: boolean }> {
+  if (!isSupabaseConfigured()) {
+    return generateOrGetLocalInvoiceNumber(notaId, tokoId, tanggal, userInfo);
+  }
+
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase.rpc('generate_or_get_invoice_number', {
+      p_nota_id: notaId,
+      p_toko_id: String(tokoId),
+      p_tanggal: tanggal,
+      p_user_info: userInfo,
+    });
+
+    if (error) {
+      console.error('[generateOrGetInvoiceNumber RPC Error]:', error);
+      if (isTableMissingError(error) && process.env.NODE_ENV !== 'production') {
+        return generateOrGetLocalInvoiceNumber(notaId, tokoId, tanggal, userInfo);
+      }
+      throw error;
+    }
+    return data;
+  } catch (err: any) {
+    if (isTableMissingError(err) && process.env.NODE_ENV !== 'production') {
+      return generateOrGetLocalInvoiceNumber(notaId, tokoId, tanggal, userInfo);
     }
     throw err;
   }
@@ -533,6 +569,27 @@ export async function createOrdersInDb(ordersData: any[] | any) {
     throw new Error('Validasi gagal: Tidak ada item pesanan valid untuk disimpan.');
   }
 
+  // 3. Ambil nomor invoice resmi secara atomik (Aturan 3, 4, 7)
+  const firstRec = records[0];
+  const targetToko = firstRec.toko_id !== undefined && firstRec.toko_id !== null ? firstRec.toko_id : firstRec.toko;
+  const targetTanggal = firstRec.tanggal || new Date().toISOString().split('T')[0];
+  let assignedInvoiceNumber = '';
+  try {
+    const invRes = await generateOrGetInvoiceNumber(sharedNotaId, String(targetToko), targetTanggal);
+    if (invRes && invRes.nomor) {
+      assignedInvoiceNumber = invRes.nomor;
+    }
+  } catch (invErr: any) {
+    console.error('[createOrdersInDb] Gagal mengambil nomor invoice resmi:', invErr);
+    throw new Error(`Gagal membuat nomor invoice resmi: ${invErr?.message || invErr}`);
+  }
+
+  records.forEach((r) => {
+    if (!r.invoice_number) {
+      r.invoice_number = assignedInvoiceNumber;
+    }
+  });
+
   if (!isSupabaseConfigured()) {
     return createLocalOrders(records);
   }
@@ -637,6 +694,40 @@ export async function updateOrderInDb(id: string, updates: any) {
 
   try {
     const supabase = getSupabase();
+
+    // 1. Cek order saat ini untuk ambil nota_id dan deteksi perubahan tanggal/toko
+    let targetNotaId = updates.nota_id || updates.notaId;
+    let oldOrder: any = null;
+    const isDateOrStoreChanged =
+      updates.tanggal !== undefined ||
+      updates.toko !== undefined ||
+      updates.toko_id !== undefined ||
+      updates.tokoId !== undefined;
+
+    if (isDateOrStoreChanged || !targetNotaId) {
+      const { data: curOrd } = await supabase
+        .from('pesanan')
+        .select('id,nota_id,tanggal,toko,toko_id,invoice_number')
+        .eq('id', id)
+        .maybeSingle();
+      oldOrder = curOrd;
+      if (!targetNotaId) targetNotaId = curOrd?.nota_id;
+    }
+
+    // 2. Jika tanggal atau toko berubah, hitung ulang nomor invoice resmi (Aturan 9 & 10)
+    let newInvoiceNumber = payload.invoice_number;
+    if (targetNotaId && isDateOrStoreChanged) {
+      const newTokoId = payload.toko_id !== undefined && payload.toko_id !== null ? payload.toko_id : (oldOrder?.toko_id || oldOrder?.toko || updates.toko);
+      const newTanggal = payload.tanggal || oldOrder?.tanggal || new Date().toISOString().split('T')[0];
+      try {
+        const invRes = await generateOrGetInvoiceNumber(targetNotaId, String(newTokoId), newTanggal);
+        newInvoiceNumber = invRes.nomor;
+        payload.invoice_number = newInvoiceNumber;
+      } catch (e) {
+        console.warn('[updateOrderInDb] Gagal memperbarui nomor invoice:', e);
+      }
+    }
+
     let { data, error } = await supabase
       .from('pesanan')
       .update(payload)
@@ -660,6 +751,29 @@ export async function updateOrderInDb(id: string, updates: any) {
       }
       throw error;
     }
+
+    // 3. Propagasi perubahan tanggal, toko, toko_id, dan nomor invoice ke SEMUA item dalam nota_id yang sama
+    if (targetNotaId && isDateOrStoreChanged) {
+      const batchPayload: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (payload.tanggal !== undefined) batchPayload.tanggal = payload.tanggal;
+      if (payload.toko !== undefined) batchPayload.toko = payload.toko;
+      if (payload.toko_id !== undefined) batchPayload.toko_id = payload.toko_id;
+      if (newInvoiceNumber) batchPayload.invoice_number = newInvoiceNumber;
+
+      await supabase.from('pesanan').update(batchPayload).eq('nota_id', targetNotaId).neq('id', id);
+
+      // Sinkronkan ke tabel transaksi jika ada
+      if (newInvoiceNumber) {
+        await supabase.from('transaksi').update({
+          invoice_number: newInvoiceNumber,
+          ...(payload.tanggal ? { tanggal: payload.tanggal } : {}),
+          ...(payload.toko ? { toko: payload.toko } : {}),
+        }).ilike('barang', `%${targetNotaId}%`);
+      }
+    }
+
     return data?.[0] || null;
   } catch (err: any) {
     if (isTableMissingError(err)) {
@@ -794,9 +908,17 @@ export async function getTransactionsFromDb(limit: number = 500, page: number = 
 
 export async function createTransactionInDb(tx: any) {
   const itemsCatatan = Array.isArray(tx.items) ? tx.items.map((i: any) => i.catatan).filter(Boolean).join('; ') : '';
+  const firstItem = Array.isArray(tx.items) && tx.items.length > 0 ? tx.items[0] : null;
+  const resolvedInvoiceNumber =
+    tx.invoice_number ||
+    tx.invoiceNumber ||
+    firstItem?.invoice_number ||
+    firstItem?.invoiceNumber ||
+    '';
+
   const record: any = {
     ...(tx.id ? { id: String(tx.id) } : {}),
-    invoice_number: tx.invoice_number || tx.invoiceNumber || `INV-${Date.now()}`,
+    invoice_number: resolvedInvoiceNumber,
     tanggal: tx.tanggal || new Date().toISOString().split('T')[0],
     tanggal_print: tx.tanggal_print || tx.tanggalPrint || new Date().toLocaleDateString('id-ID'),
     pemasok: tx.pemasok || '',

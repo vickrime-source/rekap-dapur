@@ -196,9 +196,14 @@ export function useOrderOperations({
   }, [orders, setOrders, setDbError, showToast]);
 
   const handleDuplicateOrder = useCallback(async (item: OrderItem) => {
+    const newNotaId = `nota-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const duplicated: OrderItem = {
       ...item,
       id: `ord-dup-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      notaId: newNotaId,
+      nota_id: newNotaId,
+      invoiceNumber: undefined,
+      invoice_number: undefined,
       createdAt: getNowWIBISOString(),
     };
 
@@ -209,7 +214,10 @@ export function useOrderOperations({
     setIsLoadingDb(false);
 
     if (res.success) {
-      showToast('Pesanan berhasil diduplikasi & tersimpan', 'success');
+      if (res.data) {
+        setOrders((prev) => prev.map((o) => (o.id === duplicated.id ? (res.data as OrderItem) : o)));
+      }
+      showToast('Pesanan berhasil diduplikasi & nomor invoice baru dibuat', 'success');
     } else {
       setDbError(res.error || 'Gagal menyimpan pesanan');
       showToast(`Pesanan tersimpan di HP. Gagal simpan ke database: ${res.error}`, 'info');
@@ -335,15 +343,25 @@ export function useOrderOperations({
     let lastError = '';
 
     const batchRes = await saveOrdersBatchToDb(newOrdersAdded);
-    if (batchRes.success) {
+    let finalItemsWithInvoice = newOrdersAdded;
+    if (batchRes.success && batchRes.data && Array.isArray(batchRes.data) && batchRes.data.length > 0) {
+      finalItemsWithInvoice = batchRes.data as OrderItem[];
+      setOrders((prev) => {
+        const idMap = new Map(finalItemsWithInvoice.map((it) => [it.id, it]));
+        return prev.map((o) => idMap.get(o.id) || o);
+      });
+      successCount = finalItemsWithInvoice.length;
+    } else if (batchRes.success) {
       successCount = newOrdersAdded.length;
     } else {
       lastError = batchRes.error || 'Gagal menyimpan pesanan ke database';
     }
 
-    if (newOrdersAdded.length > 0) {
-      const firstItem = newOrdersAdded[0];
-      const totalBeli = newOrdersAdded.reduce((sum, it) => {
+    if (finalItemsWithInvoice.length > 0) {
+      const firstItem = finalItemsWithInvoice[0];
+      const officialInvNum = firstItem.invoiceNumber || firstItem.invoice_number || '';
+
+      const totalBeli = finalItemsWithInvoice.reduce((sum, it) => {
         const rawQJ = Number(it.qty || 0);
         const rawQB = (it as any).qtyBeli !== undefined && (it as any).qtyBeli !== null
           ? Number((it as any).qtyBeli)
@@ -354,7 +372,7 @@ export function useOrderOperations({
         const qbe = Math.max(0, rawQB - rt);
         return sum + qbe * Number(it.hargaBeli || 0);
       }, 0);
-      const totalJual = newOrdersAdded.reduce((sum, it) => {
+      const totalJual = finalItemsWithInvoice.reduce((sum, it) => {
         const rawQJ = Number(it.qty || 0);
         const rt = Math.max(0, Number(it.retur) || 0);
         const qf = Math.max(0, rawQJ - rt);
@@ -362,14 +380,14 @@ export function useOrderOperations({
       }, 0);
       const newInvoiceRec: InvoiceRecord = {
         id: `tx-${Date.now()}`,
-        invoiceNumber: `TRX-${Date.now().toString().slice(-6)}`,
+        invoiceNumber: officialInvNum,
         tanggalPrint: firstItem.tanggal,
         createdAt: createdDate,
         tujuanDapur: firstItem.tujuanDapur,
         dapur_id: firstItem.dapur_id || null,
         toko: firstItem.toko,
         toko_id: firstItem.toko_id || null,
-        items: newOrdersAdded,
+        items: finalItemsWithInvoice,
         totalBeli,
         totalJual,
         totalProfit: totalJual - totalBeli,
