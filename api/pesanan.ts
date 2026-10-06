@@ -53,10 +53,11 @@ export default async function handler(req: any, res: any) {
       const dapur = query.dapur as string | undefined;
       const pemasok = query.pemasok as string | undefined;
       const status = query.status as string | undefined;
-      const limit = query.limit ? parseInt(query.limit as string, 10) : 100;
+      const fetchAll = query.all === 'true' || (!query.limit && !query.page);
+      const limit = fetchAll ? undefined : (query.limit ? parseInt(query.limit as string, 10) : 100);
       const page = query.page ? parseInt(query.page as string, 10) : 1;
 
-      const result = await getOrdersFromDb({ period, date, toko, dapur, pemasok, status, limit, page });
+      const result = await getOrdersFromDb({ period, date, toko, dapur, pemasok, status, limit, page, fetchAll });
       return res.status(200).json({
         success: true,
         data: result,

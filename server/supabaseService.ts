@@ -28,6 +28,7 @@ import {
   checkMasterUsage as checkLocalMasterUsage,
   generateOrGetLocalInvoiceNumber,
 } from './localDbFallback.js';
+import { fetchAllRowsInBatches } from './paginatedFetch.js';
 
 let supabaseClient: SupabaseClient | null = null;
 
@@ -277,113 +278,59 @@ export interface OrderFilterOptions {
   limit?: number;
   page?: number;
   offset?: number;
+  fetchAll?: boolean;
 }
 
 export async function getOrdersFromDb(filters: OrderFilterOptions = {}) {
+  const fetchAll = filters.fetchAll === true || (filters.limit === undefined && filters.page === undefined && filters.offset === undefined);
   if (!isSupabaseConfigured()) {
-    return getLocalOrders(filters);
+    const localFilters = fetchAll ? { ...filters, limit: undefined, page: undefined, offset: undefined } : filters;
+    return getLocalOrders(localFilters);
   }
   try {
     const supabase = getSupabase();
-    
-    // FIX LIMIT PAGINASI: Jangan potong data periode dengan limit 100 hardcoded.
-    // Jika filters.limit diminta, hormati hingga 10.000. Jika tidak dispesifikasikan, ambil hingga 10.000 agar data periode lengkap.
-    const limit = filters.limit ? Math.min(filters.limit, 10000) : 10000;
-    const offset = filters.offset !== undefined 
-      ? filters.offset 
-      : (filters.page ? (filters.page - 1) * limit : 0);
-
-    let query = supabase
-      .from('pesanan')
-      .select(ORDER_COLUMNS)
-      .order('tanggal', { ascending: false })
-      .order('created_at', { ascending: false });
-
-    // Filter periode (Hari Ini/Mingguan/Bulanan/Custom Range) di level DATABASE pakai .gte()/.lte()
-    if (filters.startDate && filters.endDate) {
-      if (filters.startDate === filters.endDate) {
-        query = query.eq('tanggal', filters.startDate);
-      } else {
-        query = query.gte('tanggal', filters.startDate).lte('tanggal', filters.endDate);
-      }
-    } else if (filters.period && filters.period !== 'all_time') {
-      const { startDate, endDate } = getDateRangeForPeriod(filters.period, filters.date);
-      if (startDate && endDate) {
-        if (startDate === endDate) {
-          query = query.eq('tanggal', startDate);
-        } else {
-          query = query.gte('tanggal', startDate).lte('tanggal', endDate);
-        }
-      }
-    } else if (filters.date) {
-      query = query.eq('tanggal', filters.date);
-    }
-
-    if (filters.toko) {
-      query = query.eq('toko', filters.toko);
-    }
-    if (filters.dapur) {
-      query = query.eq('dapur', filters.dapur);
-    }
-    if (filters.pemasok) {
-      query = query.eq('pemasok', filters.pemasok);
-    }
-    if (filters.status) {
-      query = query.eq('status', filters.status);
-    }
-
-    // Selalu sertakan pagination/range query di database
-    query = query.range(offset, offset + limit - 1);
-
-    let { data, error } = await query;
-    if (error) {
-      // Fallback jika kolom baru belum ada di schema database Supabase pengguna
-      if (error.code === '42703' || (error.message && (error.message.includes('status_pembatalan') || error.message.includes('cancelled_at')))) {
-        let fallbackQuery = supabase
-          .from('pesanan')
-          .select(ORDER_COLUMNS_LEGACY)
-          .order('tanggal', { ascending: false })
-          .order('created_at', { ascending: false });
-
+    let useLegacyColumns = false;
+    const fetchPage = async (pageOffset: number, pageSize: number) => {
+      const buildQuery = (columns: string) => {
+        let query: any = supabase.from('pesanan').select(columns, fetchAll ? { count: 'exact' } : undefined)
+          .order('tanggal', { ascending: false }).order('created_at', { ascending: false });
         if (filters.startDate && filters.endDate) {
-          if (filters.startDate === filters.endDate) {
-            fallbackQuery = fallbackQuery.eq('tanggal', filters.startDate);
-          } else {
-            fallbackQuery = fallbackQuery.gte('tanggal', filters.startDate).lte('tanggal', filters.endDate);
-          }
+          query = filters.startDate === filters.endDate
+            ? query.eq('tanggal', filters.startDate)
+            : query.gte('tanggal', filters.startDate).lte('tanggal', filters.endDate);
         } else if (filters.period && filters.period !== 'all_time') {
           const { startDate, endDate } = getDateRangeForPeriod(filters.period, filters.date);
-          if (startDate && endDate) {
-            if (startDate === endDate) {
-              fallbackQuery = fallbackQuery.eq('tanggal', startDate);
-            } else {
-              fallbackQuery = fallbackQuery.gte('tanggal', startDate).lte('tanggal', endDate);
-            }
-          }
-        } else if (filters.date) {
-          fallbackQuery = fallbackQuery.eq('tanggal', filters.date);
-        }
-        if (filters.toko) fallbackQuery = fallbackQuery.eq('toko', filters.toko);
-        if (filters.dapur) fallbackQuery = fallbackQuery.eq('dapur', filters.dapur);
-        if (filters.pemasok) fallbackQuery = fallbackQuery.eq('pemasok', filters.pemasok);
-        if (filters.status) fallbackQuery = fallbackQuery.eq('status', filters.status);
-        fallbackQuery = fallbackQuery.range(offset, offset + limit - 1);
-
-        const fallbackRes = await fallbackQuery;
-        if (!fallbackRes.error) {
-          return fallbackRes.data || [];
-        }
+          if (startDate && endDate) query = startDate === endDate
+            ? query.eq('tanggal', startDate)
+            : query.gte('tanggal', startDate).lte('tanggal', endDate);
+        } else if (filters.date) query = query.eq('tanggal', filters.date);
+        if (filters.toko) query = query.eq('toko', filters.toko);
+        if (filters.dapur) query = query.eq('dapur', filters.dapur);
+        if (filters.pemasok) query = query.eq('pemasok', filters.pemasok);
+        if (filters.status) query = query.eq('status', filters.status);
+        return query.range(pageOffset, pageOffset + pageSize - 1);
+      };
+      let result = await buildQuery(useLegacyColumns ? ORDER_COLUMNS_LEGACY : ORDER_COLUMNS);
+      if (result.error && !useLegacyColumns && (result.error.code === '42703' || result.error.code === 'PGRST204' || /status_pembatalan|cancelled_at|column .* does not exist/i.test(result.error.message || ''))) {
+        useLegacyColumns = true;
+        result = await buildQuery(ORDER_COLUMNS_LEGACY);
       }
+      return { data: result.data, error: result.error, count: result.count };
+    };
 
-      if (isTableMissingError(error)) {
-        return getLocalOrders(filters);
-      }
-      throw error;
+    if (fetchAll) return await fetchAllRowsInBatches(fetchPage, 1000);
+    const limit = Math.min(filters.limit || 10000, 10000);
+    const offset = filters.offset !== undefined ? filters.offset : (filters.page ? (filters.page - 1) * limit : 0);
+    const result = await fetchPage(offset, limit);
+    if (result.error) {
+      if (isTableMissingError(result.error)) return getLocalOrders(filters);
+      throw result.error;
     }
-    return data || [];
+    return result.data || [];
   } catch (err: any) {
     if (isTableMissingError(err)) {
-      return getLocalOrders(filters);
+      const localFilters = fetchAll ? { ...filters, limit: undefined, page: undefined, offset: undefined } : filters;
+      return getLocalOrders(localFilters);
     }
     throw err;
   }
@@ -859,48 +806,41 @@ export async function deleteOrdersFromDb(idOrIds: string | string[]) {
 // =============================================================================
 // TRANSACTIONS (transaksi) CRUD
 // =============================================================================
-export async function getTransactionsFromDb(limit: number = 500, page: number = 1) {
-  // Menghapus limit 100 terpotong: izinkan hingga 5000 transaksi
+export async function getTransactionsFromDb(limit: number = 500, page: number = 1, fetchAll = false) {
   const safeLimit = Math.min(limit || 500, 5000);
   const offset = (page - 1) * safeLimit;
 
   if (!isSupabaseConfigured()) {
-    return getLocalTransactions(safeLimit);
+    return getLocalTransactions(fetchAll ? null : safeLimit);
   }
 
   try {
     const supabase = getSupabase();
-    let query = supabase
-      .from('transaksi')
-      .select(TRANSACTION_COLUMNS)
-      .order('tanggal', { ascending: false })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + safeLimit - 1);
-
-    const { data, error } = await query;
-
-    if (error) {
-      if (isTableMissingError(error)) {
-        return getLocalTransactions(safeLimit);
+    let useLegacyColumns = false;
+    const fetchPage = async (pageOffset: number, pageSize: number) => {
+      const columns = useLegacyColumns ? TRANSACTION_COLUMNS_LEGACY : TRANSACTION_COLUMNS;
+      let result: any = await supabase.from('transaksi').select(columns, fetchAll ? { count: 'exact' } : undefined)
+        .order('tanggal', { ascending: false }).order('created_at', { ascending: false })
+        .range(pageOffset, pageOffset + pageSize - 1);
+      if (result.error && !useLegacyColumns && (result.error.message?.includes('catatan') || result.error.code === 'PGRST204' || result.error.code === '42703')) {
+        useLegacyColumns = true;
+        result = await supabase.from('transaksi').select(TRANSACTION_COLUMNS_LEGACY, fetchAll ? { count: 'exact' } : undefined)
+          .order('tanggal', { ascending: false }).order('created_at', { ascending: false })
+          .range(pageOffset, pageOffset + pageSize - 1);
       }
-      // If error is caused by missing 'catatan' column before migration is run, fallback to legacy columns
-      if (error.message && (error.message.includes('catatan') || error.code === 'PGRST204')) {
-        const fallbackRes = await supabase
-          .from('transaksi')
-          .select(TRANSACTION_COLUMNS_LEGACY)
-          .order('tanggal', { ascending: false })
-          .order('created_at', { ascending: false })
-          .range(offset, offset + safeLimit - 1);
-        if (!fallbackRes.error) {
-          return fallbackRes.data || [];
-        }
-      }
-      throw error;
+      return { data: result.data, error: result.error, count: result.count };
+    };
+
+    if (fetchAll) return await fetchAllRowsInBatches(fetchPage, 1000);
+    const result = await fetchPage(offset, safeLimit);
+    if (result.error) {
+      if (isTableMissingError(result.error)) return getLocalTransactions(safeLimit);
+      throw result.error;
     }
-    return data || [];
+    return result.data || [];
   } catch (err: any) {
     if (isTableMissingError(err)) {
-      return getLocalTransactions(safeLimit);
+      return getLocalTransactions(fetchAll ? null : safeLimit);
     }
     throw err;
   }
@@ -1246,26 +1186,19 @@ export async function getPeriodSummaryFromDb(
       endDate = endDate || range.endDate;
     }
 
-    let query = supabase
-      .from('pesanan')
-      .select('tanggal,dapur,toko,qty,qty_beli,retur,harga_jual,harga_beli,pemasok,cashback,status')
-      .neq('status', 'CANCELLED');
-
-    if (startDate && endDate) {
-      if (startDate === endDate) {
-        query = query.eq('tanggal', startDate);
-      } else {
-        query = query.gte('tanggal', startDate).lte('tanggal', endDate);
+    const rawOrders = await fetchAllRowsInBatches(async (offset, pageSize) => {
+      let query = supabase
+        .from('pesanan')
+        .select('tanggal,dapur,toko,qty,qty_beli,retur,harga_jual,harga_beli,pemasok,cashback,status', { count: 'exact' })
+        .neq('status', 'CANCELLED');
+      if (startDate && endDate) {
+        query = startDate === endDate
+          ? query.eq('tanggal', startDate)
+          : query.gte('tanggal', startDate).lte('tanggal', endDate);
       }
-    }
-
-    const { data: rawOrders, error } = await query;
-    if (error) {
-      if (isTableMissingError(error)) {
-        return getLocalPeriodSummary(period, targetDate, startDate, endDate);
-      }
-      throw error;
-    }
+      const result = await query.range(offset, offset + pageSize - 1);
+      return { data: result.data, error: result.error, count: result.count };
+    }, 1000);
 
     const orders = (rawOrders as any[]) || [];
     let totalQty = 0;

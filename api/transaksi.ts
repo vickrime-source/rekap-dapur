@@ -37,7 +37,8 @@ export default async function handler(req: any, res: any) {
     if (req.method === 'GET') {
       const limit = query.limit ? parseInt(query.limit as string, 10) : 50;
       const page = query.page ? parseInt(query.page as string, 10) : 1;
-      const result = await getTransactionsFromDb(limit, page);
+      const fetchAll = query.all === 'true' || (!query.limit && !query.page);
+      const result = await getTransactionsFromDb(limit, page, fetchAll);
       return res.status(200).json({
         success: true,
         data: result,

@@ -923,7 +923,7 @@ async function startServer() {
     try {
       const sheet = (req.query.sheet as string) || 'pesanan';
       if (sheet === 'transaksi') {
-        const data = await getTransactionsFromDb();
+        const data = await getTransactionsFromDb(500, 1, true);
         return res.json({ success: true, sheet, data, count: data.length });
       } else if (sheet === 'notes') {
         const data = await getNotesFromDb();

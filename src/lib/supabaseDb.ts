@@ -352,6 +352,7 @@ export async function fetchOrdersFromDb(params?: {
   dapur?: string;
   limit?: number;
   page?: number;
+  all?: boolean;
   forceRefresh?: boolean;
 }): Promise<{ success: boolean; orders: OrderItem[]; error?: string }> {
   // Always fetch fresh from Supabase - bypass cacheManager completely for /api/pesanan
@@ -365,6 +366,7 @@ export async function fetchOrdersFromDb(params?: {
     if (params?.dapur) searchParams.set('dapur', params.dapur);
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.all || (!params?.limit && !params?.page)) searchParams.set('all', 'true');
     // Cache buster parameter to prevent any browser/service worker HTTP caching
     searchParams.set('_t', String(Date.now()));
 
@@ -549,8 +551,8 @@ export async function deleteOrdersFromDb(ids: string[]): Promise<{ success: bool
 // -----------------------------------------------------------------------------
 // Transactions (transaksi) CRUD via Supabase API
 // -----------------------------------------------------------------------------
-export async function fetchTransactionsFromDb(limit: number = 500, page: number = 1, forceRefresh = false): Promise<{ success: boolean; transactions: InvoiceRecord[]; error?: string }> {
-  const cacheKey = `transaksi_${limit}_${page}`;
+export async function fetchTransactionsFromDb(limit: number = 500, page: number = 1, forceRefresh = false, fetchAll = false): Promise<{ success: boolean; transactions: InvoiceRecord[]; error?: string }> {
+  const cacheKey = fetchAll ? 'transaksi_all' : `transaksi_${limit}_${page}`;
   if (!forceRefresh) {
     const cached = getFromCache<InvoiceRecord[]>(cacheKey);
     if (cached) {
@@ -559,7 +561,7 @@ export async function fetchTransactionsFromDb(limit: number = 500, page: number 
   }
 
   try {
-    const res = await fetch(`/api/transaksi?limit=${limit}&page=${page}`);
+    const res = await fetch(fetchAll ? '/api/transaksi?all=true' : `/api/transaksi?limit=${limit}&page=${page}`);
     const json = await res.json();
     if (!res.ok || !json.success) {
       return { success: false, transactions: [], error: json.error || 'Gagal memuat transaksi' };
@@ -739,7 +741,7 @@ export async function fetchSheetData(sheetName: 'pesanan' | 'transaksi' | 'notes
     const res = await fetchOrdersFromDb({ period: 'all_time' });
     return res.orders;
   } else if (sheetName === 'transaksi') {
-    const res = await fetchTransactionsFromDb();
+    const res = await fetchTransactionsFromDb(500, 1, false, true);
     return res.transactions;
   } else {
     const res = await fetchNotesFromDb();

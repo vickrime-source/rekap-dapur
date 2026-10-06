@@ -40,7 +40,7 @@ export function useDatabaseSync({
     try {
       const [ordersRes, txRes, notesRes] = await Promise.all([
         fetchOrdersFromDb({ forceRefresh: showToastNotice }),
-        fetchTransactionsFromDb(500, 1, showToastNotice),
+        fetchTransactionsFromDb(500, 1, showToastNotice, true),
         fetchNotesFromDb(showToastNotice),
       ]);
 

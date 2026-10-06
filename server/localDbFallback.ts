@@ -621,11 +621,11 @@ export function deleteLocalOrders(ids: string[]): { deletedCount: number; softDe
 // ---------------------------------------------------------------------------
 // TRANSACTIONS (transaksi)
 // ---------------------------------------------------------------------------
-export function getLocalTransactions(limit: number = 500): FallbackTransaction[] {
+export function getLocalTransactions(limit: number | null = 500): FallbackTransaction[] {
   const db = loadDb();
   const list = [...db.transaksi];
   list.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
-  return list.slice(0, Math.min(limit || 500, 5000));
+  return limit === null ? list : list.slice(0, Math.min(limit || 500, 5000));
 }
 
 export function createLocalTransaction(tx: any): FallbackTransaction {
