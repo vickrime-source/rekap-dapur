@@ -13,6 +13,7 @@ import {
   saveOrderToDb, 
   saveOrdersBatchToDb, 
   updateOrderInDb, 
+  batchUpdateStatusInDb,
   deleteOrderFromDb, 
   deleteOrdersFromDb, 
   saveTransactionToDb, 
@@ -53,33 +54,89 @@ export function useOrderOperations({
   const [editingOrder, setEditingOrder] = useState<OrderItem | null>(null);
   const [prefilledKitchen, setPrefilledKitchen] = useState<string | undefined>();
 
-  const handleToggleStatus = useCallback((id: string) => {
+  const handleToggleStatus = useCallback(async (id: string) => {
+    let nextStatus: 'pending' | 'selesai' = 'pending';
+    let nextPay: PaymentStatus = 'UNPAID';
+    let nextDel: DeliveryStatus = 'PENDING';
+
     setOrders((prev) =>
-      prev.map((o) =>
-        o.id === id ? { ...o, status: o.status === 'pending' ? 'selesai' : 'pending' } : o
-      )
+      prev.map((o) => {
+        if (String(o.id) !== String(id)) return o;
+        nextStatus = o.status === 'pending' ? 'selesai' : 'pending';
+        nextPay = nextStatus === 'selesai' ? 'PAID' : (o.paymentStatus || 'UNPAID');
+        nextDel = nextStatus === 'selesai' ? 'DONE' : (o.deliveryStatus || 'PENDING');
+        return {
+          ...o,
+          status: nextStatus,
+          paymentStatus: nextPay,
+          status_pembayaran: nextPay,
+          deliveryStatus: nextDel,
+          status_pengiriman: nextDel,
+        };
+      })
     );
-  }, [setOrders]);
+
+    setInvoices((prev) =>
+      prev.map((inv) => {
+        if (inv.items?.some((it) => String(it.id) === String(id))) {
+          return {
+            ...inv,
+            status_pembayaran: nextPay,
+            items: inv.items.map((it) =>
+              String(it.id) === String(id)
+                ? { ...it, status: nextStatus, paymentStatus: nextPay, status_pembayaran: nextPay, deliveryStatus: nextDel, status_pengiriman: nextDel }
+                : it
+            ),
+          };
+        }
+        return inv;
+      })
+    );
+
+    const res = await updateOrderInDb(id, {
+      status: nextStatus,
+      paymentStatus: nextPay,
+      deliveryStatus: nextDel,
+    });
+    if (!res.success) {
+      showToast(`Gagal update status: ${res.error}`, 'error');
+    }
+  }, [setOrders, setInvoices, showToast]);
 
   const handleUpdatePaymentStatus = useCallback(async (id: string, paymentStatus: PaymentStatus) => {
-    let targetOrder: OrderItem | undefined;
-    let newStatus: 'pending' | 'selesai' = 'pending';
+    const targetOrder = orders.find((o) => String(o.id) === String(id));
+    const rawDel = targetOrder?.deliveryStatus || (targetOrder as any)?.status_pengiriman || (targetOrder?.status === 'selesai' ? 'DONE' : 'PENDING');
+    const delStatus: DeliveryStatus = rawDel?.toUpperCase() === 'DONE' ? 'DONE' : 'PENDING';
+    const newStatus: 'pending' | 'selesai' = paymentStatus === 'PAID' && delStatus === 'DONE' ? 'selesai' : 'pending';
 
-    setOrders((prev) => {
-      targetOrder = prev.find((o) => o.id === id);
-      if (!targetOrder) return prev;
-      const delStatus = targetOrder.deliveryStatus || (targetOrder.status === 'selesai' ? 'DONE' : 'PENDING');
-      newStatus = paymentStatus === 'PAID' && delStatus === 'DONE' ? 'selesai' : 'pending';
-
-      return prev.map((o) => {
-        if (o.id !== id) return o;
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (String(o.id) !== String(id)) return o;
         return {
           ...o,
           paymentStatus,
+          status_pembayaran: paymentStatus,
           status: newStatus,
         };
-      });
-    });
+      })
+    );
+
+    setInvoices((prev) =>
+      prev.map((inv) => {
+        if (inv.items?.some((it) => String(it.id) === String(id))) {
+          return {
+            ...inv,
+            status_pembayaran: paymentStatus,
+            items: inv.items.map((it) =>
+              String(it.id) === String(id)
+                ? { ...it, paymentStatus, status_pembayaran: paymentStatus, status: newStatus }
+                : it
+            ),
+          };
+        }
+        return inv;
+      })
+    );
 
     const res = await updateOrderInDb(id, {
       paymentStatus,
@@ -91,27 +148,41 @@ export function useOrderOperations({
     } else {
       showToast(`Status pembayaran berhasil diperbarui (${paymentStatus})`, 'success');
     }
-  }, [setOrders, setDbError, showToast]);
+  }, [orders, setOrders, setInvoices, setDbError, showToast]);
 
   const handleUpdateDeliveryStatus = useCallback(async (id: string, deliveryStatus: DeliveryStatus) => {
-    let targetOrder: OrderItem | undefined;
-    let newStatus: 'pending' | 'selesai' = 'pending';
+    const targetOrder = orders.find((o) => String(o.id) === String(id));
+    const rawPay = targetOrder?.paymentStatus || (targetOrder as any)?.status_pembayaran || (targetOrder?.status === 'selesai' ? 'PAID' : 'UNPAID');
+    const payStatus: PaymentStatus = rawPay?.toUpperCase() === 'PAID' ? 'PAID' : 'UNPAID';
+    const newStatus: 'pending' | 'selesai' = payStatus === 'PAID' && deliveryStatus === 'DONE' ? 'selesai' : 'pending';
 
-    setOrders((prev) => {
-      targetOrder = prev.find((o) => o.id === id);
-      if (!targetOrder) return prev;
-      const payStatus = targetOrder.paymentStatus || (targetOrder.status === 'selesai' ? 'PAID' : 'UNPAID');
-      newStatus = payStatus === 'PAID' && deliveryStatus === 'DONE' ? 'selesai' : 'pending';
-
-      return prev.map((o) => {
-        if (o.id !== id) return o;
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (String(o.id) !== String(id)) return o;
         return {
           ...o,
           deliveryStatus,
+          status_pengiriman: deliveryStatus,
           status: newStatus,
         };
-      });
-    });
+      })
+    );
+
+    setInvoices((prev) =>
+      prev.map((inv) => {
+        if (inv.items?.some((it) => String(it.id) === String(id))) {
+          return {
+            ...inv,
+            items: inv.items.map((it) =>
+              String(it.id) === String(id)
+                ? { ...it, deliveryStatus, status_pengiriman: deliveryStatus, status: newStatus }
+                : it
+            ),
+          };
+        }
+        return inv;
+      })
+    );
 
     const res = await updateOrderInDb(id, {
       deliveryStatus,
@@ -123,77 +194,114 @@ export function useOrderOperations({
     } else {
       showToast(`Status pengiriman berhasil diperbarui (${deliveryStatus})`, 'success');
     }
-  }, [setOrders, setDbError, showToast]);
+  }, [orders, setOrders, setInvoices, setDbError, showToast]);
 
   const handleUpdateGroupPaymentStatus = useCallback(async (groupItems: OrderItem[], paymentStatus: PaymentStatus) => {
     if (!groupItems || groupItems.length === 0) return;
-    const targetIds = groupItems.map((it) => it.id);
+    const targetIds = groupItems.map((it) => String(it.id));
     const targetIdsSet = new Set(targetIds);
+
+    const isAllDone = groupItems.every((it) => {
+      const del = it.deliveryStatus || (it as any).status_pengiriman || (it.status === 'selesai' ? 'DONE' : 'PENDING');
+      return del?.toUpperCase() === 'DONE';
+    });
+    const groupStatus: 'pending' | 'selesai' = paymentStatus === 'PAID' && isAllDone ? 'selesai' : 'pending';
 
     setOrders((prev) =>
       prev.map((o) => {
-        if (!targetIdsSet.has(o.id)) return o;
-        const delStatus = o.deliveryStatus || (o.status === 'selesai' ? 'DONE' : 'PENDING');
-        const newStatus = paymentStatus === 'PAID' && delStatus === 'DONE' ? 'selesai' : 'pending';
+        if (!targetIdsSet.has(String(o.id))) return o;
+        const delStatus = o.deliveryStatus || (o as any).status_pengiriman || (o.status === 'selesai' ? 'DONE' : 'PENDING');
+        const newStatus = paymentStatus === 'PAID' && delStatus?.toUpperCase() === 'DONE' ? 'selesai' : 'pending';
         return {
           ...o,
           paymentStatus,
+          status_pembayaran: paymentStatus,
           status: newStatus,
         };
       })
     );
 
-    const results = await Promise.all(targetIds.map((targetId) => {
-      const item = orders.find((o) => o.id === targetId);
-      const delivery = item?.deliveryStatus || (item?.status === 'selesai' ? 'DONE' : 'PENDING');
-      return updateOrderInDb(targetId, {
-        paymentStatus,
-        status: paymentStatus === 'PAID' && delivery === 'DONE' ? 'selesai' : 'pending',
-      });
-    }));
-    const failed = results.find((result) => !result.success);
-    if (failed) {
-      setDbError(failed.error || 'Gagal update pembayaran grup');
-      showToast(`Gagal update grup: ${failed.error}`, 'error');
+    setInvoices((prev) =>
+      prev.map((inv) => {
+        if (inv.items?.some((it) => targetIdsSet.has(String(it.id)))) {
+          return {
+            ...inv,
+            status_pembayaran: paymentStatus,
+            items: inv.items.map((it) =>
+              targetIdsSet.has(String(it.id))
+                ? { ...it, paymentStatus, status_pembayaran: paymentStatus }
+                : it
+            ),
+          };
+        }
+        return inv;
+      })
+    );
+
+    const res = await batchUpdateStatusInDb(targetIds, {
+      paymentStatus,
+      status: groupStatus,
+    });
+    if (!res.success) {
+      setDbError(res.error || 'Gagal update pembayaran grup');
+      showToast(`Gagal update grup: ${res.error}`, 'error');
     } else {
       showToast(`Status pembayaran grup berhasil diperbarui (${paymentStatus})`, 'success');
     }
-  }, [orders, setOrders, setDbError, showToast]);
+  }, [setOrders, setInvoices, setDbError, showToast]);
 
   const handleUpdateGroupDeliveryStatus = useCallback(async (groupItems: OrderItem[], deliveryStatus: DeliveryStatus) => {
     if (!groupItems || groupItems.length === 0) return;
-    const targetIds = groupItems.map((it) => it.id);
+    const targetIds = groupItems.map((it) => String(it.id));
     const targetIdsSet = new Set(targetIds);
+
+    const isAllPaid = groupItems.every((it) => {
+      const pay = it.paymentStatus || (it as any).status_pembayaran || (it.status === 'selesai' ? 'PAID' : 'UNPAID');
+      return pay?.toUpperCase() === 'PAID';
+    });
+    const groupStatus: 'pending' | 'selesai' = deliveryStatus === 'DONE' && isAllPaid ? 'selesai' : 'pending';
 
     setOrders((prev) =>
       prev.map((o) => {
-        if (!targetIdsSet.has(o.id)) return o;
-        const payStatus = o.paymentStatus || (o.status === 'selesai' ? 'PAID' : 'UNPAID');
-        const newStatus = payStatus === 'PAID' && deliveryStatus === 'DONE' ? 'selesai' : 'pending';
+        if (!targetIdsSet.has(String(o.id))) return o;
+        const payStatus = o.paymentStatus || (o as any).status_pembayaran || (o.status === 'selesai' ? 'PAID' : 'UNPAID');
+        const newStatus = payStatus?.toUpperCase() === 'PAID' && deliveryStatus === 'DONE' ? 'selesai' : 'pending';
         return {
           ...o,
           deliveryStatus,
+          status_pengiriman: deliveryStatus,
           status: newStatus,
         };
       })
     );
 
-    const results = await Promise.all(targetIds.map((targetId) => {
-      const item = orders.find((o) => o.id === targetId);
-      const payment = item?.paymentStatus || (item?.status === 'selesai' ? 'PAID' : 'UNPAID');
-      return updateOrderInDb(targetId, {
-        deliveryStatus,
-        status: payment === 'PAID' && deliveryStatus === 'DONE' ? 'selesai' : 'pending',
-      });
-    }));
-    const failed = results.find((result) => !result.success);
-    if (failed) {
-      setDbError(failed.error || 'Gagal update pengiriman grup');
-      showToast(`Gagal update pengiriman grup: ${failed.error}`, 'error');
+    setInvoices((prev) =>
+      prev.map((inv) => {
+        if (inv.items?.some((it) => targetIdsSet.has(String(it.id)))) {
+          return {
+            ...inv,
+            items: inv.items.map((it) =>
+              targetIdsSet.has(String(it.id))
+                ? { ...it, deliveryStatus, status_pengiriman: deliveryStatus }
+                : it
+            ),
+          };
+        }
+        return inv;
+      })
+    );
+
+    const res = await batchUpdateStatusInDb(targetIds, {
+      deliveryStatus,
+      status: groupStatus,
+    });
+    if (!res.success) {
+      setDbError(res.error || 'Gagal update pengiriman grup');
+      showToast(`Gagal update pengiriman grup: ${res.error}`, 'error');
     } else {
       showToast(`Status pengiriman grup berhasil diperbarui (${deliveryStatus})`, 'success');
     }
-  }, [orders, setOrders, setDbError, showToast]);
+  }, [setOrders, setInvoices, setDbError, showToast]);
 
   const handleDuplicateOrder = useCallback(async (item: OrderItem) => {
     const newNotaId = `nota-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -224,15 +332,46 @@ export function useOrderOperations({
     }
   }, [setOrders, setIsLoadingDb, showToast, setDbError]);
 
-  const handleToggleBatchStatus = useCallback((targetName: string, date: string, targetStatus: 'pending' | 'selesai') => {
-    setOrders((prev) =>
-      prev.map((o) =>
+  const handleToggleBatchStatus = useCallback(async (targetName: string, date: string, targetStatus: 'pending' | 'selesai') => {
+    const isDone = targetStatus === 'selesai';
+    const nextPay: PaymentStatus = isDone ? 'PAID' : 'UNPAID';
+    const nextDel: DeliveryStatus = isDone ? 'DONE' : 'PENDING';
+
+    let affectedIds: string[] = [];
+
+    setOrders((prev) => {
+      const matched = prev.filter(
+        (o) => (o.toko === targetName || o.tujuanDapur === targetName) && o.tanggal === date
+      );
+      affectedIds = matched.map((o) => String(o.id));
+
+      return prev.map((o) =>
         (o.toko === targetName || o.tujuanDapur === targetName) && o.tanggal === date
-          ? { ...o, status: targetStatus }
+          ? {
+              ...o,
+              status: targetStatus,
+              paymentStatus: nextPay,
+              status_pembayaran: nextPay,
+              deliveryStatus: nextDel,
+              status_pengiriman: nextDel,
+            }
           : o
-      )
-    );
-  }, [setOrders]);
+      );
+    });
+
+    if (affectedIds.length > 0) {
+      const res = await batchUpdateStatusInDb(affectedIds, {
+        status: targetStatus,
+        paymentStatus: nextPay,
+        deliveryStatus: nextDel,
+      });
+      if (!res.success) {
+        showToast(`Gagal update status batch: ${res.error}`, 'error');
+      } else {
+        showToast(`Status berhasil diubah menjadi ${isDone ? 'Selesai (PAID & DONE)' : 'Pending'}`, 'success');
+      }
+    }
+  }, [setOrders, showToast]);
 
   const handleSaveOrder = useCallback(async (
     orderData: Omit<OrderItem, 'id' | 'createdAt'> | Array<Omit<OrderItem, 'id' | 'createdAt'>>,

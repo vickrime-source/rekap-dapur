@@ -531,14 +531,38 @@ export function updateLocalOrder(id: string, updates: any): FallbackOrder | null
     }
   }
 
+  const payStatus = updates.status_pembayaran || updates.paymentStatus || current.status_pembayaran || 'UNPAID';
+  const delStatus = updates.status_pengiriman || updates.deliveryStatus || current.status_pengiriman || 'PENDING';
+  const finalStatus = updates.status !== undefined 
+    ? updates.status 
+    : (payStatus.toUpperCase() === 'PAID' && delStatus.toUpperCase() === 'DONE' ? 'selesai' : (current.status || 'pending'));
+
   const updated: FallbackOrder = {
     ...current,
     ...updates,
+    status_pembayaran: payStatus.toUpperCase(),
+    status_pengiriman: delStatus.toUpperCase(),
+    status: finalStatus,
     invoice_number: newInvoiceNumber,
     updated_at: new Date().toISOString(),
   };
 
   db.pesanan[index] = updated;
+
+  // Sync status_pembayaran to related transactions if updated
+  if (updates.status_pembayaran || updates.paymentStatus) {
+    const nextPay = (updates.status_pembayaran || updates.paymentStatus).toString().toUpperCase();
+    db.transaksi = db.transaksi.map((tx: any) => {
+      if (tx.items?.some((it: any) => it.id === id || (targetNotaId && it.nota_id === targetNotaId))) {
+        return {
+          ...tx,
+          status_pembayaran: nextPay,
+          updated_at: new Date().toISOString(),
+        };
+      }
+      return tx;
+    });
+  }
 
   // Propagasi tanggal, toko, toko_id, invoice_number ke semua item dalam satu nota_id jika tanggal/toko diubah
   if (targetNotaId && isDateOrStoreChanged) {
@@ -580,15 +604,41 @@ export function updateBatchLocalOrders(ids: string[], updates: any): FallbackOrd
   const db = loadDb();
   const updated: FallbackOrder[] = [];
 
+  const payStatus = (updates.status_pembayaran || updates.paymentStatus)?.toString().toUpperCase();
+  const delStatus = (updates.status_pengiriman || updates.deliveryStatus)?.toString().toUpperCase();
+
   for (let i = 0; i < db.pesanan.length; i++) {
     if (ids.includes(db.pesanan[i].id)) {
+      const cur = db.pesanan[i];
+      const finalPay = payStatus || cur.status_pembayaran || 'UNPAID';
+      const finalDel = delStatus || cur.status_pengiriman || 'PENDING';
+      const finalStatus = updates.status !== undefined 
+        ? updates.status 
+        : (finalPay === 'PAID' && finalDel === 'DONE' ? 'selesai' : (cur.status || 'pending'));
+
       db.pesanan[i] = {
-        ...db.pesanan[i],
+        ...cur,
         ...updates,
+        status_pembayaran: finalPay,
+        status_pengiriman: finalDel,
+        status: finalStatus,
         updated_at: new Date().toISOString(),
       };
       updated.push(db.pesanan[i]);
     }
+  }
+
+  if (payStatus) {
+    db.transaksi = db.transaksi.map((tx: any) => {
+      if (tx.items?.some((it: any) => ids.includes(it.id))) {
+        return {
+          ...tx,
+          status_pembayaran: payStatus,
+          updated_at: new Date().toISOString(),
+        };
+      }
+      return tx;
+    });
   }
 
   saveDb();

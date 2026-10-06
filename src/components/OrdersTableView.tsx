@@ -442,11 +442,13 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
   // Helper getters for status fields
   const getPayStatus = (item: OrderItem): PaymentStatus => {
     if (item.paymentStatus) return item.paymentStatus === 'PAID' ? 'PAID' : 'UNPAID';
+    if (item.status_pembayaran) return item.status_pembayaran.toUpperCase() === 'PAID' ? 'PAID' : 'UNPAID';
     return item.status === 'selesai' ? 'PAID' : 'UNPAID';
   };
 
   const getDelStatus = (item: OrderItem): DeliveryStatus => {
-    if (item.deliveryStatus) return item.deliveryStatus;
+    if (item.deliveryStatus) return item.deliveryStatus === 'DONE' ? 'DONE' : 'PENDING';
+    if (item.status_pengiriman) return item.status_pengiriman.toUpperCase() === 'DONE' ? 'DONE' : 'PENDING';
     return item.status === 'selesai' ? 'DONE' : 'PENDING';
   };
 

@@ -54,7 +54,9 @@ export interface OrderItem {
   cancelledReason?: string;
   cancelled_reason?: string;
   paymentStatus?: PaymentStatus;
+  status_pembayaran?: string;
   deliveryStatus?: DeliveryStatus;
+  status_pengiriman?: string;
   tanggal: string;      // YYYY-MM-DD
   createdAt?: string;    // ISO timestamp string
   created_at?: string;

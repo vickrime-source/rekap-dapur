@@ -467,9 +467,85 @@ export async function saveOrdersBatchToDb(orders: OrderItem[]): Promise<{ succes
   }
 }
 
+export function buildUpdatePesananPayload(updates: Partial<OrderItem>): Record<string, any> {
+  const payload: Record<string, any> = {};
+
+  const cleanId = (val: any) => {
+    if (val === undefined || val === null || val === '') return null;
+    const n = Number(val);
+    return !isNaN(n) && Number.isInteger(n) ? n : val;
+  };
+
+  if (updates.namaBarang !== undefined || (updates as any).item !== undefined || (updates as any).nama_barang !== undefined) {
+    const val = String(updates.namaBarang || (updates as any).item || (updates as any).nama_barang || '').trim();
+    if (val) {
+      payload.item = val;
+      payload.namaBarang = val;
+      payload.nama_barang = val;
+    }
+  }
+
+  if (updates.tujuanDapur !== undefined || (updates as any).dapur !== undefined || (updates as any).tujuan_dapur !== undefined) {
+    const val = String(updates.tujuanDapur || (updates as any).dapur || (updates as any).tujuan_dapur || '').trim();
+    if (val) {
+      payload.dapur = val;
+      payload.tujuanDapur = val;
+      payload.tujuan_dapur = val;
+    }
+  }
+
+  if (updates.tanggal !== undefined) payload.tanggal = updates.tanggal;
+  if (updates.qty !== undefined) payload.qty = Number(updates.qty);
+  if (updates.qtyBeli !== undefined || updates.qty_beli !== undefined) {
+    payload.qty_beli = Number(updates.qtyBeli !== undefined ? updates.qtyBeli : updates.qty_beli);
+    payload.qtyBeli = payload.qty_beli;
+  }
+  if (updates.satuan !== undefined) payload.satuan = String(updates.satuan).trim();
+  if (updates.hargaBeli !== undefined) payload.harga_beli = Number(updates.hargaBeli);
+  if (updates.hargaJual !== undefined) payload.harga_jual = Number(updates.hargaJual);
+  if (updates.toko !== undefined) payload.toko = String(updates.toko).trim();
+  if (updates.toko_id !== undefined || (updates as any).tokoId !== undefined) {
+    payload.toko_id = cleanId(updates.toko_id ?? (updates as any).tokoId);
+  }
+  if (updates.pemasok !== undefined) payload.pemasok = String(updates.pemasok).trim();
+  if (updates.pemasok_id !== undefined || (updates as any).pemasokId !== undefined) {
+    payload.pemasok_id = cleanId(updates.pemasok_id ?? (updates as any).pemasokId);
+  }
+  if (updates.dapur_id !== undefined || (updates as any).dapurId !== undefined) {
+    payload.dapur_id = cleanId(updates.dapur_id ?? (updates as any).dapurId);
+  }
+  if (updates.catatan !== undefined) payload.catatan = updates.catatan;
+  if (updates.cashback !== undefined) payload.cashback = Math.max(0, Number(updates.cashback) || 0);
+  if (updates.retur !== undefined) payload.retur = Math.max(0, Number(updates.retur) || 0);
+  if (updates.notaId !== undefined || updates.nota_id !== undefined) {
+    payload.nota_id = updates.notaId || updates.nota_id;
+  }
+
+  // Payment Status
+  if (updates.paymentStatus !== undefined || (updates as any).status_pembayaran !== undefined) {
+    const pay = (updates.paymentStatus || (updates as any).status_pembayaran || 'UNPAID').toString().toUpperCase();
+    payload.paymentStatus = pay;
+    payload.status_pembayaran = pay;
+  }
+
+  // Delivery Status
+  if (updates.deliveryStatus !== undefined || (updates as any).status_pengiriman !== undefined) {
+    const del = (updates.deliveryStatus || (updates as any).status_pengiriman || 'PENDING').toString().toUpperCase();
+    payload.deliveryStatus = del;
+    payload.status_pengiriman = del;
+  }
+
+  // General Status
+  if (updates.status !== undefined) {
+    payload.status = updates.status;
+  }
+
+  return payload;
+}
+
 export async function updateOrderInDb(id: string, updates: Partial<OrderItem>): Promise<{ success: boolean; error?: string }> {
   try {
-    const payload = buildPesananPayload(updates);
+    const payload = buildUpdatePesananPayload(updates);
     const res = await fetch(`/api/pesanan?id=${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
