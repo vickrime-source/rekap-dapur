@@ -425,8 +425,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     const newItem: ItemRow = {
       id: `item-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       namaBarang: '',
-      pemasok: '',
-      pemasok_id: '',
+      pemasok: pemasok || '',
+      pemasok_id: pemasokId || '',
       qty: 1,
       satuan: 'Kg',
       hargaBeli: 0,
@@ -717,53 +717,55 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         return;
       }
 
-      const firstRow = validItemRows[0];
-      const singleNotaId = initialData.notaId || initialData.nota_id || `nota-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-      const singleQty = Number(firstRow.qty) || 0;
+      const singleNotaId =
+        initialData.notaId ||
+        initialData.nota_id ||
+        `nota-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
-      const singleRowPemasok = (firstRow.pemasok || '').trim();
-      const singleEffectivePemasok = singleRowPemasok || finalPemasokName;
-      const matchedSinglePemasok = masterPemasok.find(
-        (p) => p.nama.trim().toLowerCase() === singleEffectivePemasok.toLowerCase()
-      );
-      const singlePemasokId = matchedSinglePemasok?.id || (singleRowPemasok ? '' : finalPemasokId);
+      // Mapping semua item valid (item pertama adalah item yang diedit, item berikutnya adalah item baru)
+      const allItemPayloads = validItemRows.map((row, idx) => {
+        const rowQty = Number(row.qty) || 0;
+        const rowPemasok = (row.pemasok || '').trim();
+        const effectivePemasokName = rowPemasok || finalPemasokName;
+        const matchedRowPemasok = masterPemasok.find(
+          (p) => p.nama.trim().toLowerCase() === effectivePemasokName.toLowerCase()
+        );
+        const effectivePemasokId = matchedRowPemasok?.id || (rowPemasok ? '' : finalPemasokId);
 
-      const singleItemPayload = {
-        namaBarang: firstRow.namaBarang.trim(),
-        item: firstRow.namaBarang.trim(),
-        qty: singleQty,
-        qtyBeli: singleQty,
-        qty_beli: singleQty,
-        notaId: singleNotaId,
-        nota_id: singleNotaId,
-        satuan: firstRow.satuan?.trim() || 'Kg',
-        hargaBeli: Math.max(0, Number(firstRow.hargaBeli) || 0),
-        hargaJual: Math.max(0, Number(firstRow.hargaJual) || 0),
-        cashback: Number(firstRow.cashback) > 0 ? Number(firstRow.cashback) : 0,
-        retur: Math.max(0, Number(firstRow.retur) || 0),
-        toko: finalTokoName,
-        toko_id: finalTokoId,
-        tujuanDapur: finalDapurName,
-        dapur: finalDapurName,
-        dapur_id: finalDapurId,
-        pemasok: singleEffectivePemasok,
-        pemasok_id: singlePemasokId,
-        status: calculatedStatus,
-        paymentStatus,
-        deliveryStatus,
-        tanggal,
-        catatan: catatan.trim(),
-      };
+        return {
+          namaBarang: row.namaBarang.trim(),
+          item: row.namaBarang.trim(),
+          qty: rowQty,
+          qtyBeli: rowQty,
+          qty_beli: rowQty,
+          notaId: singleNotaId,
+          nota_id: singleNotaId,
+          satuan: row.satuan?.trim() || 'Kg',
+          hargaBeli: Math.max(0, Number(row.hargaBeli) || 0),
+          hargaJual: Math.max(0, Number(row.hargaJual) || 0),
+          cashback: Number(row.cashback) > 0 ? Number(row.cashback) : 0,
+          retur: Math.max(0, Number(row.retur) || 0),
+          toko: finalTokoName,
+          toko_id: finalTokoId,
+          tujuanDapur: finalDapurName,
+          dapur: finalDapurName,
+          dapur_id: finalDapurId,
+          pemasok: effectivePemasokName,
+          pemasok_id: effectivePemasokId,
+          status: calculatedStatus,
+          paymentStatus,
+          deliveryStatus,
+          tanggal,
+          catatan: catatan.trim(),
+          invoiceNumber: initialData.invoiceNumber || (initialData as any).invoice_number,
+          invoice_number: initialData.invoiceNumber || (initialData as any).invoice_number,
+          isNewItem: idx > 0,
+        };
+      });
 
-      const validItems = [singleItemPayload].filter(
-        (it) => it.namaBarang.trim() !== '' && it.tujuanDapur.trim() !== ''
-      );
+      console.log('FINAL ITEMS TO INSERT (EDIT MODE)', allItemPayloads);
 
-      console.log('FINAL ITEMS TO INSERT', validItems);
-      console.log('SUBMIT ITEM', singleItemPayload);
-      console.log('PESANAN PAYLOAD', singleItemPayload);
-
-      if (validItems.length === 0) {
+      if (allItemPayloads.length === 0) {
         alert('Nama barang dan Dapur wajib diisi!');
         setIsSubmitting(false);
         return;
@@ -794,7 +796,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         } catch (_) {}
       }
 
-      onSave(singleItemPayload, initialData.id);
+      if (allItemPayloads.length === 1) {
+        onSave(allItemPayloads[0], initialData.id);
+      } else {
+        onSave(allItemPayloads, initialData.id);
+      }
     } else {
       if (!finalDapurName.trim()) {
         alert('Dapur tujuan wajib diisi!');
@@ -976,15 +982,27 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
               {/* CARD 1: DETAIL PESANAN (Tetap Card Pertama, Rapih & Estimasi Margin) */}
               <div className="bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
                     DETAIL PESANAN
                   </span>
-                  {itemRows.length > 1 && (
-                    <span className="text-[10.5px] font-bold text-indigo-600 dark:text-indigo-400">
-                      Item #{activeItemIndex + 1} dari {itemRows.length}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {itemRows.length > 1 && (
+                      <span className="text-[10.5px] font-bold text-indigo-600 dark:text-indigo-400">
+                        Item #{activeItemIndex + 1} dari {itemRows.length}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      id="btn-header-tambah-item"
+                      onClick={addItemRow}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                      title={initialData ? 'Tambah item baru ke pesanan ini' : 'Tambah item barang'}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Tambah Item</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Multi item switch pills if > 1 */}
@@ -998,19 +1016,20 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           onClick={() => setActiveItemIndex(idx)}
                           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs cursor-pointer transition-all shrink-0 ${
                             isActive
-                              ? 'bg-indigo-600 text-white font-bold'
+                              ? 'bg-indigo-600 text-white font-bold shadow-xs'
                               : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
                           }`}
                         >
                           <span>#{idx + 1} {row.namaBarang || 'Tanpa Nama'}</span>
-                          {!initialData && itemRows.length > 1 && (
+                          {itemRows.length > 1 && (
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 removeItemRow(idx);
                               }}
-                              className="p-0.5 rounded hover:bg-black/10 transition-colors"
+                              className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
+                              title="Hapus Item"
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>
@@ -1253,41 +1272,61 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               </div>
 
               {/* Tambah Item Barang Lainnya (Dashed border button & list preview) */}
-              {!initialData && (
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    id="btn-tambah-item-barang"
-                    onClick={addItemRow}
-                    className="w-full py-2.5 px-4 bg-white dark:bg-slate-800 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/40 hover:border-indigo-400 text-slate-700 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-400 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Tambah Item Barang</span>
-                  </button>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  id="btn-tambah-item-barang"
+                  onClick={addItemRow}
+                  className="w-full py-2.5 px-4 bg-white dark:bg-slate-800 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/40 hover:border-indigo-400 text-slate-700 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-400 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-98"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{initialData ? '+ Tambah Item Baru ke Pesanan Ini' : '+ Tambah Item Barang'}</span>
+                </button>
 
-                  {/* Multi item list preview when > 1 */}
-                  {itemRows.length > 1 && (
-                    <div className="p-3 bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1.5">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                {/* Multi item list preview when > 1 */}
+                {itemRows.length > 1 && (
+                  <div className="p-3 bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl space-y-1.5">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         Daftar Barang ({itemRows.length} Item):
                       </div>
-                      <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                        {itemRows.map((r, idx) => {
-                          const rQty = Number(r.qty) || 0;
-                          const rQtyBeli = r.qtyBeli !== undefined && r.qtyBeli !== null ? Number(r.qtyBeli) : rQty;
-                          const rRetur = Math.max(0, Number(r.retur) || 0);
-                          const rFinal = Math.max(0, rQty - rRetur);
-                          const rBeliEfektif = Math.max(0, rQtyBeli - rRetur);
-                          return (
-                            <div
-                              key={r.id}
-                              onClick={() => setActiveItemIndex(idx)}
-                              className={`py-1.5 px-2 rounded-lg flex items-center justify-between text-xs cursor-pointer ${
-                                idx === activeItemIndex ? 'bg-indigo-50 dark:bg-indigo-950/60 font-bold text-indigo-900 dark:text-indigo-300' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'
-                              }`}
-                            >
-                              <div>
-                                <span className="font-semibold block text-slate-900 dark:text-slate-100">
+                      <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                        Pilih item untuk diedit
+                      </span>
+                    </div>
+                    <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                      {itemRows.map((r, idx) => {
+                        const rQty = Number(r.qty) || 0;
+                        const rQtyBeli = r.qtyBeli !== undefined && r.qtyBeli !== null ? Number(r.qtyBeli) : rQty;
+                        const rRetur = Math.max(0, Number(r.retur) || 0);
+                        const rFinal = Math.max(0, rQty - rRetur);
+                        const rBeliEfektif = Math.max(0, rQtyBeli - rRetur);
+                        return (
+                          <div
+                            key={r.id}
+                            onClick={() => setActiveItemIndex(idx)}
+                            className={`py-2 px-2.5 rounded-lg flex items-center justify-between text-xs cursor-pointer transition-colors ${
+                              idx === activeItemIndex
+                                ? 'bg-indigo-50 dark:bg-indigo-950/60 font-bold text-indigo-900 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {itemRows.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeItemRow(idx);
+                                  }}
+                                  className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors shrink-0"
+                                  title="Hapus Item"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <div className="min-w-0">
+                                <span className="font-semibold block text-slate-900 dark:text-slate-100 truncate">
                                   #{idx + 1} {r.namaBarang || 'Tanpa Nama'}
                                 </span>
                                 <div className="text-[10.5px] text-slate-500 dark:text-slate-400 font-normal flex items-center gap-1.5 flex-wrap">
@@ -1304,29 +1343,34 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                                   ) : (
                                     <span>{rQty} {r.satuan || 'Kg'}</span>
                                   )}
+                                  {Boolean(r.pemasok) && (
+                                    <span className="text-slate-400 dark:text-slate-500 text-[10px] truncate">
+                                      ({r.pemasok})
+                                    </span>
+                                  )}
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <span className="font-mono font-bold block text-slate-900 dark:text-slate-100">
-                                  {formatIDR(rFinal * (r.hargaJual || 0))}
-                                </span>
-                                <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-mono block">
-                                  Beli: {formatIDR(rBeliEfektif * (r.hargaBeli || 0))}
-                                </span>
-                                {Boolean(r.cashback && r.cashback > 0) && (
-                                  <span className="text-[9.5px] font-bold text-amber-700 dark:text-amber-400 font-mono block">
-                                    CB: {formatIDR(r.cashback)}
-                                  </span>
-                                )}
-                              </div>
                             </div>
-                          );
-                        })}
-                      </div>
+                            <div className="text-right shrink-0 pl-2">
+                              <span className="font-mono font-bold block text-slate-900 dark:text-slate-100">
+                                {formatIDR(rFinal * (r.hargaJual || 0))}
+                              </span>
+                              <span className="text-[9.5px] text-slate-400 dark:text-slate-500 font-mono block">
+                                Beli: {formatIDR(rBeliEfektif * (r.hargaBeli || 0))}
+                              </span>
+                              {Boolean(r.cashback && r.cashback > 0) && (
+                                <span className="text-[9.5px] font-bold text-amber-700 dark:text-amber-400 font-mono block">
+                                  CB: {formatIDR(r.cashback)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
 
               {/* CARD 2: TUJUAN PESANAN */}
               <div className="bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 space-y-3">
@@ -1751,7 +1795,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   {isSubmitting
                     ? 'Menyimpan...'
                     : initialData
-                    ? 'Simpan Perubahan'
+                    ? itemRows.length > 1
+                      ? `Simpan Perubahan (${itemRows.length} Item)`
+                      : 'Simpan Perubahan'
+                    : itemRows.length > 1
+                    ? `Simpan Pesanan (${itemRows.length} Item)`
                     : 'Simpan Pesanan'}
                 </span>
               </button>

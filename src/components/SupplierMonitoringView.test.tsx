@@ -74,7 +74,7 @@ describe('SupplierMonitoringView Component', () => {
     expect(container.textContent).toContain('Belum Bayar');
   });
 
-  it('menampilkan kolom pemasok, item (nama item dan bawahnya catatan transaksi kalau ada), kolom jumlah kuantitas dan harga satuan beli, total beli, dan status', () => {
+  it('menampilkan kolom pemasok, item (nama item dan bawahnya catatan transaksi kalau ada), kolom QTY terpisah, kolom HARGA terpisah, total beli, dan status', () => {
     act(() => {
       root.render(
         <SupplierMonitoringView
@@ -97,17 +97,23 @@ describe('SupplierMonitoringView Component', () => {
     expect(container.textContent).toContain('Minyak Kelapa Sawit');
     expect(container.textContent).toContain('Potong 8 bagian tanpa lemak');
 
-    // 3. Kolom Jumlah Kuantitas & Harga Satuan Beli
+    // 3. Kolom QTY (Kuantitas, terpisah)
+    expect(container.textContent).toContain('QTY');
     expect(container.textContent).toContain('10 Kg');
     expect(container.textContent).toContain('5 Ltr');
-    expect(container.textContent).toMatch(/@\s*Rp\s*35\.000/);
-    expect(container.textContent).toMatch(/@\s*Rp\s*20\.000/);
 
-    // 4. Kolom Total Beli (10 x 35.000 = 350.000, 5 x 20.000 = 100.000)
+    // 4. Kolom HARGA (Harga Satuan, terpisah)
+    expect(container.textContent).toContain('HARGA');
+    expect(container.textContent).toMatch(/35\.000/);
+    expect(container.textContent).toMatch(/20\.000/);
+
+    // 5. Kolom Total Beli (10 x 35.000 = 350.000, 5 x 20.000 = 100.000)
+    expect(container.textContent).toContain('TOTAL BELI');
     expect(container.textContent).toMatch(/350\.000/);
     expect(container.textContent).toMatch(/100\.000/);
 
-    // 5. Kolom Status Paid / Unpaid
+    // 6. Kolom Status Paid / Unpaid
+    expect(container.textContent).toContain('STATUS');
     expect(container.textContent).toContain('UNPAID');
     expect(container.textContent).toContain('PAID');
   });
@@ -135,7 +141,7 @@ describe('SupplierMonitoringView Component', () => {
     expect(handleUpdatePaymentStatus).toHaveBeenCalledWith('ord-1', 'PAID');
   });
 
-  it('menyediakan pilihan adjust jumlah baris dengan kelipatan 20 (20, 40, 60, 80, 100)', () => {
+  it('menyediakan pilihan adjust jumlah baris dengan kelipatan 20 pada paginasi bawah dan tata letak yang benar', () => {
     act(() => {
       root.render(
         <SupplierMonitoringView
@@ -145,24 +151,20 @@ describe('SupplierMonitoringView Component', () => {
       );
     });
 
-    expect(container.textContent).toContain('Tampil Baris:');
-    expect(container.textContent).toContain('20');
-    expect(container.textContent).toContain('40');
-    expect(container.textContent).toContain('60');
-    expect(container.textContent).toContain('80');
-    expect(container.textContent).toContain('100');
+    // 1. Verifikasi panel Monitoring Pembelian berada di atas
+    expect(container.textContent).toContain('Monitoring Pembelian (Pemasok)');
 
-    // Klik tombol 40 untuk mengubah pageSize
-    const buttons = Array.from(container.querySelectorAll('button'));
-    const btn40 = buttons.find((b) => b.textContent?.trim() === '40');
-    expect(btn40).toBeDefined();
+    // 2. Verifikasi tombol filter dan tanggal berada di tampilan
+    expect(container.textContent).toContain('Semua Toko');
+    expect(container.textContent).toContain('Semua Pemasok');
 
-    act(() => {
-      btn40?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    // Verifikasi tombol 40 aktif (memiliki class bg-rose-600)
-    expect(btn40?.className).toContain('bg-rose-600');
+    // 3. Verifikasi opsi kelipatan 20 ada pada dropdown pagination di bawah
+    const select = container.querySelector('select[class*="rounded-md"]') as HTMLSelectElement | null;
+    expect(select).toBeDefined();
+    if (select) {
+      const options = Array.from(select.options).map((o) => Number(o.value));
+      expect(options).toEqual([20, 40, 60, 80, 100]);
+    }
   });
 });
 

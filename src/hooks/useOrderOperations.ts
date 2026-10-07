@@ -377,20 +377,30 @@ export function useOrderOperations({
     orderData: Omit<OrderItem, 'id' | 'createdAt'> | Array<Omit<OrderItem, 'id' | 'createdAt'>>,
     editId?: string
   ) => {
-    if (editId && !Array.isArray(orderData)) {
+    if (editId) {
+      const itemsList = Array.isArray(orderData) ? orderData : [orderData];
+      const primaryItem = itemsList[0];
+      const additionalItems = itemsList.slice(1);
+
       const oldOrder = orders.find((o) => o.id === editId);
-      const curToko = (orderData as any).toko || oldOrder?.toko || '';
-      const curPemasok = (orderData as any).pemasok || oldOrder?.pemasok || '';
-      const curDapur = (orderData as any).tujuanDapur || oldOrder?.tujuanDapur || '';
+      const curToko = (primaryItem as any).toko || oldOrder?.toko || '';
+      const curPemasok = (primaryItem as any).pemasok || oldOrder?.pemasok || '';
+      const curDapur = (primaryItem as any).tujuanDapur || oldOrder?.tujuanDapur || '';
       const cleanD = curDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
 
-      const fTokoId = (orderData as any).toko_id || (orderData as any).tokoId || masterToko.find((t) => t.nama.toLowerCase() === curToko.trim().toLowerCase())?.id || oldOrder?.toko_id || null;
-      const fPemasokId = (orderData as any).pemasok_id || (orderData as any).pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === curPemasok.trim().toLowerCase())?.id || oldOrder?.pemasok_id || null;
-      const fDapurId = (orderData as any).dapur_id || (orderData as any).dapurId || masterDapur.find((d) => d.nama.toLowerCase() === curDapur.trim().toLowerCase() || d.nama.toLowerCase() === cleanD)?.id || oldOrder?.dapur_id || null;
+      const fTokoId = (primaryItem as any).toko_id || (primaryItem as any).tokoId || masterToko.find((t) => t.nama.toLowerCase() === curToko.trim().toLowerCase())?.id || oldOrder?.toko_id || null;
+      const fPemasokId = (primaryItem as any).pemasok_id || (primaryItem as any).pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === curPemasok.trim().toLowerCase())?.id || oldOrder?.pemasok_id || null;
+      const fDapurId = (primaryItem as any).dapur_id || (primaryItem as any).dapurId || masterDapur.find((d) => d.nama.toLowerCase() === curDapur.trim().toLowerCase() || d.nama.toLowerCase() === cleanD)?.id || oldOrder?.dapur_id || null;
+
+      const rawQ = Number(primaryItem.qty) || 0;
+      const rawQBeli = (primaryItem as any).qty_beli !== undefined ? Number((primaryItem as any).qty_beli) : ((primaryItem as any).qtyBeli !== undefined ? Number((primaryItem as any).qtyBeli) : rawQ);
 
       const updatedOrder: OrderItem = {
         ...(oldOrder || {}),
-        ...orderData,
+        ...primaryItem,
+        qty: rawQ,
+        qtyBeli: rawQBeli,
+        qty_beli: rawQBeli,
         toko_id: fTokoId,
         pemasok_id: fPemasokId,
         dapur_id: fDapurId,
@@ -398,19 +408,67 @@ export function useOrderOperations({
         createdAt: oldOrder?.createdAt || getNowWIBISOString(),
       } as OrderItem;
 
-      setOrders((prev) =>
-        prev.map((o) => (o.id === editId ? updatedOrder : o))
-      );
-      showToast('Pesanan berhasil diperbarui', 'edit');
+      // Persiapkan additional items jika ada penambahan item baru saat edit pesanan
+      let newlyAddedOrders: OrderItem[] = [];
+      if (additionalItems.length > 0) {
+        const sharedNotaId = oldOrder?.notaId || oldOrder?.nota_id || (primaryItem as any).notaId || (primaryItem as any).nota_id || `nota-${Date.now()}`;
+        const createdDate = getNowWIBISOString();
+        newlyAddedOrders = additionalItems.map((item, idx) => {
+          const itToko = ((item as any).toko || curToko).trim();
+          const itPemasok = ((item as any).pemasok || curPemasok).trim();
+          const itDapur = ((item as any).tujuanDapur || curDapur).trim();
+          const itCleanD = itDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
+
+          const itTokoId = (item as any).toko_id || (item as any).tokoId || masterToko.find((t) => t.nama.toLowerCase() === itToko.toLowerCase())?.id || fTokoId || '';
+          const itPemasokId = (item as any).pemasok_id || (item as any).pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === itPemasok.toLowerCase())?.id || fPemasokId || '';
+          const itDapurId = (item as any).dapur_id || (item as any).dapurId || masterDapur.find((d) => d.nama.toLowerCase() === itDapur.toLowerCase() || d.nama.toLowerCase() === itCleanD)?.id || fDapurId || '';
+
+          const itRawQ = Number(item.qty) || 0;
+          const itRawQBeli = (item as any).qty_beli !== undefined ? Number((item as any).qty_beli) : ((item as any).qtyBeli !== undefined ? Number((item as any).qtyBeli) : itRawQ);
+
+          return {
+            ...item,
+            namaBarang: ((item as any).namaBarang || (item as any).item || '').trim(),
+            tujuanDapur: itDapur,
+            toko: itToko,
+            pemasok: itPemasok,
+            toko_id: itTokoId,
+            pemasok_id: itPemasokId,
+            dapur_id: itDapurId,
+            qty: itRawQ,
+            qtyBeli: itRawQBeli,
+            qty_beli: itRawQBeli,
+            notaId: sharedNotaId,
+            nota_id: sharedNotaId,
+            invoiceNumber: oldOrder?.invoiceNumber || (oldOrder as any)?.invoice_number || (primaryItem as any).invoiceNumber,
+            invoice_number: oldOrder?.invoiceNumber || (oldOrder as any)?.invoice_number || (primaryItem as any).invoice_number,
+            id: `ord-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
+            createdAt: createdDate,
+          } as OrderItem;
+        });
+      }
+
+      setOrders((prev) => {
+        const updatedList = prev.map((o) => (o.id === editId ? updatedOrder : o));
+        return newlyAddedOrders.length > 0 ? [...newlyAddedOrders, ...updatedList] : updatedList;
+      });
+
+      const message = newlyAddedOrders.length > 0
+        ? `Pesanan diperbarui & ${newlyAddedOrders.length} item baru berhasil ditambahkan`
+        : 'Pesanan berhasil diperbarui';
+      showToast(message, 'edit');
 
       setIsLoadingDb(true);
       const res = await updateOrderInDb(editId, updatedOrder);
+      if (newlyAddedOrders.length > 0) {
+        await saveOrdersBatchToDb(newlyAddedOrders);
+      }
       setIsLoadingDb(false);
       if (!res.success) {
         setDbError(res.error || 'Gagal update pesanan di Supabase');
         showToast(`Pesanan diperbarui di HP. Gagal simpan ke database: ${res.error}`, 'info');
       } else {
-        showToast('Pesanan berhasil diperbarui & tersimpan', 'edit');
+        showToast(message + ' & tersimpan', 'edit');
       }
       return;
     }
