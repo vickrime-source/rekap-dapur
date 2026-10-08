@@ -58,14 +58,14 @@ export function useOrderOperations({
   const handleToggleStatus = useCallback(async (id: string) => {
     let nextStatus: 'pending' | 'selesai' = 'pending';
     let nextPay: PaymentStatus = 'UNPAID';
-    let nextDel: DeliveryStatus = 'PENDING';
+    let nextDel: DeliveryStatus = 'PEMASOK';
 
     setOrders((prev) =>
       prev.map((o) => {
         if (String(o.id) !== String(id)) return o;
         nextStatus = o.status === 'pending' ? 'selesai' : 'pending';
         nextPay = nextStatus === 'selesai' ? 'PAID' : (o.paymentStatus || 'UNPAID');
-        nextDel = nextStatus === 'selesai' ? 'DONE' : (o.deliveryStatus || 'PENDING');
+        nextDel = nextStatus === 'selesai' ? 'DONE' : (o.deliveryStatus === 'DONE' ? 'PEMASOK' : (o.deliveryStatus || 'PEMASOK'));
         return {
           ...o,
           status: nextStatus,

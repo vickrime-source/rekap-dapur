@@ -20,6 +20,7 @@ import { DashboardView } from './components/DashboardView';
 import { RekapView } from './components/RekapView';
 import { TransactionsView } from './components/TransactionsView';
 import { SupplierMonitoringView } from './components/SupplierMonitoringView';
+import { DriverDeliveryView } from './components/DriverDeliveryView';
 import { ConfirmModal } from './components/ConfirmModal';
 import { Toast, ToastMessage, ToastType } from './components/Toast';
 import { getTodayWIB, isOrderToday, isOrderThisWeek, getWeekRange } from './lib/formatters';
@@ -54,9 +55,43 @@ export default function App() {
   const [notes, setNotes] = useLocalStorage<NoteItem[]>('dapur_highlight_notes_v1', []);
   const [dashboardPeriod, setDashboardPeriod] = useLocalStorage<DashboardPeriod>('dapur_dashboard_period_v3', 'all_time');
 
-  // Navigation State
-  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  // Navigation State (Mendukung rute langsung /pengiriman untuk Driver)
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase();
+      if (path === '/pengiriman' || path.startsWith('/pengiriman') || window.location.hash === '#pengiriman') {
+        return 'pengiriman';
+      }
+    }
+    return 'dashboard';
+  });
   const [selectedDate, setSelectedDate] = useState<string>(() => getTodayWIB());
+
+  // URL Sync untuk browser navigation & rute /pengiriman
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window !== 'undefined') {
+        const path = window.location.pathname.toLowerCase();
+        if (path === '/pengiriman' || path.startsWith('/pengiriman') || window.location.hash === '#pengiriman') {
+          setActiveTab('pengiriman');
+        } else if (path === '/' || path === '') {
+          setActiveTab('dashboard');
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const handleTabChange = useCallback((newTab: TabType) => {
+    setActiveTab(newTab);
+    if (typeof window !== 'undefined') {
+      const targetPath = newTab === 'pengiriman' ? '/pengiriman' : '/';
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState(null, '', targetPath);
+      }
+    }
+  }, []);
 
   // Toast Notification State
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -338,7 +373,7 @@ export default function App() {
   }, [setOrders, setInvoices, setExportHistory, setNotes, showToast]);
 
   return (
-    <div className="min-h-screen bg-[#eef2f6] dark:bg-[#090a0c] text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white pb-36 sm:pb-24 transition-colors duration-200">
+    <div className={`min-h-screen bg-[#eef2f6] dark:bg-[#090a0c] text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-200 ${activeTab === 'pengiriman' ? 'pb-8' : 'pb-36 sm:pb-24'}`}>
       {/* Top Header Banner */}
       {activeTab === 'dashboard' && (
         <HeaderBanner
@@ -365,7 +400,7 @@ export default function App() {
       )}
 
       {/* Main Content Body (Standard static div without drag gesture for butter-smooth tablet performance) */}
-      <main className="flex-1 w-full max-w-7xl xl:max-w-[1536px] mx-auto px-3 sm:px-4 lg:px-4 xl:px-6 2xl:px-8 pt-2 pb-36 sm:pb-32">
+      <main className={`flex-1 w-full max-w-7xl xl:max-w-[1536px] mx-auto px-3 sm:px-4 lg:px-4 xl:px-6 2xl:px-8 pt-2 ${activeTab === 'pengiriman' ? 'pb-8' : 'pb-36 sm:pb-32'}`}>
         <div className="w-full">
           <AnimatePresence mode="wait">
             {activeTab === 'dashboard' ? (
@@ -465,6 +500,23 @@ export default function App() {
                   isOnline={isOnline}
                 />
               </motion.div>
+            ) : activeTab === 'pengiriman' ? (
+              <motion.div
+                key="pengiriman"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+              >
+                <DriverDeliveryView
+                  orders={orders}
+                  selectedDate={selectedDate}
+                  onDateChange={setSelectedDate}
+                  onUpdateDeliveryStatus={handleUpdateDeliveryStatus}
+                  onUpdateGroupDeliveryStatus={handleUpdateGroupDeliveryStatus}
+                  kitchens={kitchens}
+                />
+              </motion.div>
             ) : (
               <motion.div
                 key="monitoring_pemasok"
@@ -486,8 +538,10 @@ export default function App() {
         </div>
       </main>
 
-      {/* Bottom Navigation Bar */}
-      <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} onOpenManual={() => handleOpenAddModal()} />
+      {/* Bottom Navigation Bar (Hanya tampil di halaman utama, disembunyikan di halaman khusus driver /pengiriman) */}
+      {activeTab !== 'pengiriman' && (
+        <BottomNav activeTab={activeTab} onChangeTab={handleTabChange} onOpenManual={() => handleOpenAddModal()} />
+      )}
 
       {/* Lazy Suspense Boundary for All Modals to prevent massive upfront bundle loading */}
       <React.Suspense fallback={null}>

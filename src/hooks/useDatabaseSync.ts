@@ -124,7 +124,7 @@ export function useDatabaseSync({
 
     const setupRealtime = async () => {
       try {
-        if (activeTab === 'dashboard') {
+        if (activeTab === 'dashboard' || activeTab === 'pengiriman') {
           unsubscribePesanan = await subscribeToTableChanges('pesanan', () => {
             invalidateCache('pesanan');
             invalidateCache('summary');

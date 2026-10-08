@@ -139,13 +139,15 @@ export const TransactionsMobileCard: React.FC<TransactionsMobileCardProps> = ({
                 type="button"
                 onClick={() => onToggleBatchDelivery(batch)}
                 className={`px-2.5 py-1 rounded-full text-[9px] font-black border transition-all active:scale-95 cursor-pointer min-h-[32px] flex items-center ${
-                  isDelivered
+                  batch.delStatus === 'DONE'
                     ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
-                    : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/60'
+                    : batch.delStatus === 'DRIVER'
+                    ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/60'
+                    : 'bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-700 hover:bg-orange-100 dark:hover:bg-orange-900/60'
                 }`}
-                title="Klik untuk ubah Delivery (DONE / PENDING)"
+                title="Klik untuk ubah: PEMASOK (Orange) → DRIVER (Biru) → DONE (Hijau)"
               >
-                {isDelivered ? 'DONE' : 'PENDING'}
+                {batch.delStatus === 'DONE' ? 'DONE' : batch.delStatus === 'DRIVER' ? 'DRIVER' : 'PEMASOK'}
               </button>
             </>
           )}

@@ -485,7 +485,7 @@ export async function createOrdersInDb(ordersData: any[] | any) {
         toko: rawToko,
         pemasok: (item.pemasok || '').toString().trim(),
         status_pembayaran: ['PAID', 'UNPAID'].includes(payStatus) ? payStatus : 'UNPAID',
-        status_pengiriman: ['DONE', 'PENDING', 'SHIPPED'].includes(delStatus) ? delStatus : 'PENDING',
+        status_pengiriman: ['DONE', 'DRIVER', 'PEMASOK'].includes(delStatus) ? delStatus : (delStatus === 'PENDING' ? 'PEMASOK' : 'PEMASOK'),
         status: ['pending', 'selesai'].includes(orderStatus) ? orderStatus : 'pending',
         harga_jual: Math.max(0, Number(item.harga_jual !== undefined ? item.harga_jual : item.hargaJual) || 0),
         harga_beli: Math.max(0, Number(item.harga_beli !== undefined ? item.harga_beli : item.hargaBeli) || 0),

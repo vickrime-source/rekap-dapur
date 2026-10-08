@@ -152,7 +152,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   }, [onUpdateGroupPaymentStatus, onUpdatePaymentStatus]);
 
   const handleToggleBatchDelivery = useCallback((batch: TransactionBatch) => {
-    const nextStatus: DeliveryStatus = batch.delStatus === 'DONE' ? 'PENDING' : 'DONE';
+    const nextStatus: DeliveryStatus =
+      batch.delStatus === 'PEMASOK'
+        ? 'DRIVER'
+        : batch.delStatus === 'DRIVER'
+        ? 'DONE'
+        : 'PEMASOK';
     if (onUpdateGroupDeliveryStatus) {
       onUpdateGroupDeliveryStatus(batch.items, nextStatus);
     } else if (onUpdateDeliveryStatus) {

@@ -239,17 +239,25 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
           <button
             type="button"
             onClick={() => {
-              const nextStatus: DeliveryStatus = group.delStatus === 'DONE' ? 'PENDING' : 'DONE';
+              // Cycle: PEMASOK (Orange) -> DRIVER (Biru) -> DONE (Hijau) -> PEMASOK
+              const nextStatus: DeliveryStatus =
+                group.delStatus === 'PEMASOK'
+                  ? 'DRIVER'
+                  : group.delStatus === 'DRIVER'
+                  ? 'DONE'
+                  : 'PEMASOK';
               onGroupDeliveryChange(group.items, nextStatus);
             }}
-            className={`text-[9.5px] sm:text-[10px] font-black px-2 py-1 rounded-md border cursor-pointer transition-all active:scale-95 ${
+            className={`text-[9.5px] sm:text-[10px] font-black px-2 py-1 rounded-md border cursor-pointer transition-all active:scale-95 shadow-2xs ${
               group.delStatus === 'DONE'
-                ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-2xs'
-                : 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/60 shadow-2xs'
+                ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/60'
+                : group.delStatus === 'DRIVER'
+                ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/60'
+                : 'bg-orange-50 dark:bg-orange-950/50 text-orange-800 dark:text-orange-300 border-orange-300 dark:border-orange-700 hover:bg-orange-100 dark:hover:bg-orange-900/60'
             }`}
-            title="Klik untuk ubah Delivery (DONE / PENDING)"
+            title="Klik untuk ubah: PEMASOK (Orange) → DRIVER (Biru) → DONE (Hijau)"
           >
-            {group.delStatus === 'DONE' ? 'DONE' : 'PENDING'}
+            {group.delStatus === 'DONE' ? 'DONE' : group.delStatus === 'DRIVER' ? 'DRIVER' : 'PEMASOK'}
           </button>
         </td>
       )}
@@ -462,26 +470,28 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
   };
 
   const getDelStatus = (item: OrderItem): DeliveryStatus => {
-    if (item.deliveryStatus) return item.deliveryStatus === 'DONE' ? 'DONE' : 'PENDING';
-    if (item.status_pengiriman) return item.status_pengiriman.toUpperCase() === 'DONE' ? 'DONE' : 'PENDING';
-    return item.status === 'selesai' ? 'DONE' : 'PENDING';
+    const raw = (item.deliveryStatus || item.status_pengiriman || '').toString().toUpperCase();
+    if (raw === 'DONE') return 'DONE';
+    if (raw === 'DRIVER') return 'DRIVER';
+    if (raw === 'PEMASOK') return 'PEMASOK';
+    return item.status === 'selesai' ? 'DONE' : 'PEMASOK';
   };
 
   // Group items hierarchically:
-  // Group 1: ATAS -> UNPAID payment + PENDING delivery
-  // Group 2: TENGAH -> PAID payment + PENDING delivery (or UNPAID payment + DONE delivery)
+  // Group 1: ATAS -> UNPAID payment + Belum selesai delivery
+  // Group 2: TENGAH -> PAID payment + Belum selesai delivery (or UNPAID payment + DONE delivery)
   // Group 3: BAWAH -> PAID payment + DONE delivery
   const sortedOrders = useMemo(() => {
     const groupAtas = orders.filter((item) => {
       const pay = getPayStatus(item);
       const del = getDelStatus(item);
-      return pay === 'UNPAID' && del === 'PENDING';
+      return pay === 'UNPAID' && del !== 'DONE';
     });
 
     const groupTengah = orders.filter((item) => {
       const pay = getPayStatus(item);
       const del = getDelStatus(item);
-      return (pay === 'PAID' && del === 'PENDING') || (pay === 'UNPAID' && del === 'DONE');
+      return (pay === 'PAID' && del !== 'DONE') || (pay === 'UNPAID' && del === 'DONE');
     });
 
     const groupBawah = orders.filter((item) => {
@@ -518,9 +528,13 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
         ? 'PAID'
         : 'UNPAID';
 
-      const delStatus: DeliveryStatus = delStatuses.every((s) => s === 'DONE')
+      const allDone = delStatuses.every((s) => s === 'DONE');
+      const hasDriver = delStatuses.some((s) => s === 'DRIVER');
+      const delStatus: DeliveryStatus = allDone
         ? 'DONE'
-        : 'PENDING';
+        : hasDriver
+        ? 'DRIVER'
+        : 'PEMASOK';
 
       groups.push({
         id: key,

@@ -109,7 +109,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [pemasok, setPemasok] = useState('');
   const [pemasokId, setPemasokId] = useState<string>('');
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('UNPAID');
-  const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatus>('PENDING');
+  const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatus>('PEMASOK');
   const [tanggal, setTanggal] = useState(selectedDate || getTodayWIB());
   const [catatan, setCatatan] = useState('');
 
@@ -297,31 +297,35 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       setActiveItemIndex(startIdx);
 
       // Resolve Toko ID & Name
+      const primaryTokoId = primary.toko_id ?? (primary as any).tokoId;
       const foundToko = masterToko.find(
-        (t) => t.id === (primary.toko_id || primary.tokoId) || t.nama.toLowerCase() === (primary.toko || '').toLowerCase()
+        (t) => t.id === primaryTokoId || t.nama.toLowerCase() === (primary.toko || '').toLowerCase()
       );
       setToko(foundToko ? foundToko.nama : (primary.toko || ''));
-      setTokoId(foundToko ? foundToko.id : (primary.toko_id || primary.tokoId || ''));
+      setTokoId(foundToko ? foundToko.id : (primaryTokoId || ''));
 
       // Resolve Dapur ID & Name
+      const primaryDapurId = primary.dapur_id ?? (primary as any).dapurId;
       const cleanInitDapur = (primary.tujuanDapur || '').replace(/^dapur\s+/i, '').trim().toLowerCase();
       const foundDapur = masterDapur.find(
-        (d) => d.id === (primary.dapur_id || primary.dapurId) ||
+        (d) => d.id === primaryDapurId ||
           d.nama.toLowerCase() === (primary.tujuanDapur || '').toLowerCase() ||
           d.nama.toLowerCase() === cleanInitDapur
       );
       setTujuanDapur(foundDapur ? foundDapur.nama : (primary.tujuanDapur || ''));
-      setTujuanDapurId(foundDapur ? foundDapur.id : (primary.dapur_id || primary.dapurId || ''));
+      setTujuanDapurId(foundDapur ? foundDapur.id : (primaryDapurId || ''));
 
       // Resolve Pemasok ID & Name
+      const primaryPemasokId = primary.pemasok_id ?? (primary as any).pemasokId;
       const foundPemasok = masterPemasok.find(
-        (p) => p.id === (primary.pemasok_id || primary.pemasokId) || p.nama.toLowerCase() === (primary.pemasok || '').toLowerCase()
+        (p) => p.id === primaryPemasokId || p.nama.toLowerCase() === (primary.pemasok || '').toLowerCase()
       );
       setPemasok(foundPemasok ? foundPemasok.nama : (primary.pemasok || ''));
-      setPemasokId(foundPemasok ? foundPemasok.id : (primary.pemasok_id || primary.pemasokId || ''));
+      setPemasokId(foundPemasok ? foundPemasok.id : (primaryPemasokId || ''));
 
       setPaymentStatus(primary.paymentStatus || (primary.status === 'selesai' ? 'PAID' : 'UNPAID'));
-      setDeliveryStatus(primary.deliveryStatus || (primary.status === 'selesai' ? 'DONE' : 'PENDING'));
+      const rawInitDel = (primary.deliveryStatus || (primary as any).status_pengiriman || (primary.status === 'selesai' ? 'DONE' : 'PEMASOK')).toString().toUpperCase();
+      setDeliveryStatus(rawInitDel === 'DONE' ? 'DONE' : (rawInitDel === 'DRIVER' ? 'DRIVER' : 'PEMASOK'));
       setTanggal(primary.tanggal || selectedDate || getTodayWIB());
       setCatatan(primary.catatan || '');
     } else {
@@ -358,7 +362,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       setPemasok('');
       setPemasokId('');
       setPaymentStatus('UNPAID');
-      setDeliveryStatus('PENDING');
+      setDeliveryStatus('PEMASOK');
       setTanggal(selectedDate || getTodayWIB());
       setCatatan('');
     }
@@ -1772,7 +1776,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   onChange={setDeliveryStatus}
                   idPrefix="status-pengiriman"
                   options={[
-                    { value: 'PENDING', label: 'PENDING', activeColor: 'bg-amber-600 text-white' },
+                    { value: 'PEMASOK', label: 'PEMASOK', activeColor: 'bg-orange-500 text-white' },
+                    { value: 'DRIVER', label: 'DRIVER', activeColor: 'bg-blue-600 text-white' },
                     { value: 'DONE', label: 'DONE', activeColor: 'bg-emerald-600 text-white' },
                   ]}
                 />

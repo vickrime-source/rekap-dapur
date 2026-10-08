@@ -45,13 +45,12 @@ export function getItemPayStatus(item: OrderItem): PaymentStatus {
  * Normalizes delivery status from any order representation (camelCase or snake_case).
  */
 export function getItemDelStatus(item: OrderItem): DeliveryStatus {
-  if (item.deliveryStatus) {
-    return item.deliveryStatus.toUpperCase() === 'DONE' ? 'DONE' : 'PENDING';
-  }
-  if (item.status_pengiriman) {
-    return item.status_pengiriman.toUpperCase() === 'DONE' ? 'DONE' : 'PENDING';
-  }
-  return item.status === 'selesai' ? 'DONE' : 'PENDING';
+  const raw = (item.deliveryStatus || item.status_pengiriman || '').toString().toUpperCase();
+  if (raw === 'DONE') return 'DONE';
+  if (raw === 'DRIVER') return 'DRIVER';
+  if (raw === 'PEMASOK') return 'PEMASOK';
+  if (item.status === 'selesai') return 'DONE';
+  return 'PEMASOK';
 }
 
 /**

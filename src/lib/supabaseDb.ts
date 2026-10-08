@@ -1,4 +1,4 @@
-import { OrderItem, InvoiceRecord, NoteItem, FollowUpItemRow, PeriodSummaryStats, MasterToko, MasterPemasok, MasterDapur, MasterSatuan } from '../types';
+import { OrderItem, InvoiceRecord, NoteItem, FollowUpItemRow, PeriodSummaryStats, MasterToko, MasterPemasok, MasterDapur, MasterSatuan, DeliveryStatus } from '../types';
 import { getFromCache, setInCache, invalidateCache } from './cacheManager';
 
 export interface SupabaseStatusResult {
@@ -43,7 +43,8 @@ export async function checkSupabaseStatus(): Promise<SupabaseStatusResult> {
 // -----------------------------------------------------------------------------
 export function mapRawOrder(row: any): OrderItem {
   const payStatus = (row.status_pembayaran || row.paymentStatus || 'UNPAID').toString().toUpperCase();
-  const delStatus = (row.status_pengiriman || row.deliveryStatus || 'PENDING').toString().toUpperCase();
+  const rawDel = (row.status_pengiriman || row.deliveryStatus || 'PEMASOK').toString().toUpperCase();
+  const delStatus: DeliveryStatus = rawDel === 'DONE' ? 'DONE' : (rawDel === 'DRIVER' ? 'DRIVER' : 'PEMASOK');
   const orderStatus = (payStatus === 'PAID' && delStatus === 'DONE') ? 'selesai' : (row.status || 'pending');
 
   const STORE_MAP: Record<string, string> = {
@@ -156,7 +157,7 @@ export function buildPesananPayload(item: Partial<OrderItem>) {
     toko: (item.toko || '').trim(),
     pemasok: (item.pemasok || '').trim(),
     status_pembayaran: ['PAID', 'UNPAID'].includes(payStatus) ? payStatus : 'UNPAID',
-    status_pengiriman: ['DONE', 'PENDING'].includes(delStatus) ? delStatus : 'PENDING',
+    status_pengiriman: ['DONE', 'DRIVER', 'PEMASOK'].includes(delStatus) ? delStatus : (delStatus === 'PENDING' ? 'PEMASOK' : 'PEMASOK'),
     status: (payStatus === 'PAID' && delStatus === 'DONE') ? 'selesai' : (item.status || 'pending'),
     harga_jual: Number(item.hargaJual !== undefined ? item.hargaJual : (item as any).harga_jual) || 0,
     harga_beli: Number(item.hargaBeli !== undefined ? item.hargaBeli : (item as any).harga_beli) || 0,
@@ -530,7 +531,8 @@ export function buildUpdatePesananPayload(updates: Partial<OrderItem>): Record<s
 
   // Delivery Status
   if (updates.deliveryStatus !== undefined || (updates as any).status_pengiriman !== undefined) {
-    const del = (updates.deliveryStatus || (updates as any).status_pengiriman || 'PENDING').toString().toUpperCase();
+    const rawDel = (updates.deliveryStatus || (updates as any).status_pengiriman || 'PEMASOK').toString().toUpperCase();
+    const del = rawDel === 'PENDING' ? 'PEMASOK' : rawDel;
     payload.deliveryStatus = del;
     payload.status_pengiriman = del;
   }
@@ -566,7 +568,7 @@ export async function updateOrderInDb(id: string, updates: Partial<OrderItem>): 
 
 export async function batchUpdateStatusInDb(
   ids: string[],
-  updates: { paymentStatus?: 'PAID' | 'UNPAID'; deliveryStatus?: 'DONE' | 'PENDING' | 'SHIPPED'; status?: 'pending' | 'selesai' }
+  updates: { paymentStatus?: 'PAID' | 'UNPAID'; deliveryStatus?: DeliveryStatus; status?: 'pending' | 'selesai' }
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const res = await fetch('/api/pesanan', {
