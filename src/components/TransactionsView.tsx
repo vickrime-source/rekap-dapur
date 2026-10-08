@@ -32,7 +32,7 @@ interface TransactionsViewProps {
   onUpdateGroupPaymentStatus?: (groupItems: OrderItem[], status: PaymentStatus) => void;
   onUpdateGroupDeliveryStatus?: (groupItems: OrderItem[], status: DeliveryStatus) => void;
   onToggleBatchStatus: (kitchenName: string, date: string, targetStatus: 'pending' | 'selesai') => void;
-  onEditOrder: (item: OrderItem) => void;
+  onEditOrder: (item: OrderItem, batchItems?: OrderItem[]) => void;
   onDuplicateOrder?: (item: OrderItem) => void;
   onDeleteOrder: (id: string) => void;
   onDeleteKitchenOrders: (kitchenName: string, date: string) => void;
@@ -242,8 +242,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         title="Detail Transaksi"
         batchNumber={activeMenu?.batch.batchIndex}
         items={activeMenu?.batch.items || []}
-        onEdit={onEditOrder}
-        onDuplicate={onDuplicateOrder}
+        onEdit={(item, batchItems) => onEditOrder(item, batchItems || activeMenu?.batch.items)}
+        onEditBatch={(items) => onEditOrder(items[0], items)}
+        onDuplicate={() => {
+          if (activeMenu?.batch) {
+            onDuplicateOrder(activeMenu.batch.items);
+          }
+        }}
         onDelete={onDeleteOrder}
         onDeleteBatch={() => {
           if (activeMenu?.batch) {

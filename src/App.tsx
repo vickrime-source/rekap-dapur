@@ -198,6 +198,8 @@ export default function App() {
     setIsOrderModalOpen,
     editingOrder,
     setEditingOrder,
+    editingBatchOrders,
+    setEditingBatchOrders,
     prefilledKitchen,
     setPrefilledKitchen,
     handleToggleStatus,
@@ -560,6 +562,7 @@ export default function App() {
         onClose={() => {
           setIsOrderModalOpen(false);
           setEditingOrder(null);
+          setEditingBatchOrders([]);
           setPrefilledKitchen(undefined);
         }}
         onSave={(orderData, editId) => {
@@ -577,6 +580,7 @@ export default function App() {
           handleSaveOrder(Array.isArray(orderData) ? validItems : validItems[0], editId);
         }}
         initialData={editingOrder}
+        initialItems={editingBatchOrders}
         prefilledKitchen={prefilledKitchen}
         kitchens={kitchens}
         stores={stores}

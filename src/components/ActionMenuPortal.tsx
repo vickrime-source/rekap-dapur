@@ -19,7 +19,8 @@ export interface ActionMenuPortalProps {
   title?: string;
   batchNumber?: number;
   items: OrderItem[];
-  onEdit: (item: OrderItem) => void;
+  onEdit: (item: OrderItem, batchItems?: OrderItem[]) => void;
+  onEditBatch?: (items: OrderItem[]) => void;
   onDuplicate?: (item: OrderItem) => void;
   onDelete: (itemId: string) => void;
   onDeleteBatch?: () => void;
@@ -33,6 +34,7 @@ export const ActionMenuPortal: React.FC<ActionMenuPortalProps> = ({
   batchNumber,
   items,
   onEdit,
+  onEditBatch,
   onDuplicate,
   onDelete,
   onDeleteBatch,
@@ -147,157 +149,116 @@ export const ActionMenuPortal: React.FC<ActionMenuPortalProps> = ({
                 </button>
               )}
             </div>
-          ) : singleItem ? (
-            /* Single Item: Clean, minimal Action Card */
-            <div className="space-y-1">
-              <div className="px-2.5 py-1">
-                <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate" title={singleItem.namaBarang}>
-                  {singleItem.namaBarang}
-                </div>
-                <div className="text-[10.5px] font-mono text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">{singleItem.qty} {singleItem.satuan || 'Pcs'}</span>
-                  <span className="text-slate-300 dark:text-slate-600">•</span>
-                  <span className="font-medium text-slate-600 dark:text-slate-400">{formatRupiah(singleItem.hargaBeli)}</span>
-                </div>
-                {singleItem.catatan && singleItem.catatan.trim() && (
-                  <div className="mt-1.5 text-[10.5px] text-slate-600 dark:text-slate-300 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800 rounded-lg px-2 py-1 leading-relaxed">
-                    <span className="font-bold text-amber-800 dark:text-amber-300">Catatan: </span>
-                    <span className="break-words">{singleItem.catatan.trim()}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="h-px bg-slate-100 dark:bg-slate-800 mx-1" />
-
-              <div className="space-y-0.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onEdit(singleItem);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50/80 dark:hover:bg-indigo-950/50 rounded-xl transition-all cursor-pointer group"
-                >
-                  <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 group-hover:bg-indigo-100/70 dark:group-hover:bg-indigo-900/60 flex items-center justify-center transition-colors flex-shrink-0">
-                    <Edit2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400" />
-                  </div>
-                  <span>Edit Transaksi</span>
-                </button>
-
-                {onDuplicate && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onDuplicate(singleItem);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50/80 dark:hover:bg-emerald-950/50 rounded-xl transition-all cursor-pointer group"
-                  >
-                    <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 group-hover:bg-emerald-100/70 dark:group-hover:bg-emerald-900/60 flex items-center justify-center transition-colors flex-shrink-0">
-                      <Copy className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400" />
-                    </div>
-                    <span>Duplikat Item</span>
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    if (onDeleteBatch) {
-                      onDeleteBatch();
-                    } else {
-                      onDelete(singleItem.id);
-                    }
-                  }}
-                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-xs font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-xl transition-all cursor-pointer group"
-                >
-                  <div className="w-6 h-6 rounded-lg bg-rose-50 dark:bg-rose-950/50 group-hover:bg-rose-100/80 dark:group-hover:bg-rose-900/60 flex items-center justify-center transition-colors flex-shrink-0">
-                    <Trash2 className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 group-hover:text-rose-600" />
-                  </div>
-                  <span>Hapus Transaksi</span>
-                </button>
-              </div>
-            </div>
           ) : (
-            /* Multiple Items: Clean Scrollable List with Minimal Action Pills */
+            /* Unified Action Menu: Langsung Edit Pesanan (Seluruh item bisa diedit sekaligus di modal) */
             <div className="space-y-1">
-              {onDeleteBatch && (
+              {/* Tombol Utama: Edit Langsung Pesanan (Semua Item Sekaligus) */}
+              <button
+                type="button"
+                id="btn-edit-pesanan-portal"
+                onClick={() => {
+                  onClose();
+                  if (onEditBatch) {
+                    onEditBatch(items);
+                  } else {
+                    onEdit(items[0], items);
+                  }
+                }}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 text-left text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-98 rounded-xl transition-all cursor-pointer shadow-xs shadow-indigo-600/30 group"
+              >
+                <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                  <Edit2 className="w-3.5 h-3.5 text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate leading-tight">
+                    {items.length > 1 ? `Edit Pesanan (${items.length} Item)` : 'Edit Pesanan'}
+                  </div>
+                  <div className="text-[9.5px] font-normal text-indigo-100 truncate">
+                    Buka & edit seluruh item
+                  </div>
+                </div>
+              </button>
+
+              {/* Duplikat Pesanan */}
+              {onDuplicate && (
                 <button
                   type="button"
+                  id="btn-duplikat-pesanan-portal"
                   onClick={() => {
                     onClose();
-                    onDeleteBatch();
+                    onDuplicate(items[0]);
                   }}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 mb-1 text-left text-xs font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-xl transition-all cursor-pointer group border border-rose-100 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/30"
+                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50/80 dark:hover:bg-emerald-950/50 rounded-xl transition-all cursor-pointer group"
                 >
-                  <div className="flex items-center gap-2">
-                    <Trash2 className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 group-hover:text-rose-600" />
-                    <span>Hapus Seluruh Transaksi ({items.length} Item)</span>
+                  <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 group-hover:bg-emerald-100/70 dark:group-hover:bg-emerald-900/60 flex items-center justify-center transition-colors flex-shrink-0">
+                    <Copy className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400" />
                   </div>
+                  <span className="truncate">
+                    {items.length > 1 ? `Duplikat Pesanan (${items.length} Item)` : 'Duplikat Pesanan'}
+                  </span>
                 </button>
               )}
 
-              <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 pr-0.5">
-                {items.map((it) => (
-                  <div key={it.id} className="py-2 px-2 hover:bg-slate-50/90 dark:hover:bg-slate-800/80 rounded-xl transition-colors">
-                    <div className="flex items-center justify-between gap-1.5 mb-1.5">
-                      <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate" title={it.namaBarang}>
-                        {it.namaBarang}
-                      </div>
-                      <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 flex-shrink-0">
-                        {it.qty}x
-                      </span>
-                    </div>
-                    {it.catatan && it.catatan.trim() && (
-                      <div className="mb-1.5 text-[10px] text-slate-600 dark:text-slate-300 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800 rounded px-1.5 py-0.5 leading-relaxed">
-                        <span className="font-bold text-amber-800 dark:text-amber-300">Catatan: </span>
-                        <span className="break-words">{it.catatan.trim()}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
-                          onEdit(it);
-                        }}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors cursor-pointer border border-slate-200/80 dark:border-slate-700"
-                        title="Edit Item Ini"
-                      >
-                        <Edit2 className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                        Edit
-                      </button>
-                      {onDuplicate && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onClose();
-                            onDuplicate(it);
-                          }}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors cursor-pointer border border-slate-200/80 dark:border-slate-700"
-                          title="Duplikat Item Ini"
-                        >
-                          <Copy className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                          Duplikat
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
-                          onDelete(it.id);
-                        }}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer border border-rose-200/80 dark:border-rose-900/50"
-                        title="Hapus Item Ini"
-                      >
-                        <Trash2 className="w-3 h-3 text-rose-600 dark:text-rose-400" />
-                        Hapus
-                      </button>
-                    </div>
+              {/* Hapus Pesanan */}
+              <button
+                type="button"
+                id="btn-hapus-pesanan-portal"
+                onClick={() => {
+                  onClose();
+                  if (onDeleteBatch) {
+                    onDeleteBatch();
+                  } else {
+                    onDelete(items[0].id);
+                  }
+                }}
+                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left text-xs font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-xl transition-all cursor-pointer group"
+              >
+                <div className="w-6 h-6 rounded-lg bg-rose-50 dark:bg-rose-950/50 group-hover:bg-rose-100/80 dark:group-hover:bg-rose-900/60 flex items-center justify-center transition-colors flex-shrink-0">
+                  <Trash2 className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 group-hover:text-rose-600" />
+                </div>
+                <span className="truncate">
+                  {items.length > 1 ? `Hapus Seluruh Pesanan (${items.length} Item)` : 'Hapus Pesanan'}
+                </span>
+              </button>
+
+              {/* Ringkasan Item Pesanan (Read-only clean preview tanpa tombol edit satuan) */}
+              {items.length > 1 ? (
+                <div className="mt-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                  <div className="px-2 py-0.5 text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                    <span>Item di Pesanan Ini ({items.length})</span>
                   </div>
-                ))}
-              </div>
+                  <div className="max-h-36 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 pr-0.5 mt-0.5">
+                    {items.map((it, idx) => (
+                      <div key={it.id || idx} className="py-1 px-2 flex items-center justify-between gap-1 text-[11px]">
+                        <div className="truncate font-semibold text-slate-800 dark:text-slate-200" title={it.namaBarang}>
+                          <span className="text-slate-400 mr-1 font-mono text-[10px]">#{idx + 1}</span>
+                          {it.namaBarang}
+                        </div>
+                        <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 shrink-0">
+                          {it.qty} {it.satuan || 'Kg'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : singleItem ? (
+                <div className="mt-1 pt-1 border-t border-slate-100 dark:border-slate-800 px-2 py-1 bg-slate-50/70 dark:bg-slate-800/50 rounded-xl">
+                  <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate" title={singleItem.namaBarang}>
+                    {singleItem.namaBarang}
+                  </div>
+                  <div className="text-[10.5px] font-mono text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">{singleItem.qty} {singleItem.satuan || 'Pcs'}</span>
+                    <span className="text-slate-300 dark:text-slate-600">•</span>
+                    <span className="font-medium text-slate-600 dark:text-slate-400">{formatRupiah(singleItem.hargaBeli)}</span>
+                  </div>
+                  {singleItem.catatan && singleItem.catatan.trim() && (
+                    <div className="mt-1 text-[10px] text-slate-600 dark:text-slate-300 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800 rounded px-1.5 py-0.5">
+                      <span className="font-bold text-amber-800 dark:text-amber-300">Catatan: </span>
+                      <span className="break-words">{singleItem.catatan.trim()}</span>
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
           )}
         </motion.div>

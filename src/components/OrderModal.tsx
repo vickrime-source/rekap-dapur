@@ -48,6 +48,7 @@ interface OrderModalProps {
     editId?: string
   ) => void;
   initialData?: OrderItem | null;
+  initialItems?: OrderItem[];
   prefilledKitchen?: string;
   kitchens: Kitchen[];
   stores: StoreType[];
@@ -84,6 +85,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   onClose,
   onSave,
   initialData,
+  initialItems = [],
   prefilledKitchen,
   kitchens = [],
   stores = [],
@@ -247,7 +249,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       return;
     }
 
-    const currentDataId = initialData?.id || (initialData ? 'has-initial-data' : null);
+    const currentDataId =
+      initialItems && initialItems.length > 0
+        ? `batch-${initialItems.map((i) => i.id).join('-')}`
+        : initialData?.id || (initialData ? 'has-initial-data' : null);
     const isFirstOpen = !prevIsOpenRef.current;
     const isDataChanged = prevInitialDataIdRef.current !== currentDataId;
 
@@ -259,52 +264,66 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       return;
     }
 
-    if (initialData) {
-      setItemRows([
-        {
-          id: initialData.id || '1',
-          namaBarang: initialData.namaBarang,
-          qty: initialData.qty || 1,
-          qtyBeli: (initialData as any).qtyBeli ?? (initialData as any).qty_beli ?? initialData.qty ?? 1,
-          satuan: initialData.satuan !== undefined ? initialData.satuan : 'Kg',
-          hargaBeli: Math.round(initialData.hargaBeli || 0),
-          hargaJual: Math.round(initialData.hargaJual || 0),
-          cashback: initialData.cashback !== undefined ? Math.round(initialData.cashback) : 0,
-          retur: initialData.retur !== undefined ? Math.round(initialData.retur) : 0,
-          pemasok: initialData.pemasok || '',
-          pemasok_id: initialData.pemasok_id || (initialData as any).pemasokId || '',
-        },
-      ]);
-      setActiveItemIndex(0);
+    const itemsToLoad: OrderItem[] =
+      initialItems && initialItems.length > 0
+        ? initialItems
+        : initialData
+        ? [initialData]
+        : [];
+
+    if (itemsToLoad.length > 0) {
+      const primary = itemsToLoad[0];
+      setItemRows(
+        itemsToLoad.map((item, idx) => ({
+          id: item.id || `item-${Date.now()}-${idx}`,
+          namaBarang: item.namaBarang,
+          qty: item.qty || 1,
+          qtyBeli: (item as any).qtyBeli ?? (item as any).qty_beli ?? item.qty ?? 1,
+          satuan: item.satuan !== undefined ? item.satuan : 'Kg',
+          hargaBeli: Math.round(item.hargaBeli || 0),
+          hargaJual: Math.round(item.hargaJual || 0),
+          cashback: item.cashback !== undefined ? Math.round(item.cashback) : 0,
+          retur: item.retur !== undefined ? Math.round(item.retur) : 0,
+          pemasok: item.pemasok || '',
+          pemasok_id: item.pemasok_id || (item as any).pemasokId || '',
+        }))
+      );
+
+      let startIdx = 0;
+      if (initialData) {
+        const found = itemsToLoad.findIndex((it) => it.id === initialData.id);
+        if (found >= 0) startIdx = found;
+      }
+      setActiveItemIndex(startIdx);
 
       // Resolve Toko ID & Name
       const foundToko = masterToko.find(
-        (t) => t.id === (initialData.toko_id || initialData.tokoId) || t.nama.toLowerCase() === (initialData.toko || '').toLowerCase()
+        (t) => t.id === (primary.toko_id || primary.tokoId) || t.nama.toLowerCase() === (primary.toko || '').toLowerCase()
       );
-      setToko(foundToko ? foundToko.nama : (initialData.toko || ''));
-      setTokoId(foundToko ? foundToko.id : (initialData.toko_id || initialData.tokoId || ''));
+      setToko(foundToko ? foundToko.nama : (primary.toko || ''));
+      setTokoId(foundToko ? foundToko.id : (primary.toko_id || primary.tokoId || ''));
 
       // Resolve Dapur ID & Name
-      const cleanInitDapur = (initialData.tujuanDapur || '').replace(/^dapur\s+/i, '').trim().toLowerCase();
+      const cleanInitDapur = (primary.tujuanDapur || '').replace(/^dapur\s+/i, '').trim().toLowerCase();
       const foundDapur = masterDapur.find(
-        (d) => d.id === (initialData.dapur_id || initialData.dapurId) ||
-          d.nama.toLowerCase() === (initialData.tujuanDapur || '').toLowerCase() ||
+        (d) => d.id === (primary.dapur_id || primary.dapurId) ||
+          d.nama.toLowerCase() === (primary.tujuanDapur || '').toLowerCase() ||
           d.nama.toLowerCase() === cleanInitDapur
       );
-      setTujuanDapur(foundDapur ? foundDapur.nama : (initialData.tujuanDapur || ''));
-      setTujuanDapurId(foundDapur ? foundDapur.id : (initialData.dapur_id || initialData.dapurId || ''));
+      setTujuanDapur(foundDapur ? foundDapur.nama : (primary.tujuanDapur || ''));
+      setTujuanDapurId(foundDapur ? foundDapur.id : (primary.dapur_id || primary.dapurId || ''));
 
       // Resolve Pemasok ID & Name
       const foundPemasok = masterPemasok.find(
-        (p) => p.id === (initialData.pemasok_id || initialData.pemasokId) || p.nama.toLowerCase() === (initialData.pemasok || '').toLowerCase()
+        (p) => p.id === (primary.pemasok_id || primary.pemasokId) || p.nama.toLowerCase() === (primary.pemasok || '').toLowerCase()
       );
-      setPemasok(foundPemasok ? foundPemasok.nama : (initialData.pemasok || ''));
-      setPemasokId(foundPemasok ? foundPemasok.id : (initialData.pemasok_id || initialData.pemasokId || ''));
+      setPemasok(foundPemasok ? foundPemasok.nama : (primary.pemasok || ''));
+      setPemasokId(foundPemasok ? foundPemasok.id : (primary.pemasok_id || primary.pemasokId || ''));
 
-      setPaymentStatus(initialData.paymentStatus || (initialData.status === 'selesai' ? 'PAID' : 'UNPAID'));
-      setDeliveryStatus(initialData.deliveryStatus || (initialData.status === 'selesai' ? 'DONE' : 'PENDING'));
-      setTanggal(initialData.tanggal || selectedDate || getTodayWIB());
-      setCatatan(initialData.catatan || '');
+      setPaymentStatus(primary.paymentStatus || (primary.status === 'selesai' ? 'PAID' : 'UNPAID'));
+      setDeliveryStatus(primary.deliveryStatus || (primary.status === 'selesai' ? 'DONE' : 'PENDING'));
+      setTanggal(primary.tanggal || selectedDate || getTodayWIB());
+      setCatatan(primary.catatan || '');
     } else {
       setItemRows([
         {
@@ -710,7 +729,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     const calculatedStatus =
       deliveryStatus === 'DONE' && paymentStatus === 'PAID' ? 'selesai' : 'pending';
 
-    if (initialData) {
+    if (initialData || (initialItems && initialItems.length > 0)) {
       if (!finalDapurName.trim()) {
         alert('Dapur tujuan wajib diisi!');
         setIsSubmitting(false);
@@ -718,8 +737,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       }
 
       const singleNotaId =
-        initialData.notaId ||
-        initialData.nota_id ||
+        initialData?.notaId ||
+        initialData?.nota_id ||
+        (initialItems && initialItems[0]?.notaId) ||
+        (initialItems && initialItems[0]?.nota_id) ||
         `nota-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
       // Mapping semua item valid (item pertama adalah item yang diedit, item berikutnya adalah item baru)
@@ -733,6 +754,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         const effectivePemasokId = matchedRowPemasok?.id || (rowPemasok ? '' : finalPemasokId);
 
         return {
+          id: row.id,
           namaBarang: row.namaBarang.trim(),
           item: row.namaBarang.trim(),
           qty: rowQty,
@@ -757,8 +779,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           deliveryStatus,
           tanggal,
           catatan: catatan.trim(),
-          invoiceNumber: initialData.invoiceNumber || (initialData as any).invoice_number,
-          invoice_number: initialData.invoiceNumber || (initialData as any).invoice_number,
+          invoiceNumber: initialData?.invoiceNumber || (initialData as any)?.invoice_number || (initialItems && initialItems[0]?.invoiceNumber),
+          invoice_number: initialData?.invoiceNumber || (initialData as any)?.invoice_number || (initialItems && initialItems[0]?.invoice_number),
           isNewItem: idx > 0,
         };
       });
@@ -771,8 +793,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         return;
       }
 
-      const isDateChanged = initialData.tanggal && initialData.tanggal !== tanggal;
-      const isStoreChanged = (initialData.toko && initialData.toko !== finalTokoName) || (initialData.toko_id && String(initialData.toko_id) !== String(finalTokoId));
+      const activePrimary = initialData || (initialItems && initialItems[0]);
+      const isDateChanged = activePrimary?.tanggal && activePrimary.tanggal !== tanggal;
+      const isStoreChanged = (activePrimary?.toko && activePrimary.toko !== finalTokoName) || (activePrimary?.toko_id && String(activePrimary.toko_id) !== String(finalTokoId));
       if (isDateChanged || isStoreChanged) {
         const matchedTokoObj = masterToko.find((t) => String(t.id) === String(finalTokoId) || t.nama.toLowerCase() === finalTokoName.toLowerCase());
         const prefix = matchedTokoObj?.kode_invoice || (finalTokoName.includes('LB') ? 'LB' : finalTokoName.includes('LA') ? 'LA' : finalTokoName.includes('PROHE') || finalTokoName.includes('PW') ? 'PH' : 'HTG');
@@ -780,26 +803,27 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         const y = !isNaN(dObj.getFullYear()) ? dObj.getFullYear() : parseInt(tanggal.slice(0, 4), 10) || new Date().getFullYear();
         const m = !isNaN(dObj.getMonth()) ? dObj.getMonth() + 1 : parseInt(tanggal.slice(5, 7), 10) || 1;
         const romawi = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'][m - 1] || 'I';
-        const oldInvParts = (initialData.invoiceNumber || initialData.invoice_number || '').split('/');
+        const oldInvParts = (activePrimary?.invoiceNumber || (activePrimary as any)?.invoice_number || '').split('/');
         const oldSeq = oldInvParts.length >= 2 ? oldInvParts[1] : '?';
         const predictedNum = `${prefix}/${oldSeq}/${romawi}/${y}`;
 
         try {
           const exportHistStr = localStorage.getItem('htg_export_history') || '';
-          const hasExported = (initialData.notaId && exportHistStr.includes(initialData.notaId)) ||
-                              (initialData.nota_id && exportHistStr.includes(initialData.nota_id)) ||
-                              (initialData.invoiceNumber && exportHistStr.includes(initialData.invoiceNumber)) ||
-                              (initialData.invoice_number && exportHistStr.includes(initialData.invoice_number));
+          const hasExported = (activePrimary?.notaId && exportHistStr.includes(activePrimary.notaId)) ||
+                              ((activePrimary as any)?.nota_id && exportHistStr.includes((activePrimary as any).nota_id)) ||
+                              (activePrimary?.invoiceNumber && exportHistStr.includes(activePrimary.invoiceNumber)) ||
+                              ((activePrimary as any)?.invoice_number && exportHistStr.includes((activePrimary as any).invoice_number));
           if (hasExported) {
             alert(`Nomor invoice akan berubah menjadi ${predictedNum}. Cetak ulang PDF-nya.`);
           }
         } catch (_) {}
       }
 
+      const targetEditId = initialData?.id || (initialItems && initialItems[0]?.id);
       if (allItemPayloads.length === 1) {
-        onSave(allItemPayloads[0], initialData.id);
+        onSave(allItemPayloads[0], targetEditId);
       } else {
-        onSave(allItemPayloads, initialData.id);
+        onSave(allItemPayloads, targetEditId);
       }
     } else {
       if (!finalDapurName.trim()) {
@@ -906,10 +930,16 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     </div>
                     <div>
                       <h2 className="text-sm font-black text-slate-900 dark:text-slate-100 leading-tight">
-                        {initialData ? 'Edit Pesanan' : 'Input Pesanan Baru'}
+                        {initialData || (initialItems && initialItems.length > 0)
+                          ? itemRows.length > 1
+                            ? `Edit Pesanan (${itemRows.length} Item)`
+                            : 'Edit Pesanan'
+                          : 'Input Pesanan Baru'}
                       </h2>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                        Masukkan detail pesanan dapur
+                        {initialData || (initialItems && initialItems.length > 0)
+                          ? 'Seluruh item dalam transaksi ini dapat diedit atau ditambah item baru'
+                          : 'Masukkan detail pesanan dapur'}
                       </p>
                     </div>
                   </div>
@@ -1794,7 +1824,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 <span>
                   {isSubmitting
                     ? 'Menyimpan...'
-                    : initialData
+                    : initialData || (initialItems && initialItems.length > 0)
                     ? itemRows.length > 1
                       ? `Simpan Perubahan (${itemRows.length} Item)`
                       : 'Simpan Perubahan'

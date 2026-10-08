@@ -44,6 +44,7 @@ interface OrderRowProps {
   onOpenInvoiceModal: (items: OrderItem[], kitchenName: string, storeName: string) => void;
   onExportInvoicePdf?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string, variant?: InvoicePriceVariant) => void;
   onViewInvoice?: (items: OrderItem[], kitchenName: string, storeName: string, dateStr?: string) => void;
+  onEditOrder?: (order: OrderItem, batchItems?: OrderItem[]) => void;
 }
 
 const getKeKoperasi = (item: OrderItem): number => {
@@ -67,6 +68,7 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
   onOpenInvoiceModal,
   onExportInvoicePdf,
   onViewInvoice,
+  onEditOrder,
 }) => {
   const [printMenuRect, setPrintMenuRect] = useState<DOMRect | null>(null);
   const isFirst = itemIdx === 0;
@@ -359,6 +361,19 @@ const OrderRow: React.FC<OrderRowProps> = React.memo(({
               <Printer className="w-4 h-4 stroke-[2.2]" />
             </button>
 
+            {/* Tombol Edit Langsung Seluruh Pesanan */}
+            {onEditOrder && (
+              <button
+                type="button"
+                id={`btn-edit-pesanan-row-${group.id}`}
+                onClick={() => onEditOrder(group.items[0], group.items)}
+                className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 font-extrabold shadow-2xs transition-all active:scale-95 border border-indigo-200 dark:border-indigo-800 cursor-pointer"
+                title={`Edit Seluruh Pesanan Dapur ${group.tujuanDapur} (${group.items.length} Item)`}
+              >
+                <Edit2 className="w-4 h-4 stroke-[2.2]" />
+              </button>
+            )}
+
             <button
               type="button"
               onClick={(e) => {
@@ -401,7 +416,7 @@ interface OrdersTableViewProps {
   onUpdateDeliveryStatus: (id: string, status: DeliveryStatus) => void;
   onUpdateGroupPaymentStatus?: (groupItems: OrderItem[], status: PaymentStatus) => void;
   onUpdateGroupDeliveryStatus?: (groupItems: OrderItem[], status: DeliveryStatus) => void;
-  onEditOrder: (order: OrderItem) => void;
+  onEditOrder: (order: OrderItem, batchItems?: OrderItem[]) => void;
   onDuplicateOrder: (order: OrderItem) => void;
   onDeleteOrder: (id: string) => void;
   onDeleteBatchOrders?: (items: OrderItem[]) => void;
@@ -701,6 +716,7 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
                     onOpenInvoiceModal={onOpenInvoiceModal}
                     onExportInvoicePdf={onExportInvoicePdf}
                     onViewInvoice={onViewInvoice}
+                    onEditOrder={onEditOrder}
                   />
                 ));
               })}
@@ -733,8 +749,13 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = React.memo(({
       title="Detail Pesanan"
       batchNumber={activeMenu?.group.groupIndex}
       items={activeMenu?.group.items || []}
-      onEdit={onEditOrder}
-      onDuplicate={onDuplicateOrder}
+      onEdit={(item, batchItems) => onEditOrder(item, batchItems || activeMenu?.group.items)}
+      onEditBatch={(items) => onEditOrder(items[0], items)}
+      onDuplicate={() => {
+        if (activeMenu?.group) {
+          onDuplicateOrder(activeMenu.group.items);
+        }
+      }}
       onDelete={onDeleteOrder}
       onDeleteBatch={() => {
         if (activeMenu?.group) {

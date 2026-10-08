@@ -52,6 +52,7 @@ export function useOrderOperations({
 }: UseOrderOperationsProps) {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<OrderItem | null>(null);
+  const [editingBatchOrders, setEditingBatchOrders] = useState<OrderItem[]>([]);
   const [prefilledKitchen, setPrefilledKitchen] = useState<string | undefined>();
 
   const handleToggleStatus = useCallback(async (id: string) => {
@@ -303,32 +304,37 @@ export function useOrderOperations({
     }
   }, [setOrders, setInvoices, setDbError, showToast]);
 
-  const handleDuplicateOrder = useCallback(async (item: OrderItem) => {
+  const handleDuplicateOrder = useCallback(async (itemOrItems: OrderItem | OrderItem[]) => {
+    const items = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
+    if (items.length === 0) return;
+
     const newNotaId = `nota-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const duplicated: OrderItem = {
+    const duplicatedList: OrderItem[] = items.map((item, idx) => ({
       ...item,
-      id: `ord-dup-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      id: `ord-dup-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
       notaId: newNotaId,
       nota_id: newNotaId,
       invoiceNumber: undefined,
       invoice_number: undefined,
       createdAt: getNowWIBISOString(),
-    };
+    }));
 
-    setOrders((prev) => [duplicated, ...prev]);
+    setOrders((prev) => [...duplicatedList, ...prev]);
 
     setIsLoadingDb(true);
-    const res = await saveOrderToDb(duplicated);
+    const res = await saveOrdersBatchToDb(duplicatedList);
     setIsLoadingDb(false);
 
     if (res.success) {
-      if (res.data) {
-        setOrders((prev) => prev.map((o) => (o.id === duplicated.id ? (res.data as OrderItem) : o)));
-      }
-      showToast('Pesanan berhasil diduplikasi & nomor invoice baru dibuat', 'success');
+      showToast(
+        duplicatedList.length > 1
+          ? `Seluruh pesanan (${duplicatedList.length} item) berhasil diduplikasi`
+          : 'Pesanan berhasil diduplikasi',
+        'success'
+      );
     } else {
       setDbError(res.error || 'Gagal menyimpan pesanan');
-      showToast(`Pesanan tersimpan di HP. Gagal simpan ke database: ${res.error}`, 'info');
+      showToast(`Pesanan tersimpan lokal. Gagal simpan ke database: ${res.error}`, 'info');
     }
   }, [setOrders, setIsLoadingDb, showToast, setDbError]);
 
@@ -379,96 +385,95 @@ export function useOrderOperations({
   ) => {
     if (editId) {
       const itemsList = Array.isArray(orderData) ? orderData : [orderData];
-      const primaryItem = itemsList[0];
-      const additionalItems = itemsList.slice(1);
+      const oldOrder = orders.find((o) => o.id === editId) || editingOrder;
 
-      const oldOrder = orders.find((o) => o.id === editId);
-      const curToko = (primaryItem as any).toko || oldOrder?.toko || '';
-      const curPemasok = (primaryItem as any).pemasok || oldOrder?.pemasok || '';
-      const curDapur = (primaryItem as any).tujuanDapur || oldOrder?.tujuanDapur || '';
-      const cleanD = curDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
+      const sharedNotaId = oldOrder?.notaId || oldOrder?.nota_id || (itemsList[0] as any)?.notaId || (itemsList[0] as any)?.nota_id || `nota-${Date.now()}`;
+      const sharedInvoice = oldOrder?.invoiceNumber || (oldOrder as any)?.invoice_number || (itemsList[0] as any)?.invoiceNumber || (itemsList[0] as any)?.invoice_number;
 
-      const fTokoId = (primaryItem as any).toko_id || (primaryItem as any).tokoId || masterToko.find((t) => t.nama.toLowerCase() === curToko.trim().toLowerCase())?.id || oldOrder?.toko_id || null;
-      const fPemasokId = (primaryItem as any).pemasok_id || (primaryItem as any).pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === curPemasok.trim().toLowerCase())?.id || oldOrder?.pemasok_id || null;
-      const fDapurId = (primaryItem as any).dapur_id || (primaryItem as any).dapurId || masterDapur.find((d) => d.nama.toLowerCase() === curDapur.trim().toLowerCase() || d.nama.toLowerCase() === cleanD)?.id || oldOrder?.dapur_id || null;
+      // Identifikasi item yang dihapus dari batch asal
+      const submittedIds = new Set(itemsList.map((it: any) => it.id).filter(Boolean));
+      const deletedIds = editingBatchOrders.filter((o) => o.id && !submittedIds.has(o.id)).map((o) => o.id);
 
-      const rawQ = Number(primaryItem.qty) || 0;
-      const rawQBeli = (primaryItem as any).qty_beli !== undefined ? Number((primaryItem as any).qty_beli) : ((primaryItem as any).qtyBeli !== undefined ? Number((primaryItem as any).qtyBeli) : rawQ);
+      // Pisahkan pesanan lama yang diupdate vs pesanan baru yang ditambah
+      const existingOrdersToUpdate: OrderItem[] = [];
+      const newOrdersToAdd: OrderItem[] = [];
 
-      const updatedOrder: OrderItem = {
-        ...(oldOrder || {}),
-        ...primaryItem,
-        qty: rawQ,
-        qtyBeli: rawQBeli,
-        qty_beli: rawQBeli,
-        toko_id: fTokoId,
-        pemasok_id: fPemasokId,
-        dapur_id: fDapurId,
-        id: editId,
-        createdAt: oldOrder?.createdAt || getNowWIBISOString(),
-      } as OrderItem;
+      itemsList.forEach((item: any, idx: number) => {
+        const itemExisting = orders.find((o) => o.id === item.id) || (idx === 0 && item.id === editId ? oldOrder : undefined);
+        const curToko = (item.toko || oldOrder?.toko || '').trim();
+        const curPemasok = (item.pemasok || oldOrder?.pemasok || '').trim();
+        const curDapur = (item.tujuanDapur || oldOrder?.tujuanDapur || '').trim();
+        const cleanD = curDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
 
-      // Persiapkan additional items jika ada penambahan item baru saat edit pesanan
-      let newlyAddedOrders: OrderItem[] = [];
-      if (additionalItems.length > 0) {
-        const sharedNotaId = oldOrder?.notaId || oldOrder?.nota_id || (primaryItem as any).notaId || (primaryItem as any).nota_id || `nota-${Date.now()}`;
-        const createdDate = getNowWIBISOString();
-        newlyAddedOrders = additionalItems.map((item, idx) => {
-          const itToko = ((item as any).toko || curToko).trim();
-          const itPemasok = ((item as any).pemasok || curPemasok).trim();
-          const itDapur = ((item as any).tujuanDapur || curDapur).trim();
-          const itCleanD = itDapur.replace(/^dapur\s+/i, '').trim().toLowerCase();
+        const itTokoId = item.toko_id || item.tokoId || masterToko.find((t) => t.nama.toLowerCase() === curToko.toLowerCase())?.id || itemExisting?.toko_id || null;
+        const itPemasokId = item.pemasok_id || item.pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === curPemasok.toLowerCase())?.id || itemExisting?.pemasok_id || null;
+        const itDapurId = item.dapur_id || item.dapurId || masterDapur.find((d) => d.nama.toLowerCase() === curDapur.toLowerCase() || d.nama.toLowerCase() === cleanD)?.id || itemExisting?.dapur_id || null;
 
-          const itTokoId = (item as any).toko_id || (item as any).tokoId || masterToko.find((t) => t.nama.toLowerCase() === itToko.toLowerCase())?.id || fTokoId || '';
-          const itPemasokId = (item as any).pemasok_id || (item as any).pemasokId || masterPemasok.find((p) => p.nama.toLowerCase() === itPemasok.toLowerCase())?.id || fPemasokId || '';
-          const itDapurId = (item as any).dapur_id || (item as any).dapurId || masterDapur.find((d) => d.nama.toLowerCase() === itDapur.toLowerCase() || d.nama.toLowerCase() === itCleanD)?.id || fDapurId || '';
+        const rawQ = Number(item.qty) || 0;
+        const rawQBeli = item.qty_beli !== undefined ? Number(item.qty_beli) : (item.qtyBeli !== undefined ? Number(item.qtyBeli) : rawQ);
 
-          const itRawQ = Number(item.qty) || 0;
-          const itRawQBeli = (item as any).qty_beli !== undefined ? Number((item as any).qty_beli) : ((item as any).qtyBeli !== undefined ? Number((item as any).qtyBeli) : itRawQ);
+        const mapped: OrderItem = {
+          ...(itemExisting || {}),
+          ...item,
+          notaId: sharedNotaId,
+          nota_id: sharedNotaId,
+          invoiceNumber: sharedInvoice,
+          invoice_number: sharedInvoice,
+          toko: curToko,
+          toko_id: itTokoId,
+          tujuanDapur: curDapur,
+          dapur: curDapur,
+          dapur_id: itDapurId,
+          pemasok: curPemasok,
+          pemasok_id: itPemasokId,
+          qty: rawQ,
+          qtyBeli: rawQBeli,
+          qty_beli: rawQBeli,
+        } as OrderItem;
 
-          return {
-            ...item,
-            namaBarang: ((item as any).namaBarang || (item as any).item || '').trim(),
-            tujuanDapur: itDapur,
-            toko: itToko,
-            pemasok: itPemasok,
-            toko_id: itTokoId,
-            pemasok_id: itPemasokId,
-            dapur_id: itDapurId,
-            qty: itRawQ,
-            qtyBeli: itRawQBeli,
-            qty_beli: itRawQBeli,
-            notaId: sharedNotaId,
-            nota_id: sharedNotaId,
-            invoiceNumber: oldOrder?.invoiceNumber || (oldOrder as any)?.invoice_number || (primaryItem as any).invoiceNumber,
-            invoice_number: oldOrder?.invoiceNumber || (oldOrder as any)?.invoice_number || (primaryItem as any).invoice_number,
+        if (itemExisting && itemExisting.id) {
+          existingOrdersToUpdate.push({
+            ...mapped,
+            id: itemExisting.id,
+            createdAt: itemExisting.createdAt || getNowWIBISOString(),
+          });
+        } else {
+          newOrdersToAdd.push({
+            ...mapped,
             id: `ord-${Date.now()}-${idx}-${Math.floor(Math.random() * 1000)}`,
-            createdAt: createdDate,
-          } as OrderItem;
-        });
-      }
-
-      setOrders((prev) => {
-        const updatedList = prev.map((o) => (o.id === editId ? updatedOrder : o));
-        return newlyAddedOrders.length > 0 ? [...newlyAddedOrders, ...updatedList] : updatedList;
+            createdAt: getNowWIBISOString(),
+          });
+        }
       });
 
-      const message = newlyAddedOrders.length > 0
-        ? `Pesanan diperbarui & ${newlyAddedOrders.length} item baru berhasil ditambahkan`
-        : 'Pesanan berhasil diperbarui';
+      const updateMap = new Map(existingOrdersToUpdate.map((o) => [o.id, o]));
+      const delSet = new Set(deletedIds);
+
+      setOrders((prev) => {
+        const filtered = prev.filter((o) => !delSet.has(o.id));
+        const updated = filtered.map((o) => updateMap.get(o.id) || o);
+        return newOrdersToAdd.length > 0 ? [...newOrdersToAdd, ...updated] : updated;
+      });
+
+      const message = `Pesanan (${itemsList.length} item) berhasil diperbarui`;
       showToast(message, 'edit');
 
       setIsLoadingDb(true);
-      const res = await updateOrderInDb(editId, updatedOrder);
-      if (newlyAddedOrders.length > 0) {
-        await saveOrdersBatchToDb(newlyAddedOrders);
-      }
-      setIsLoadingDb(false);
-      if (!res.success) {
-        setDbError(res.error || 'Gagal update pesanan di Supabase');
-        showToast(`Pesanan diperbarui di HP. Gagal simpan ke database: ${res.error}`, 'info');
-      } else {
-        showToast(message + ' & tersimpan', 'edit');
+      try {
+        if (deletedIds.length > 0) {
+          await deleteOrdersFromDb(deletedIds);
+        }
+        for (const itm of existingOrdersToUpdate) {
+          await updateOrderInDb(itm.id, itm);
+        }
+        if (newOrdersToAdd.length > 0) {
+          await saveOrdersBatchToDb(newOrdersToAdd);
+        }
+      } catch (err: any) {
+        console.error('[handleSaveOrder batch edit error]:', err);
+        setDbError(err?.message || 'Gagal menyimpan pembaruan ke database');
+      } finally {
+        setIsLoadingDb(false);
       }
       return;
     }
@@ -855,24 +860,49 @@ export function useOrderOperations({
     });
   }, [orders, invoices, setConfirmState, setIsLoadingDb, setInvoices, setOrders, showToast]);
 
-  const handleOpenEditOrder = useCallback((item: OrderItem) => {
+  const handleOpenEditOrder = useCallback((item: OrderItem, batchItems?: OrderItem[]) => {
+    let finalBatch = batchItems;
+    if ((!finalBatch || finalBatch.length <= 1) && item) {
+      const targetNota = item.notaId || item.nota_id;
+      if (targetNota) {
+        const matchingOrders = orders.filter(
+          (o) => (o.notaId && o.notaId === targetNota) || (o.nota_id && o.nota_id === targetNota)
+        );
+        if (matchingOrders.length > 1) {
+          finalBatch = matchingOrders;
+        }
+      } else if (item.tanggal && item.tujuanDapur && item.toko) {
+        const matchingOrders = orders.filter(
+          (o) =>
+            o.tanggal === item.tanggal &&
+            o.tujuanDapur === item.tujuanDapur &&
+            o.toko === item.toko
+        );
+        if (matchingOrders.length > 1) {
+          finalBatch = matchingOrders;
+        }
+      }
+    }
     setEditingOrder(item);
+    setEditingBatchOrders(finalBatch && finalBatch.length > 0 ? finalBatch : [item]);
     setPrefilledKitchen(item.tujuanDapur);
     setIsOrderModalOpen(true);
-  }, []);
+  }, [orders]);
 
   const handleOpenAddModal = useCallback((kitchenName?: string) => {
     setEditingOrder(null);
+    setEditingBatchOrders([]);
     setPrefilledKitchen(kitchenName);
     setIsOrderModalOpen(true);
   }, []);
-
 
   return {
     isOrderModalOpen,
     setIsOrderModalOpen,
     editingOrder,
     setEditingOrder,
+    editingBatchOrders,
+    setEditingBatchOrders,
     prefilledKitchen,
     setPrefilledKitchen,
     handleToggleStatus,
